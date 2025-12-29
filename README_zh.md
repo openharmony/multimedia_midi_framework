@@ -6,9 +6,8 @@ midi_framework部件为OpenHarmony系统提供了统一的MIDI设备访问、数
 
 midi_framework部件提供了以下常用功能：
 
-* MIDI设备发现与热插拔监听（USB/BLE MIDI 设备）
+* MIDI设备发现、热插拔监听（USB MIDI 设备）以及链接
 * MIDI数据传输（基于UMP协议的发送与接收）
-* MIDI协议自适应（UMP与MIDI 1.0字节流转换）
 
 **图 1** midi_framework部件架构图
 
@@ -31,25 +30,18 @@ midi_framework部件提供了以下常用功能：
 
 ```
 /foundation/multimedia/midi_framework   # midi_framework部件业务代码
-├── BUILD.gn                            # 编译入口
-├── bundle.json                         # 部件描述文件
-├── frameworks                          # 部件无独立进程框架代码的实现
-│   └── native                          # native c++实现 (libohmidi.so)
-├── interfaces                          # 外部接口层
+├── bundle.json                         # 部件编译文件
+├── frameworks                          # Midi组件业务代码
+│   └── native                          # 内部接口实现
+├── interfaces                          # 接口代码
 │   ├── inner_api                       # 系统内部件接口
-│   └── kits                            # 应用接口 (native_midi.h)
-├── sa_profile                          # 部件系统服务配置 (SAID配置)
+│   └── kits                            # 外部接口
+├── sa_profile                          # 系统服务配置
 ├── services                            # 服务实现代码
 │   ├── etc                             # 部件进程启动配置 (.cfg)
-│   ├── idl                             # MIDI服务IPC接口定义
-│   └── server                          # 服务IPC实现
-│       ├── client                      # 客户端会话实现
-│       ├── base                        # 基础数据结构定义 (UMP/Event)
-│       ├── manager                     # 核心管理逻辑 (ServiceClient/Device/DeviceConnection)
-│       ├── protocol                    # 协议处理 (UMP Converter)
-│       └── driver                      # 设备适配层
-│           ├── usb                     # USB适配层实现 (加载HDI)
-│           └── ble                     # BLE适配层实现 (对接Bluetooth)
+│   ├── idl                             # Midi服务IPC接口定义
+│   ├── server                          # Midi服务核心实现
+│   └── common                          # Midi服务通用实现
 └── test                                # 测试代码
     ├── fuzztest                        # fuzz测试
     └── unittest                        # 单元测试
@@ -78,10 +70,8 @@ midi_framework部件提供了以下常用功能：
 
 ### 使用说明
 
-使用说明参考开发指导中Audio/MIDI相关章节（待补充链接）。
+
 
 ## 相关仓
 
 * [媒体子系统](https://gitee.com/openharmony/docs/blob/master/zh-cn/readme/%E5%AA%92%E4%BD%93%E5%AD%90%E7%B3%BB%E7%BB%9F.md)
-* [驱动子系统_drivers_interface_midi]()
-* [驱动子系统_drivers_peripheral_midi]()
