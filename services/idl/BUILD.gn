@@ -1,0 +1,63 @@
+# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("//build/config/components/idl_tool/idl.gni")
+
+idl_gen_interface("midi_service_idl_interface") {
+    sources = [
+        "IIpcMidiClientInServer.idl",
+        "IMidiCallback.idl",
+        "IMidiService.idl",
+    ]
+
+    configs = [ ":midi_service_sa_idl_config" ]
+
+    subsystem_name = "multimedia"
+    part_name = "midi_framework"
+
+    log_domainid = "0xD003900"
+    log_tag = "MidiServiceIdl"
+}
+
+config("midi_service_sa_idl_config") {
+    include_dirs = [
+        "${target_gen_dir}"
+    ]
+}
+
+ohos_shared_library("midi_framework_interface") {
+    public_configs = [ ":midi_service_sa_idl_config" ]
+
+    output_values = get_target_outputs(":midi_service_idl_interface")
+    sources = filter_include(output_values, [ "*proxy.cpp" ])
+    sources += filter_include(output_values, [ "*stub.cpp" ])
+    sources += filter_include(output_values, [ "*types.cpp" ])
+
+    deps = [ ":midi_service_idl_interface" ]
+
+    external_deps = [
+        "c_utils:utils",
+        "hilog:libhilog",
+        "ipc:ipc_core",
+        "samgr:samgr_proxy"
+    ]
+
+    subsystem_name = "multimedia"
+    part_name = "midi_framework"
+
+    sanitize = {
+        cfi = true
+        cfi_cross_dso = true
+        debug = false
+    }
+}
