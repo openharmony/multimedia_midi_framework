@@ -37,7 +37,7 @@ public:
 
     bool HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) override;
 private:
-    sptr<IMidiInterface> midiHdi_ = nullptr;
+    sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;
 };
 }
 }
