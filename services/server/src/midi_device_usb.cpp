@@ -68,7 +68,7 @@ int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 
 int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 {
-    return midiHdi_->OpenDevice(deviceId);
+    return midiHdi_->CloseDevice(deviceId);
 }
 
 
