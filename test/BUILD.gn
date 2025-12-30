@@ -13,8 +13,8 @@
 
 import("//build/ohos.gni")
 import("//build/test.gni")
+import("//foundation/multimedia/midi_framework/config.gni")
 
-midi_framework_root = ".."
 module_output_path = "midi_framework/"
 group("midi_unit_test") {
   testonly = true

@@ -12,8 +12,7 @@
 # limitations under the License.
 
 import("//build/ohos.gni")
-
-midi_framework_root = "../../../"
+import("//foundation/multimedia/midi_framework/config.gni")
 
 
 ohos_shared_library("midiutils") {
