@@ -125,7 +125,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
                  deviceId, clientId);
         return MIDI_STATUS_OK;
     }
-    if (!deviceManager_.OpenDevice(deviceId)) {
+    if (deviceManager_.OpenDevice(deviceId) != MIDI_STATUS_OK) {
         MIDI_ERR_LOG("Open device failed: deviceId=%{public}" PRId64, deviceId);
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
@@ -160,7 +160,7 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 
     if (clients.empty()) {
         deviceClientContexts_.erase(it);
-        if (!deviceManager_.CloseDevice(deviceId)) {
+        if (deviceManager_.CloseDevice(deviceId) != MIDI_STATUS_OK) {
             MIDI_ERR_LOG("Close device failed: deviceId=%{public}" PRId64, deviceId);
             return MIDI_STATUS_UNKNOWN_ERROR;
         }

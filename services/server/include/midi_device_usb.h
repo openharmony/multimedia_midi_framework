@@ -29,15 +29,13 @@ public:
 
     std::vector<DeviceInformation> GetRegisteredDevices() override;
 
-    std::vector<PortInformation> GetPortsForDevice(int64_t deviceId) override;
+    int32_t OpenDevice(int64_t deviceId) override;
 
-    bool OpenDevice(int64_t deviceId) override;
+    int32_t CloseDevice(int64_t deviceId) override;
 
-    bool CloseDevice(int64_t deviceId) override;
-
-    bool HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) override;
+    int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) override;
 private:
-    sptr<IMidiInterface> midiHdi_ = nullptr;
+    sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;
 };
 }
 }

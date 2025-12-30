@@ -174,20 +174,20 @@ OH_MidiStatusCode MidiClientPrivate::GetDevices(OH_MidiDeviceInformation *infos,
     return MIDI_STATUS_OK;
 }
 
-OH_MidiStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice *midiDevice)
+OH_MidiStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **midiDevice)
 {
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiDevice is nullptr");
     std::lock_guard<std::mutex> lock(mutex_);
     auto ret = ipc_->OpenDevice(deviceId);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
     auto newDevice = new MidiDevicePrivate(ipc_, deviceId);
-    midiDevice = newDevice;
+    *midiDevice = newDevice;
     MIDI_INFO_LOG("Device opened: %{public}" PRId64, deviceId);
     return MIDI_STATUS_OK;
 }
 
 OH_MidiStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts)
 {
-    
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::map<int32_t, std::string>> portInfos;
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);
@@ -214,14 +214,15 @@ OH_MidiStatusCode MidiClientPrivate::DestroyMidiClient()
     return ipc_->DestroyMidiClient();
 }
 
-OH_MidiStatusCode MidiClient::CreateMidiClient(MidiClient *client, OH_MidiCallbacks callbacks, void *userData)
+OH_MidiStatusCode MidiClient::CreateMidiClient(MidiClient **client, OH_MidiCallbacks callbacks, void *userData)
 {
+    CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "client is nullptr");
     std::lock_guard<std::mutex> lock(clientsMutex);
     auto midiClient = std::make_unique<MidiClientPrivate>();
     OH_MidiStatusCode ret = midiClient->Init(callbacks, userData);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
     clients.push_back(std::move(midiClient));
-    client = clients.back().get();
+    *client = clients.back().get();
     return MIDI_STATUS_OK;
 }
 } // namespace MIDI

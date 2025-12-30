@@ -24,13 +24,11 @@ public:
 
     virtual std::vector<DeviceInformation> GetRegisteredDevices() = 0;
 
-    virtual std::vector<PortInformation> GetPortsForDevice(int64_t deviceId) = 0;
+    virtual int32_t OpenDevice(int64_t deviceId) = 0;
 
-    virtual bool OpenDevice(int64_t deviceId) = 0;
+    virtual int32_t CloseDevice(int64_t deviceId) = 0;
 
-    virtual bool CloseDevice(int64_t deviceId) = 0;
-
-    virtual bool HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) = 0;
+    virtual int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) = 0;
 };
 
 }

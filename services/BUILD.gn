@@ -77,7 +77,8 @@ ohos_shared_library("midi_service") {
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
     "common_event_service:cesfwk_innerkits",
-    "usb_manager:usbsrv_client"
+    "usb_manager:usbsrv_client",
+    "drivers_interface_midi:libmidi_proxy_1.0"
   ]
 
   cflags_cc = [ "-std=c++20" ]

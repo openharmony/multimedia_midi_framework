@@ -10,35 +10,52 @@ UsbMidiTransportDeviceDriver::UsbMidiTransportDeviceDriver()
 {
     midiHdi_ = IMidiInterface::Get(true);
 }
+static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceInfo device)
+{
+    std::vector<PortInformation> portInfos;
+    for (const auto &port : device.ports)
+    {
+        PortInformation portInfo;
+        portInfo.portId = port.portId;
+        portInfo.name = port.name;
+        portInfo.direction = (PortDirection)port.direction;
+        portInfo.transportProtocol = (TransportProtocol)device.protocol;
+        portInfos.push_back(portInfo);
+    }
+    return portInfos;
+}
 
 std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevices()
 {
-    // 默认返回空列表
-    return std::vector<DeviceInformation>();
+    std::vector<MidiDeviceInfo> deviceList;
+    midiHdi_->GetDeviceList(deviceList);
+    std::vector<DeviceInformation> deviceInfos;
+    for (auto device : deviceList) {
+        DeviceInformation devInfo;
+        devInfo.driverDeviceId = device.deviceId;
+        devInfo.deviceType = DEVICE_TYPE_USB;
+        devInfo.transportProtocol = (TransportProtocol)device.protocol;
+        devInfo.productName = device.productName;
+        devInfo.vendorName = device.vendorName;
+        devInfo.portInfos = ConvertToDeviceInformation(device);
+        deviceInfos.push_back(devInfo);
+    }
+    return deviceInfos;
 }
 
-std::vector<PortInformation> UsbMidiTransportDeviceDriver::GetPortsForDevice(int64_t deviceId)
+int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 {
-    // 默认返回空列表
-    return std::vector<PortInformation>();
-}
-
-bool UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
-{
-    // 默认返回失败
     return midiHdi_->OpenDevice(deviceId);
 }
 
-bool UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
+int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 {
-    // 默认返回失败
-    return false;
+    return midiHdi_->OpenDevice(deviceId);
 }
 
-bool UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list)
+int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list)
 {
-    // 默认返回失败
-    return false;
+    return 0;
 }
 
 } // namespace MIDI

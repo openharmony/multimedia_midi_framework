@@ -28,10 +28,10 @@ public:
 class MidiClient {
 public:
     virtual ~MidiClient() = default;
-    static OH_MidiStatusCode CreateMidiClient(MidiClient *client, OH_MidiCallbacks callbacks, void *userData);
+    static OH_MidiStatusCode CreateMidiClient(MidiClient **client, OH_MidiCallbacks callbacks, void *userData);
     virtual OH_MidiStatusCode Init(OH_MidiCallbacks callbacks, void *userData);
     virtual OH_MidiStatusCode GetDevices(OH_MidiDeviceInformation *infos, size_t *numDevices);
-    virtual OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice *midiDevice);
+    virtual OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice);
     virtual OH_MidiStatusCode GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts);
     virtual OH_MidiStatusCode DestroyMidiClient();
 };

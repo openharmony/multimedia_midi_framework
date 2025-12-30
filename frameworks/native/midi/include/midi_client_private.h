@@ -36,7 +36,7 @@ public:
     virtual ~MidiClientPrivate();
     OH_MidiStatusCode Init(OH_MidiCallbacks callbacks, void *userData) override;
     OH_MidiStatusCode GetDevices(OH_MidiDeviceInformation *infos, size_t *numDevices) override;
-    OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice *midiDevice) override;
+    OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
     OH_MidiStatusCode GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts) override;
     OH_MidiStatusCode DestroyMidiClient() override;
 private:

@@ -173,7 +173,7 @@ void MidiDeviceManager::CompareDevices(const std::vector<DeviceInformation>& old
             MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 
             ", driverId=%{public}" PRId64 
             ", name: %{public}s", 
-            newDevice.deviceId, newDevice.driverDeviceId, newDevice.productName);
+            newDevice.deviceId, newDevice.driverDeviceId, newDevice.productName.c_str());
         }
     }
 
@@ -188,7 +188,7 @@ void MidiDeviceManager::CompareDevices(const std::vector<DeviceInformation>& old
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 
             ", driverId=%{public}" PRId64 
             ", name: %{public}s", 
-            oldDevice.deviceId, oldDevice.driverDeviceId, oldDevice.productName);
+            oldDevice.deviceId, oldDevice.driverDeviceId, oldDevice.productName.c_str());
         }
     }
 

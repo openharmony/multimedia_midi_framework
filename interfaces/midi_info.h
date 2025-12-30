@@ -60,8 +60,8 @@ enum TransportProtocol {
 
 struct PortInformation {
     int64_t portId;
-    PortDirection direction;
     std::string name;
+    PortDirection direction;
     TransportProtocol transportProtocol;
 };
 
@@ -70,8 +70,8 @@ struct DeviceInformation{
     int64_t driverDeviceId;
     DeviceType deviceType;
     TransportProtocol transportProtocol;
-    char productName[256];
-    char vendorName[256];
+    std::string productName;
+    std::string vendorName;
     std::vector<PortInformation> portInfos;
     DeviceInformation() : deviceId(0), deviceType(DeviceType::DEVICE_TYPE_USB) {}
 };

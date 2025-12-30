@@ -4,7 +4,7 @@
         {
             "name": 3014,
             "libpath": "libmidi_service.z.so",
-            "run-on-create": true,
+            "run-on-create": false,
             "distributed": false,
             "start-on-demand": {
                 "allow-update": false

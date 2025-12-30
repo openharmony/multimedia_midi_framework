@@ -22,7 +22,7 @@ OH_MidiStatusCode OH_MidiClient_Create(OH_MidiClient **client, OH_MidiCallbacks 
     CHECK_AND_RETURN_RET_LOG(client != nullptr,
         MIDI_STATUS_GENERIC_INVALID_ARGUMENT,"client is nullptr");
     OHOS::MIDI::MidiClient *midiclient = nullptr;
-    OH_MidiStatusCode ret = OHOS::MIDI::MidiClient::CreateMidiClient(midiclient, callbacks, userData);
+    OH_MidiStatusCode ret = OHOS::MIDI::MidiClient::CreateMidiClient(&midiclient, callbacks, userData);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CreateMidiClient falid");
     *client = (OH_MidiClient*)midiclient;
     return MIDI_STATUS_OK;
@@ -36,7 +36,6 @@ OH_MidiStatusCode OH_MidiClient_Destroy(OH_MidiClient *client)
     OH_MidiStatusCode ret = midiclient->DestroyMidiClient();
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "DestroyMidiClient falid");
     delete midiclient;
-    client = nullptr;
     return MIDI_STATUS_OK;
 }
 
@@ -57,7 +56,7 @@ OH_MidiStatusCode OH_MidiOpenDevice(OH_MidiClient *client, int64_t deviceId, OH_
         MIDI_STATUS_GENERIC_INVALID_ARGUMENT,"Invalid parameter");
     OHOS::MIDI::MidiDevice *midiDevice = nullptr;
 
-    OH_MidiStatusCode ret = midiclient->OpenDevice(deviceId, midiDevice);
+    OH_MidiStatusCode ret = midiclient->OpenDevice(deviceId, &midiDevice);
     
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenDevice falid");
     *device = (OH_MidiDevice*) midiDevice;
@@ -79,7 +78,6 @@ OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device)
     OH_MidiStatusCode ret = midiDevice->CloseDevice();
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CloseDevice falid");
     delete midiDevice;
-    device = nullptr;
     return MIDI_STATUS_OK;
 }
 
