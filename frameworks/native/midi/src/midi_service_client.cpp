@@ -72,21 +72,6 @@ OH_MidiStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId, std::vecto
     return (OH_MidiStatusCode)ipc_->GetDevicePorts(deviceId, portInfos);
 }
 
-OH_MidiStatusCode MidiServiceClient::OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer,
-                                                    int64_t deviceId, uint32_t portIndex)
-{
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE,
-        "ipc_ is NULL.");
-    return (OH_MidiStatusCode)ipc_->OpenInputPort(buffer, deviceId, portIndex);
-}
-
-OH_MidiStatusCode MidiServiceClient::CloseInputPort(int64_t deviceId, uint32_t portIndex)
-{
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE,
-        "ipc_ is NULL.");
-    return (OH_MidiStatusCode)ipc_->CloseInputPort(deviceId, portIndex);
-}
-
 OH_MidiStatusCode MidiServiceClient::DestroyMidiClient()
 {
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE,

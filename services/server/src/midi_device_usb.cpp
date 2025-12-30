@@ -35,17 +35,6 @@ bool UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     return false;
 }
 
-
-bool UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
-{   // to be done
-    return false;
-}
-
-bool UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t portIndex)
-{
-    return false;
-}
-
 bool UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list)
 {
     // 默认返回失败

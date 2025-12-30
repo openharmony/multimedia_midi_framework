@@ -13,10 +13,6 @@
  * limitations under the License.
  */
 
-#ifndef LOG_TAG
-#define LOG_TAG "SharedMidiRing"
-#endif
-
 #include <cstring>
 #include <cerrno>
 #include <fcntl.h>
@@ -458,7 +454,7 @@ MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEvent* events,
     }
 
     if (notify) {
-        NotifyConsumer();
+        NotifyConsumer(); // todo: use event_fd
     }
     return (localWritten == eventCount) ? MidiStatusCode::OK : MidiStatusCode::WOULD_BLOCK;
 }
@@ -502,28 +498,21 @@ void SharedMidiRing::CommitRead(const PeekedEvent& ev)
     controler_->readPosition.store(end);
 }
 
-void SharedMidiRing::DrainToBatch(std::vector<MidiEvent>& outEvents,
-                                  std::vector<std::vector<uint32_t>>& outPayloadBuffers,
-                                  uint32_t maxEvents)
+void SharedMidiRing::DrainToBatch(std::vector<BatchedEvent>& outBatch, uint32_t maxEvents)
 {
     uint32_t count = 0;
     while (maxEvents == 0 || count < maxEvents) {
-        PeekedEvent peekedEvent;
-        MidiStatusCode status = PeekNext(peekedEvent);
-        if (status == MidiStatusCode::WOULD_BLOCK) {
+        PeekedEvent pev;
+        MidiStatusCode st = PeekNext(pev);
+        if (st == MidiStatusCode::WOULD_BLOCK) {
             break;
         }
-        if (status != MidiStatusCode::OK) {
+        if (st != MidiStatusCode::OK) {
             break;
         }
-
-        std::vector<uint32_t> payloadBuffer;
-        MidiEvent copiedEvent = CopyOut(peekedEvent, payloadBuffer);
-
-        outEvents.push_back(copiedEvent);
-        outPayloadBuffers.push_back(std::move(payloadBuffer));
-
-        CommitRead(peekedEvent);
+        BatchedEvent ev = CopyOut(pev);
+        outBatch.push_back(std::move(ev));
+        CommitRead(pev);
         ++count;
     }
 }
@@ -675,27 +664,16 @@ MidiStatusCode SharedMidiRing::BuildPeekedEvent(const ShmMidiEventHeader& header
     return MidiStatusCode::OK;
 }
 
-MidiEvent SharedMidiRing::CopyOut(const PeekedEvent& peekedEvent,
-                                  std::vector<uint32_t>& outPayloadBuffer) const
+BatchedEvent SharedMidiRing::CopyOut(const PeekedEvent& pev) const // todo: to be fix to ump format
 {
-    MidiEvent event {};
-    event.timestamp = peekedEvent.timestamp;
-
-    const size_t wordCount = static_cast<size_t>(peekedEvent.length);
-    event.length = wordCount;
-
-    const size_t payloadBytes = wordCount * sizeof(uint32_t);
-    outPayloadBuffer.resize(wordCount);
-
-    if (payloadBytes > 0) {
-        (void)memcpy_s(outPayloadBuffer.data(),
-                       payloadBytes,
-                       peekedEvent.payloadPtr,
-                       payloadBytes);
+    BatchedEvent ev;
+    ev.timestamp = pev.timestamp;
+    ev.length    = pev.length;
+    ev.data.resize(pev.length);
+    if (pev.length > 0) {
+        std::memcpy(ev.data.data(), pev.payloadPtr, pev.length);
     }
-
-    event.data = outPayloadBuffer.data();
-    return event;
-}
+    return ev;
+} 
 } // namespace MIDI
 } // namespace OHOS

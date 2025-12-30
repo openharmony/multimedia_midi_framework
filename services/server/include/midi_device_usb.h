@@ -35,11 +35,6 @@ public:
 
     bool CloseDevice(int64_t deviceId) override;
 
-    // register input callback while opening inputport
-    bool OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb) override;
-
-    bool CloseInputPort(int64_t deviceId, size_t portIndex) override;
-
     bool HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) override;
 private:
     sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;
