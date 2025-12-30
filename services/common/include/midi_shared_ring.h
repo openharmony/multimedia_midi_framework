@@ -113,9 +113,8 @@ public:
     MidiStatusCode PeekNext(PeekedEvent& outEvent);
 
     void CommitRead(const PeekedEvent& event);
-    void DrainToBatch(std::vector<MidiEvent>& outEvents,
-                      std::vector<std::vector<uint32_t>>& outPayloadBuffers,
-                      uint32_t maxEvents = 0);
+    void DrainToBatch(std::vector<BatchedEvent>& outBatch,
+                      uint32_t                   maxEvents = 0);
 
 private:
     bool ValidateOneEvent(const MidiEvent& event) const;
@@ -130,8 +129,7 @@ private:
     MidiStatusCode UpdateReadIndexIfNeed(uint32_t& readIndex, uint32_t writeIndex);
     MidiStatusCode HandleWrapIfNeeded(const ShmMidiEventHeader& hdr, uint32_t& r);
     MidiStatusCode BuildPeekedEvent(const ShmMidiEventHeader& hdr, uint32_t readIndex, PeekedEvent& outEvent);
-    MidiEvent CopyOut(const PeekedEvent& peekedEvent,
-                      std::vector<uint32_t>& outPayloadBuffer) const;
+    BatchedEvent CopyOut(const PeekedEvent& peekEvent) const;
 
     uint8_t*       base_{nullptr};
     ControlHeader* controler_{nullptr};

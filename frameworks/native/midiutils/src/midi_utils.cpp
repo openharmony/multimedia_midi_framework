@@ -13,9 +13,7 @@
  * limitations under the License.
  */
 
-#ifndef LOG_TAG
-#define LOG_TAG "MidiUtils"
-#endif
+// todo: add LOG_TAG
 
 #include <cinttypes>
 #include <ctime>
@@ -27,6 +25,7 @@
 
 #include "midi_log.h"
 #include "midi_utils.h"
+
 
 namespace OHOS {
 namespace MIDI {

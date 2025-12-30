@@ -96,12 +96,10 @@ OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device,
                                        OH_OnMidiReceived callback,
                                        void *userData)
 {
-    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice*) device;
-    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr,
-        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
+    (void)portIndex;
+    (void)callback;
+    (void)userData;
     
-    OH_MidiStatusCode ret = midiDevice->OpenInputPort(portIndex, callback, userData);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
     return MIDI_STATUS_OK;
 }
 
@@ -116,12 +114,9 @@ OH_MidiStatusCode OH_MidiOpenOutputPort(OH_MidiDevice *device,
 
 OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex)
 {
-    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice*) device;
-    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr,
-        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
+    (void)portIndex;
     
-    OH_MidiStatusCode ret = midiDevice->ClosePort(portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
+    
     return MIDI_STATUS_OK;
 }
 

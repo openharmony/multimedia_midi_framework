@@ -14,17 +14,10 @@
  */
 #ifndef MIDI_DEVICE_DRIVER_H
 #define MIDI_DEVICE_DRIVER_H
-
-#include <functional>
-#include <vector>
-
 #include "midi_info.h"
 
 namespace OHOS {
 namespace MIDI {
-
-using UmpInputCallback = std::function<void(std::vector<MidiEvent> &events)>;
-
 class MidiDeviceDriver {
 public:
     virtual ~MidiDeviceDriver() = default;
@@ -36,10 +29,6 @@ public:
     virtual bool OpenDevice(int64_t deviceId) = 0;
 
     virtual bool CloseDevice(int64_t deviceId) = 0;
-
-    virtual bool OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb) = 0;
-
-    virtual bool CloseInputPort(int64_t deviceId, size_t portIndex) = 0;
 
     virtual bool HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) = 0;
 };
