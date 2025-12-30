@@ -88,7 +88,7 @@ OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device)
 OH_MidiStatusCode OH_MidiGetDevicePorts(OH_MidiClient *client, int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient*) client;
-    CHECK_AND_RETURN_RET_LOG(midiclient != nullptr && infos != nullptr,
+    CHECK_AND_RETURN_RET_LOG(midiclient != nullptr && numPorts != nullptr,
         MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
     return midiclient->GetDevicePorts(deviceId, infos, numPorts);
 }
