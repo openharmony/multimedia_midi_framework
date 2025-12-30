@@ -33,6 +33,11 @@ public:
 
     int32_t CloseDevice(int64_t deviceId) override;
 
+    // register input callback while opening inputport
+    int32_t OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb) override;
+
+    int32_t CloseInputPort(int64_t deviceId, size_t portIndex) override;
+
     int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) override;
 private:
     sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;

@@ -75,9 +75,12 @@ public:
 
     const DeviceConnectionInfo& GetInfo() const { return info_; }
 
-    virtual int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle);
+    virtual int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle,
+                                        std::shared_ptr<SharedMidiRing> &buffer);
 
-    virtual void RemoveClientConnection(int64_t deviceHandle);
+    virtual void RemoveClientConnection(uint32_t clientId);
+
+    virtual bool IsEmptyClientConections();
 
 protected:
     std::vector<std::shared_ptr<ClientConnectionInServer>> SnapshotClients() const;
@@ -93,7 +96,7 @@ public:
     explicit DeviceConnectionForInput(DeviceConnectionInfo info);
     ~DeviceConnectionForInput() override = default;
 
-    void HandleDeviceUmpInput(std::vector<uint32_t> umpBytes, uint64_t timestampNs); // todo:明确span，跟hdi接口参数保持一致
+    void HandleDeviceUmpInput(std::vector<MidiEvent> &events);
 
 
 private:

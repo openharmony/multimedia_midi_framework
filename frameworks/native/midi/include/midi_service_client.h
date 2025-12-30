@@ -14,11 +14,14 @@
  */
 #ifndef MIDI_SERVICE_CLIENT_H
 #define MIDI_SERVICE_CLIENT_H
+
+#include <memory>
 #include "native_midi_base.h"
 #include "midi_info.h"
 #include "imidi_service.h"
 #include "midi_callback_stub.h"
 #include "iipc_midi_client_in_server.h"
+#include "midi_shared_ring.h"
 namespace OHOS {
 namespace MIDI {
 class MidiServiceClient {
@@ -30,6 +33,8 @@ public:
     OH_MidiStatusCode OpenDevice(int64_t deviceId);
     OH_MidiStatusCode CloseDevice(int64_t deviceId);
     OH_MidiStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos);
+    OH_MidiStatusCode OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId, uint32_t portIndex);
+    OH_MidiStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex);
     OH_MidiStatusCode DestroyMidiClient();
 private:
     sptr<IIpcMidiClientInServer> ipc_;

@@ -12,6 +12,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef LOG_TAG
+#define LOG_TAG "MidiDeviceConnection"
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -29,8 +32,6 @@
 
 namespace OHOS {
 namespace MIDI {
-
-
 
 // ====== UniqueFd ======
 UniqueFd::~UniqueFd() { Reset(); }
@@ -82,7 +83,8 @@ void DrainCounterFd(int fd)
 DeviceConnectionBase::DeviceConnectionBase(DeviceConnectionInfo info) : info_(info) {}
 
 
-int32_t DeviceConnectionBase::AddClientConnection(uint32_t clientId, int64_t deviceHandle)
+int32_t DeviceConnectionBase::AddClientConnection(uint32_t clientId, int64_t deviceHandle,
+                                                    std::shared_ptr<SharedMidiRing> &buffer)
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
@@ -91,17 +93,24 @@ int32_t DeviceConnectionBase::AddClientConnection(uint32_t clientId, int64_t dev
     CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer() == MIDI_STATUS_OK, MIDI_STATUS_UNKNOWN_ERROR,
         "init client connection fail");
     clients_.push_back(std::move(clientConnection));
+    buffer = clientConnection->GetRingBuffer();
     return MIDI_STATUS_OK;
 }
 
 
-void DeviceConnectionBase::RemoveClientConnection(int64_t deviceHandle)
+void DeviceConnectionBase::RemoveClientConnection(uint32_t clientId)
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     clients_.erase(std::remove_if(clients_.begin(), clients_.end(),
         [&](const std::shared_ptr<ClientConnectionInServer>& c) {
-            return c && c->GetDeviceHandle() == deviceHandle;
+            return c && c->GetClientId() == clientId;
         }), clients_.end());
+}
+
+bool DeviceConnectionBase::IsEmptyClientConections()
+{
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    return clients_.empty();
 }
 
 std::vector<std::shared_ptr<ClientConnectionInServer>> DeviceConnectionBase::SnapshotClients() const
@@ -113,13 +122,11 @@ std::vector<std::shared_ptr<ClientConnectionInServer>> DeviceConnectionBase::Sna
 // ====== DeviceConnectionForInput ======
 DeviceConnectionForInput::DeviceConnectionForInput(DeviceConnectionInfo info) : DeviceConnectionBase(info) {}
 
-void DeviceConnectionForInput::HandleDeviceUmpInput(std::vector<uint32_t> umpBytes, uint64_t timestampNs) // todo: param: vector<MidiEvent>
+void DeviceConnectionForInput::HandleDeviceUmpInput(std::vector<MidiEvent> &events)
 {
-    MidiEvent ev {};
-    ev.timestamp = timestampNs;
-    ev.length = umpBytes.size();
-    ev.data = umpBytes.data();
-    BroadcastToClients(ev);
+    for (auto &event: events) {
+        BroadcastToClients(event);
+    }
 }
 
 void DeviceConnectionForInput::BroadcastToClients(const MidiEvent& ev)

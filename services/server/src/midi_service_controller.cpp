@@ -137,6 +137,54 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     return MIDI_STATUS_OK;
 }
 
+int32_t MidiServiceController::OpenInputPort(uint32_t clientId,
+                        std::shared_ptr<SharedMidiRing> &buffer,
+                        int64_t deviceId, uint32_t portIndex)
+{
+    std::lock_guard lock(lock_);
+    auto it = deviceClientContexts_.find(deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(), MIDI_STATUS_UNKNOWN_ERROR,
+        "device %{public}" PRId64 "not opened", deviceId);
+    CHECK_AND_RETURN_RET_LOG(it->second.clients.find(clientId) != it->second.clients.end(),
+        MIDI_STATUS_UNKNOWN_ERROR, "client %{public}u doesn't open device %{public}" PRId64 "",
+        clientId, deviceId);
+    
+    auto &inputPortConnections = it->second.inputDeviceconnections_;
+    auto inputPort = inputPortConnections.find(portIndex);
+    if (inputPort != inputPortConnections.end()) {
+        inputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        return MIDI_STATUS_OK;
+    }
+    std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
+    deviceManager_.OpenInputPort(inputConnection, deviceId, portIndex);
+    if (inputConnection) {
+        inputConnection->AddClientConnection(clientId, deviceId, buffer);
+    }
+    inputPortConnections.emplace(portIndex, std::move(inputConnection));
+    return MIDI_STATUS_OK;
+}
+
+int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
+{
+    std::lock_guard lock(lock_);
+    auto it = deviceClientContexts_.find(deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(), MIDI_STATUS_OK,
+        "device %{public}" PRId64 "not opened", deviceId);
+    CHECK_AND_RETURN_RET_LOG(it->second.clients.find(clientId) != it->second.clients.end(),
+        MIDI_STATUS_OK, "client %{public}u doesn't open device %{public}" PRId64 "",
+        clientId, deviceId);
+    auto &inputPortConnections = it->second.inputDeviceconnections_;
+    auto inputPort = inputPortConnections.find(portIndex);
+    if (inputPort != inputPortConnections.end()) {
+        inputPort->second->RemoveClientConnection(clientId);
+        if (inputPort->second->IsEmptyClientConections()) {
+            inputPortConnections.erase(inputPort);
+        }
+    }
+    deviceManager_.CloseInputPort(deviceId, portIndex);
+    return MIDI_STATUS_OK;
+}
+
 int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 {
     std::lock_guard lock(lock_);

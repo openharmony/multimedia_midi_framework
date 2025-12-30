@@ -1,4 +1,4 @@
-    /*
+/*
  * Copyright (c) 2025 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -272,6 +272,50 @@ bool MidiDeviceManager::OpenDevice(int64_t deviceId)
     }
     
     return result;
+}
+
+
+bool MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
+                        int64_t deviceId, uint32_t portIndex)
+{
+    auto device = GetDeviceForDeviceId(deviceId);
+    if (device.deviceId == 0) {
+        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        return false;
+    }
+    auto driver = GetDriverForDeviceType(device.deviceType);
+    CHECK_AND_RETURN_RET_LOG(driver != nullptr, false, "driver is nullptr");
+    DeviceConnectionInfo info = {
+        .driver = driver,
+        .deviceId = deviceId,
+        .direction = MidiPortDirection::INPUT,
+        .portIndex = portIndex,
+    };
+    auto connection = std::make_shared<DeviceConnectionForInput>(info);
+    CHECK_AND_RETURN_RET_LOG(connection != nullptr, false, "connection is nullptr");
+    inputConnection = connection;
+    std::weak_ptr<DeviceConnectionForInput> weakConnection = connection;
+    // register DeviceConnectionForInput::HandleDeviceUmpInput
+    auto ret = driver->OpenInputPort(deviceId, static_cast<size_t>(portIndex),
+        [weakConnection](std::vector<MidiEvent> &events) {
+            if (auto locked = weakConnection.lock()) {
+                locked->HandleDeviceUmpInput(events);
+            }
+        });
+    return ret;
+}
+
+
+bool MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
+{
+    auto device = GetDeviceForDeviceId(deviceId);
+    if (device.deviceId == 0) {
+        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        return false;
+    }
+    auto driver = GetDriverForDeviceType(device.deviceType);
+    CHECK_AND_RETURN_RET_LOG(driver != nullptr, false, "driver is nullptr");
+    return driver->CloseInputPort(deviceId,  static_cast<size_t>(portIndex));
 }
 
 bool MidiDeviceManager::CloseDevice(int64_t deviceId)

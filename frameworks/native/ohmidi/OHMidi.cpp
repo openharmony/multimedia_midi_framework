@@ -12,6 +12,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef LOG_TAG
+#define LOG_TAG "OHMidiClient"
+#endif
+
 #include "native_midi_base.h"
 #include "native_midi.h"
 #include "midi_client.h"
@@ -94,10 +98,12 @@ OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device,
                                        OH_OnMidiReceived callback,
                                        void *userData)
 {
-    (void)portIndex;
-    (void)callback;
-    (void)userData;
+    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice*) device;
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
     
+    OH_MidiStatusCode ret = midiDevice->OpenInputPort(portIndex, callback, userData);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
     return MIDI_STATUS_OK;
 }
 
@@ -112,9 +118,12 @@ OH_MidiStatusCode OH_MidiOpenOutputPort(OH_MidiDevice *device,
 
 OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex)
 {
-    (void)portIndex;
+    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice*) device;
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
     
-    
+    OH_MidiStatusCode ret = midiDevice->ClosePort(portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
     return MIDI_STATUS_OK;
 }
 

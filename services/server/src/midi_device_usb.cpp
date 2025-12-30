@@ -1,3 +1,21 @@
+/*
+ * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#ifndef LOG_TAG
+#define LOG_TAG "UsbDeviceDriver"
+#endif
+
 #include "midi_log.h"
 #include "midi_device_usb.h"
 
@@ -51,6 +69,17 @@ int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 {
     return midiHdi_->OpenDevice(deviceId);
+}
+
+
+int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
+{   // to be done
+    return 0;
+}
+
+int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t portIndex)
+{
+    return 0;
 }
 
 int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list)

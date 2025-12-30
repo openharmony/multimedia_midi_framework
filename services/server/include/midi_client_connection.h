@@ -44,7 +44,7 @@ public:
     };
 
 public:
-    ClientConnectionInServer(uint32_t clientId, int64_t handle, int64_t portIndex)
+    ClientConnectionInServer(uint32_t clientId, int64_t handle, uint32_t portIndex)
         : clientId_(clientId), deviceHandle_(handle), portIndex_(portIndex) {}
     ~ClientConnectionInServer() = default;
 
@@ -70,7 +70,7 @@ public:
 private:
     uint32_t clientId_ = 0;
     int64_t deviceHandle_ = -1;
-    int64_t portIndex_ = -1;
+    uint32_t portIndex_ = -1;
 
     std::shared_ptr<SharedMidiRing> sharedRingBuffer_ = nullptr;
 

@@ -14,20 +14,62 @@
  */
 #ifndef MIDI_CLIENT_PRIVATE_H
 #define MIDI_CLIENT_PRIVATE_H
+
+#include <cstdint>
+#include <mutex>
+#include <unordered_map>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <thread>
+#include <vector>
+
 #include "midi_client.h"
 #include "midi_service_client.h"
+#include "midi_shared_ring.h"
 namespace OHOS {
 namespace MIDI {
 
 class MidiClientCallback;
+
+
+class MidiInputPort {
+public:
+    MidiInputPort(OH_OnMidiReceived callback, void *userData);
+    ~MidiInputPort();
+    std::shared_ptr<SharedMidiRing> &GetRingBuffer();
+
+    bool StartReceiverThread();
+    bool StopReceiverThread();
+
+private:
+    void ReceiverThreadLoop();
+
+    void DrainRingAndDispatch();
+
+    bool ShouldWakeForReadOrExit() const;
+
+    std::atomic<bool> running_ = false;
+    OH_OnMidiReceived callback_ = nullptr;
+    std::shared_ptr<SharedMidiRing> ringBuffer_ = nullptr;
+    std::thread receiverThread_;
+    void *userData_ = nullptr;
+};
+
 class MidiDevicePrivate : public MidiDevice {
 public:
     MidiDevicePrivate(std::shared_ptr<MidiServiceClient> midiServiceClient, int64_t deviceId);
     virtual ~MidiDevicePrivate();
     OH_MidiStatusCode CloseDevice() override;
+    OH_MidiStatusCode OpenInputPort(uint32_t portIndex, OH_OnMidiReceived callback,
+                                            void *userData) override;
+    OH_MidiStatusCode ClosePort(uint32_t portIndex) override;
 private:
     std::shared_ptr<MidiServiceClient> ipc_;
     int64_t deviceId_;
+    std::mutex inputPortsMutex_;
+    std::unordered_map<uint32_t, std::shared_ptr<MidiInputPort>> inputPortsMap_;
 };
 
 class MidiClientPrivate : public MidiClient {

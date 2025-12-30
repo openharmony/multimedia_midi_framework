@@ -13,11 +13,15 @@
  * limitations under the License.
  */
 
-#include "midi_client_private.h"
+#ifndef LOG_TAG
+#define LOG_TAG "MidiClient"
+#endif
 
 #include <cstring>
+#include <chrono>
 
 #include "midi_log.h"
+#include "midi_client_private.h"
 #include "midi_callback_stub.h"
 
 namespace OHOS {
@@ -128,6 +132,169 @@ OH_MidiStatusCode MidiDevicePrivate::CloseDevice()
 {
     return ipc_->CloseDevice(deviceId_);
 }
+
+OH_MidiStatusCode MidiDevicePrivate::OpenInputPort(uint32_t portIndex, OH_OnMidiReceived callback,
+                                            void *userData)
+{
+    {
+        std::lock_guard<std::mutex> lock(inputPortsMutex_);
+        auto iter = inputPortsMap_.find(portIndex);
+        if (iter != inputPortsMap_.end()) {
+            return MIDI_STATUS_OK;
+        }
+    }
+    auto inputPort = std::make_shared<MidiInputPort>(callback, userData);
+    std::shared_ptr<SharedMidiRing>& buffer = inputPort->GetRingBuffer();
+    auto ret = ipc_->OpenInputPort(buffer, deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open inputport fail");
+
+    CHECK_AND_RETURN_RET_LOG(inputPort->StartReceiverThread() == true,
+                             MIDI_STATUS_UNKNOWN_ERROR,
+                             "start receiver thread fail");
+
+    {
+        std::lock_guard<std::mutex> lock(inputPortsMutex_);
+        inputPortsMap_.emplace(portIndex, std::move(inputPort));
+    }
+    return MIDI_STATUS_OK;
+}
+
+OH_MidiStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
+{
+    OH_MidiStatusCode ret = MIDI_STATUS_OK;
+    {
+        std::lock_guard<std::mutex> lock(inputPortsMutex_);
+        auto it = inputPortsMap_.find(portIndex);
+        if (it != inputPortsMap_.end()) {
+            ret = ipc_->CloseInputPort(deviceId_, portIndex);
+            inputPortsMap_.erase(it);
+        }
+    }
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close inputport fail");
+    return MIDI_STATUS_OK;
+}
+
+MidiInputPort::MidiInputPort(OH_OnMidiReceived callback, void *userData)
+    : callback_(callback), userData_(userData)
+{
+    MIDI_INFO_LOG("InputPort created");
+}
+
+bool MidiInputPort::StartReceiverThread()
+{
+    CHECK_AND_RETURN_RET_LOG(running_.load() != true, false, "already start");
+    CHECK_AND_RETURN_RET_LOG(ringBuffer_ != nullptr && callback_ != nullptr,
+        false, "buffer or callback is nullptr");
+    running_.store(true);
+    receiverThread_ = std::thread(&MidiInputPort::ReceiverThreadLoop, this);
+    return true;
+}
+
+
+bool MidiInputPort::StopReceiverThread()
+{
+    bool expected = true;
+    if (!running_.compare_exchange_strong(expected, false)) {
+        return true;
+    }
+
+    if (ringBuffer_) {
+        std::atomic<uint32_t>* futexPtr = ringBuffer_->GetFutex();
+        if (futexPtr != nullptr) {
+            (void)FutexTool::FutexWake(futexPtr, IS_PRE_EXIT);
+        }
+    }
+    if (receiverThread_.joinable()) {
+        receiverThread_.join();
+    }
+    return true;
+}
+
+void MidiInputPort::ReceiverThreadLoop()
+{
+    if (!ringBuffer_) {
+        running_.store(false);
+        return;
+    }
+
+    std::atomic<uint32_t>* futexPtr = ringBuffer_->GetFutex();
+    if (futexPtr == nullptr) {
+        running_.store(false);
+        return;
+    }
+
+    constexpr int64_t kWaitForever = -1;
+
+    while (running_.load()) {
+        (void)FutexTool::FutexWait(
+            futexPtr,
+            kWaitForever,
+            [this]() { return ShouldWakeForReadOrExit(); });
+
+        if (!running_.load()) {
+            break;
+        }
+
+        DrainRingAndDispatch();
+    }
+}
+
+
+bool MidiInputPort::ShouldWakeForReadOrExit() const
+{
+    if (!running_.load()) {
+        return true;
+    }
+    if (!ringBuffer_) {
+        return true;
+    }
+
+    SharedMidiRing::PeekedEvent peekedEvent {};
+    MidiStatusCode status = ringBuffer_->PeekNext(peekedEvent);
+    return (status == MidiStatusCode::OK);
+}
+
+void MidiInputPort::DrainRingAndDispatch()
+{
+    if (!ringBuffer_ || callback_ == nullptr) {
+        return;
+    }
+
+    std::vector<MidiEvent> midiEvents;
+    std::vector<std::vector<uint32_t>> payloadBuffers;
+
+    ringBuffer_->DrainToBatch(midiEvents, payloadBuffers, 0);
+
+    if (midiEvents.empty()) {
+        return;
+    }
+
+    std::vector<OH_MidiEvent> callbackEvents;
+    callbackEvents.reserve(midiEvents.size());
+
+    for (const auto& event : midiEvents) {
+        OH_MidiEvent callbackEvent {};
+        callbackEvent.timestamp = event.timestamp;
+        callbackEvent.length = event.length;
+        callbackEvent.data = event.data;       
+        callbackEvents.push_back(callbackEvent);
+    }
+
+    callback_(userData_, callbackEvents.data(), callbackEvents.size());
+}
+
+
+
+MidiInputPort::~MidiInputPort()
+{
+    (void)StopReceiverThread();
+}
+
+std::shared_ptr<SharedMidiRing> &MidiInputPort::GetRingBuffer()
+{
+    return ringBuffer_;
+}
+
 
 MidiClientPrivate::MidiClientPrivate() 
     : ipc_(std::make_shared<MidiServiceClient>()) 

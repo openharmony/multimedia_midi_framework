@@ -23,6 +23,9 @@ class MidiDevice {
 public:
     virtual ~MidiDevice() = default;
     virtual OH_MidiStatusCode CloseDevice();
+    virtual OH_MidiStatusCode OpenInputPort(uint32_t portIndex, OH_OnMidiReceived callback,
+                                            void *userData);
+    virtual OH_MidiStatusCode ClosePort(uint32_t portIndex);
 };
 
 class MidiClient {

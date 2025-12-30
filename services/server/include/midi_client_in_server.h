@@ -16,6 +16,7 @@
 #ifndef MIDI_CLIENT_IN_SERVER_H
 #define MIDI_CLIENT_IN_SERVER_H
 #include "midi_info.h"
+#include "midi_shared_ring.h"
 #include "ipc_midi_client_in_server_stub.h"
 namespace OHOS {
 namespace MIDI {
@@ -26,6 +27,9 @@ public:
     int32_t GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports) override;
     int32_t OpenDevice(int64_t deviceId) override;
     int32_t CloseDevice(int64_t deviceId) override;
+    int32_t OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer,
+        int64_t deviceId, uint32_t portIndex) override;
+    int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t DestroyMidiClient() override;
     void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo);
     void NotifyError(int32_t code);

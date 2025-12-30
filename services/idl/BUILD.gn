@@ -13,6 +13,8 @@
 
 import("//build/config/components/idl_tool/idl.gni")
 
+midi_framework_root = "../.."
+
 idl_gen_interface("midi_service_idl_interface") {
     sources = [
         "IIpcMidiClientInServer.idl",
@@ -31,7 +33,11 @@ idl_gen_interface("midi_service_idl_interface") {
 
 config("midi_service_sa_idl_config") {
     include_dirs = [
-        "${target_gen_dir}"
+        "${target_gen_dir}",
+        "${midi_framework_root}/services/common/include",
+        "${midi_framework_root}/frameworks/native/midiutils/include",
+        "${midi_framework_root}/interfaces/",
+        "${midi_framework_root}/interfaces/kits/c/midi",
     ]
 }
 
@@ -39,7 +45,13 @@ ohos_shared_library("midi_framework_interface") {
     public_configs = [ ":midi_service_sa_idl_config" ]
 
     output_values = get_target_outputs(":midi_service_idl_interface")
-    sources = filter_include(output_values, [ "*proxy.cpp" ])
+
+    sources = [
+        "${midi_framework_root}/services/common/src/futex_tool.cpp",
+        "${midi_framework_root}/services/common/src/midi_shared_ring.cpp",
+        "${midi_framework_root}/frameworks/native/midiutils/src/midi_utils.cpp",
+    ]
+    sources += filter_include(output_values, [ "*proxy.cpp" ])
     sources += filter_include(output_values, [ "*stub.cpp" ])
     sources += filter_include(output_values, [ "*types.cpp" ])
 

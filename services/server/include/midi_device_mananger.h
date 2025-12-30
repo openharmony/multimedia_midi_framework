@@ -17,6 +17,7 @@
 #define MIDI_DEVICE_MANANGER_H
 #include <vector>
 #include <unordered_map>
+#include "midi_device_connection.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
 #include "common_event_manager.h"
@@ -51,6 +52,9 @@ public:
     void UpdateDevices();
     bool OpenDevice(int64_t deviceId);
     bool CloseDevice(int64_t deviceId);
+    bool OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
+                        int64_t deviceId, uint32_t portIndex);
+    bool CloseInputPort(int64_t deviceId, uint32_t portIndex);
 private:
     int64_t GenerateDeviceId();
     int64_t GetOrCreateDeviceId(int64_t driverDeviceId, DeviceType type);

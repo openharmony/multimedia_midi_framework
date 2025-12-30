@@ -1,9 +1,29 @@
+/*
+ * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef LOG_TAG
+#define LOG_TAG "MidiServiceClient"
+#endif
+
+#include <algorithm>
+
 #include "midi_service_client.h"
 #include "midi_log.h"
 #include "iservice_registry.h"
 #include "system_ability_definition.h"
 #include "midi_service_death_recipent.h"
-#include <algorithm>
 
 namespace OHOS {
 namespace MIDI {
@@ -70,6 +90,21 @@ OH_MidiStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId, std::vecto
         "ipc_ is NULL.");
 
     return (OH_MidiStatusCode)ipc_->GetDevicePorts(deviceId, portInfos);
+}
+
+OH_MidiStatusCode MidiServiceClient::OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer,
+                                                    int64_t deviceId, uint32_t portIndex)
+{
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE,
+        "ipc_ is NULL.");
+    return (OH_MidiStatusCode)ipc_->OpenInputPort(buffer, deviceId, portIndex);
+}
+
+OH_MidiStatusCode MidiServiceClient::CloseInputPort(int64_t deviceId, uint32_t portIndex)
+{
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE,
+        "ipc_ is NULL.");
+    return (OH_MidiStatusCode)ipc_->CloseInputPort(deviceId, portIndex);
 }
 
 OH_MidiStatusCode MidiServiceClient::DestroyMidiClient()

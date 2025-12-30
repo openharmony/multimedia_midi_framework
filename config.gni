@@ -11,4 +11,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-midi_framework_root = "//foundation/multimedia"
+midi_framework_root = "//foundation/multimedia/midi_framework"

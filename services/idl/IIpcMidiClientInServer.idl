@@ -14,11 +14,14 @@
  */
 package OHOS.MIDI;
 sequenceable OHOS.IRemoteObject;
+sequenceable midi_shared_ring..OHOS.MIDI.SharedMidiRing;
 
 interface IIpcMidiClientInServer{
     [ipccode 0] void GetDevices([out] List<OrderedMap<int, String>> devices);
     void GetDevicePorts([in] long deviceId, [out] List<OrderedMap<int, String>> ports);
     void OpenDevice([in] long deviceId);
+    void OpenInputPort([out] sharedptr<SharedMidiRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
+    void CloseInputPort([in] long deviceId, [in] unsigned int portIndex);
     void CloseDevice([in] long deviceId);
     void DestroyMidiClient();
 }
