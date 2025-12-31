@@ -50,7 +50,7 @@ HWTEST_F(MidiClientUnitTest, Init001, TestSize.Level0)
     };
     void *userData = nullptr;
     MidiClient *midiClient = nullptr;
-    MidiClient::CreateMidiClient(midiClient, callbacks, userData);
+    MidiClient::CreateMidiClient(&midiClient, callbacks, userData);
 }
 
 }  // namespace
