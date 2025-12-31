@@ -411,13 +411,13 @@ void SharedMidiRing::NotifyConsumer(uint32_t wakeVal)
 
 //==================== Write Side ====================//
 
-MidiStatusCode SharedMidiRing::TryWriteEvent(const MidiEvent& event, bool notify)
+MidiStatusCode SharedMidiRing::TryWriteEvent(const MidiEventInner& event, bool notify)
 {
     uint32_t written = 0;
     return TryWriteEvents(&event, 1, &written, notify);
 }
 
-MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEvent* events,
+MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEventInner* events,
                                               uint32_t eventCount,
                                               uint32_t* eventsWritten,
                                               bool notify)
@@ -435,7 +435,7 @@ MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEvent* events,
     uint32_t writeIndex = controler_->writePosition.load();
 
     for (uint32_t i = 0; i < eventCount; ++i) {
-        const MidiEvent& event = events[i];
+        const MidiEventInner& event = events[i];
         if (!ValidateOneEvent(event)) {
             break;
         }
@@ -530,7 +530,7 @@ void SharedMidiRing::DrainToBatch(std::vector<MidiEvent>& outEvents,
 
 //==================== Private Helpers (All <= 50 lines) ====================//
 
-MidiStatusCode SharedMidiRing::ValidateWriteArgs(const MidiEvent* events, uint32_t eventCount) const
+MidiStatusCode SharedMidiRing::ValidateWriteArgs(const MidiEventInner* events, uint32_t eventCount) const
 {
     if (eventCount == 0) {
         return MidiStatusCode::OK;
@@ -544,7 +544,7 @@ MidiStatusCode SharedMidiRing::ValidateWriteArgs(const MidiEvent* events, uint32
     return MidiStatusCode::OK;
 }
 
-bool SharedMidiRing::ValidateOneEvent(const MidiEvent& event) const
+bool SharedMidiRing::ValidateOneEvent(const MidiEventInner& event) const
 {
     // if (event.length > 0 && event.data == nullptr) { // to be deleted
     //     return false;
@@ -562,7 +562,7 @@ bool SharedMidiRing::ValidateOneEvent(const MidiEvent& event) const
     return true;
 }
 
-MidiStatusCode SharedMidiRing::TryWriteOneEvent(const MidiEvent& event,
+MidiStatusCode SharedMidiRing::TryWriteOneEvent(const MidiEventInner& event,
                                                 uint32_t totalBytes,
                                                 uint32_t readIndex,
                                                 uint32_t& writeIndex)
@@ -602,7 +602,7 @@ bool SharedMidiRing::UpdateWriteIndexIfNeed(uint32_t& writeIndex, uint32_t total
     return true;
 }
 
-void SharedMidiRing::WriteEvent(uint32_t writeIndex, const MidiEvent& event)
+void SharedMidiRing::WriteEvent(uint32_t writeIndex, const MidiEventInner& event)
 {
     uint8_t* dst = ringBase_ + writeIndex;
     auto* header = reinterpret_cast<ShmMidiEventHeader*>(dst);

@@ -156,6 +156,7 @@ OH_MidiStatusCode MidiDevicePrivate::OpenInputPort(uint32_t portIndex, OH_OnMidi
         std::lock_guard<std::mutex> lock(inputPortsMutex_);
         inputPortsMap_.emplace(portIndex, std::move(inputPort));
     }
+    MIDI_INFO_LOG("port[%{public}u] success", portIndex);
     return MIDI_STATUS_OK;
 }
 

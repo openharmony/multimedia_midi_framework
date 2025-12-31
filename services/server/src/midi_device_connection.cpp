@@ -122,14 +122,14 @@ std::vector<std::shared_ptr<ClientConnectionInServer>> DeviceConnectionBase::Sna
 // ====== DeviceConnectionForInput ======
 DeviceConnectionForInput::DeviceConnectionForInput(DeviceConnectionInfo info) : DeviceConnectionBase(info) {}
 
-void DeviceConnectionForInput::HandleDeviceUmpInput(std::vector<MidiEvent> &events)
+void DeviceConnectionForInput::HandleDeviceUmpInput(std::vector<MidiEventInner> &events)
 {
     for (auto &event: events) {
         BroadcastToClients(event);
     }
 }
 
-void DeviceConnectionForInput::BroadcastToClients(const MidiEvent& ev)
+void DeviceConnectionForInput::BroadcastToClients(const MidiEventInner& ev)
 {
     auto clients = SnapshotClients();
     for (auto& c : clients) {

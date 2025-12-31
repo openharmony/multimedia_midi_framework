@@ -56,7 +56,7 @@ public:
 
     std::shared_ptr<SharedMidiRing> GetRingBuffer();
 
-    int32_t TrySendToClient(const MidiEvent& event);
+    int32_t TrySendToClient(const MidiEventInner& event);
 
     void SetMaxPending(size_t maxPending) { maxPending_ = maxPending; }
     bool IsPendingFull() const { return pending_.size() >= maxPending_; }

@@ -297,7 +297,7 @@ bool MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInput> 
     std::weak_ptr<DeviceConnectionForInput> weakConnection = connection;
     // register DeviceConnectionForInput::HandleDeviceUmpInput
     auto ret = driver->OpenInputPort(deviceId, static_cast<size_t>(portIndex),
-        [weakConnection](std::vector<MidiEvent> &events) {
+        [weakConnection](std::vector<MidiEventInner> &events) {
             if (auto locked = weakConnection.lock()) {
                 locked->HandleDeviceUmpInput(events);
             }

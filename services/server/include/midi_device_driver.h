@@ -23,7 +23,7 @@
 namespace OHOS {
 namespace MIDI {
 
-using UmpInputCallback = std::function<void(std::vector<MidiEvent> &events)>;
+using UmpInputCallback = std::function<void(std::vector<MidiEventInner> &events)>;
 
 class MidiDeviceDriver {
 public:
@@ -39,7 +39,7 @@ public:
 
     virtual int32_t CloseInputPort(int64_t deviceId, size_t portIndex) = 0;
 
-    virtual int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list) = 0;
+    virtual int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list) = 0;
 };
 
 }
