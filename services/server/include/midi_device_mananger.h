@@ -50,11 +50,11 @@ public:
     std::vector<DeviceInformation> GetDevices();
     std::vector<PortInformation> GetDevicePorts(int64_t deviceId);
     void UpdateDevices();
-    bool OpenDevice(int64_t deviceId);
-    bool CloseDevice(int64_t deviceId);
-    bool OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
+    int32_t OpenDevice(int64_t deviceId);
+    int32_t CloseDevice(int64_t deviceId);
+    int32_t OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
                         int64_t deviceId, uint32_t portIndex);
-    bool CloseInputPort(int64_t deviceId, uint32_t portIndex);
+    int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex);
 private:
     int64_t GenerateDeviceId();
     int64_t GetOrCreateDeviceId(int64_t driverDeviceId, DeviceType type);

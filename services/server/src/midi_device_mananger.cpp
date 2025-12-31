@@ -247,7 +247,7 @@ std::vector<PortInformation> MidiDeviceManager::GetDevicePorts(int64_t deviceId)
     return device.portInfos;
 }
 
-bool MidiDeviceManager::OpenDevice(int64_t deviceId)
+int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 {
     MIDI_INFO_LOG("Opening device: %{public}" PRId64, deviceId);
     
@@ -264,8 +264,8 @@ bool MidiDeviceManager::OpenDevice(int64_t deviceId)
         return false;
     }
 
-    bool result = driver->OpenDevice(device.driverDeviceId);
-    if (result) {
+    int32_t result = driver->OpenDevice(device.driverDeviceId);
+    if (result == 0) {
         MIDI_INFO_LOG("Device opened successfully: %{public}" PRId64, deviceId);
     } else {
         MIDI_ERR_LOG("Failed to open device: %{public}" PRId64, deviceId);
@@ -275,7 +275,7 @@ bool MidiDeviceManager::OpenDevice(int64_t deviceId)
 }
 
 
-bool MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
+int32_t MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
                         int64_t deviceId, uint32_t portIndex)
 {
     auto device = GetDeviceForDeviceId(deviceId);
@@ -306,7 +306,7 @@ bool MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInput> 
 }
 
 
-bool MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
+int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.deviceId == 0) {
@@ -318,7 +318,7 @@ bool MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
     return driver->CloseInputPort(deviceId,  static_cast<size_t>(portIndex));
 }
 
-bool MidiDeviceManager::CloseDevice(int64_t deviceId)
+int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 {
     MIDI_INFO_LOG("Closing device: %{public}" PRId64, deviceId);
     
@@ -337,8 +337,8 @@ bool MidiDeviceManager::CloseDevice(int64_t deviceId)
         return false;
     }
 
-    bool result = driver->CloseDevice(device.driverDeviceId);
-    if (result) {
+    int32_t result = driver->CloseDevice(device.driverDeviceId);
+    if (result == 0) {
         MIDI_INFO_LOG("Device closed successfully: midiId=%{public}" PRId64 
                      ", driverId=%{public}" PRId64, 
                      deviceId, device.driverDeviceId);
