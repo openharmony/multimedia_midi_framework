@@ -96,11 +96,11 @@ public:
     explicit DeviceConnectionForInput(DeviceConnectionInfo info);
     ~DeviceConnectionForInput() override = default;
 
-    void HandleDeviceUmpInput(std::vector<MidiEvent> &events);
+    void HandleDeviceUmpInput(std::vector<MidiEventInner> &events);
 
 
 private:
-    void BroadcastToClients(const MidiEvent& ev);
+    void BroadcastToClients(const MidiEventInner& ev);
 };
 
 class DeviceConnectionForOutput final : public DeviceConnectionBase {

@@ -73,19 +73,35 @@ int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 
 
 int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
-{   // to be done
-    return 0;
+{
+    auto usbCallback = sptr<UsbDriverCallback>::MakeSptr(cb);
+    return midiHdi_->OpenInputPort(deviceId, portIndex, usbCallback);
 }
 
 int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t portIndex)
 {
-    return 0;
+    return midiHdi_->CloseInputPort(deviceId, portIndex);
 }
 
-int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEvent list)
+int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list)
 {
     return 0;
 }
 
+int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi::V1_0::MidiMessage>& messages)
+{
+    std::vector<MidiEventInner> events;
+    events.reserve(messages.size());
+    for (auto& message: messages) {
+        MidiEventInner event = {
+            .timestamp = message.timestamp,
+            .length = message.data.size(),
+            .data = message.data.data(),
+        };
+        events.emplace_back(event);
+    }
+    callback_(events);
+    return 0;
+}
 } // namespace MIDI
 } // namespace OHOS

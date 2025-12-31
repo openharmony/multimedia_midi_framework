@@ -42,7 +42,7 @@ int32_t ClientConnectionInServer::CreateRingBuffer()
 }
 
 
-int32_t ClientConnectionInServer::TrySendToClient(const MidiEvent& event)
+int32_t ClientConnectionInServer::TrySendToClient(const MidiEventInner& event)
 {
     CHECK_AND_RETURN_RET(sharedRingBuffer_->TryWriteEvent(event) == MidiStatusCode::OK,
         MIDI_STATUS_UNKNOWN_ERROR, "try send event fail");

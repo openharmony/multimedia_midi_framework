@@ -93,11 +93,11 @@ public:
     void NotifyConsumer(uint32_t wakeVal = IS_READY);
     bool IsEmpty() const;
     ControlHeader *GetControlHeader();
-    MidiStatusCode TryWriteEvents(const MidiEvent* events,
+    MidiStatusCode TryWriteEvents(const MidiEventInner* events,
                                   uint32_t         eventCount,
                                   uint32_t*        eventsWritten,
                                   bool             notify = true);
-    MidiStatusCode TryWriteEvent(const MidiEvent& event,
+    MidiStatusCode TryWriteEvent(const MidiEventInner& event,
                                  bool             notify = true);
 
     struct PeekedEvent {
@@ -118,11 +118,11 @@ public:
                       uint32_t maxEvents = 0);
 
 private:
-    bool ValidateOneEvent(const MidiEvent& event) const;
+    bool ValidateOneEvent(const MidiEventInner& event) const;
     void WakeFutex(uint32_t wakeVal = IS_READY);
-    void WriteEvent(uint32_t writeIndex, const MidiEvent& event);
-    MidiStatusCode ValidateWriteArgs(const MidiEvent* events, uint32_t eventCount) const;
-    MidiStatusCode TryWriteOneEvent(const MidiEvent& event,
+    void WriteEvent(uint32_t writeIndex, const MidiEventInner& event);
+    MidiStatusCode ValidateWriteArgs(const MidiEventInner* events, uint32_t eventCount) const;
+    MidiStatusCode TryWriteOneEvent(const MidiEventInner& event,
                                     uint32_t length,
                                     uint32_t readIndex,
                                     uint32_t& writeIndex);

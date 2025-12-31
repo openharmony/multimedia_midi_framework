@@ -97,6 +97,13 @@ struct MidiEvent{
     uint32_t *data;
 };
 
+// read only
+struct MidiEventInner {
+    uint64_t timestamp;
+    size_t length;
+    const uint32_t *data;
+};
+
 class MidiServiceCallback {
 public:
     virtual ~MidiServiceCallback() = default;
