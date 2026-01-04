@@ -92,8 +92,8 @@ int32_t DeviceConnectionBase::AddClientConnection(uint32_t clientId, int64_t dev
         "creat client connection fail");
     CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer() == MIDI_STATUS_OK, MIDI_STATUS_UNKNOWN_ERROR,
         "init client connection fail");
-    clients_.push_back(std::move(clientConnection));
     buffer = clientConnection->GetRingBuffer();
+    clients_.push_back(std::move(clientConnection));
     return MIDI_STATUS_OK;
 }
 

@@ -39,8 +39,8 @@ enum ProtInformationProperty {
 };
 
 enum PortDirection {
-    PORT_DIRECTION_INPUT = 1,
-    PORT_DIRECTION_OUTPUT = 2
+    PORT_DIRECTION_INPUT = 0,
+    PORT_DIRECTION_OUTPUT = 1
 };
 
 enum DeviceType {
