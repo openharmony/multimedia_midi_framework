@@ -43,7 +43,6 @@ HWTEST_F(MidiClientUnitTest, Init001, TestSize.Level0)
     callbacks.onDeviceChange = [](void *userData,
                                       OH_MidiDeviceChangeAction action,
                                       OH_MidiDeviceInformation deviceInfo) {
-
                                       };
     callbacks.onError = [](void *userData, OH_MidiStatusCode code) {
 
