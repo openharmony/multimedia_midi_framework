@@ -16,9 +16,9 @@
 #include "midi_device_mananger.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
+#include "midi_test_common.h"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "midi_test_common.h"
 using namespace OHOS;
 using namespace MIDI;
 using namespace testing;
