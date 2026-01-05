@@ -20,6 +20,7 @@ group("midi_unit_test") {
   testonly = true
   deps = [
     ":midi_client_test",
+    "unittest/common:midi_common_unittest",
   ]
 }
 
