@@ -51,10 +51,7 @@ int64_t MidiDeviceManager::GetOrCreateDeviceId(int64_t driverDeviceId, DeviceTyp
     std::lock_guard<std::mutex> lock(mappingMutex_);
    
     auto it = driverIdToMidiId_.find(driverDeviceId); // todo sessionId
-    if (it != driverIdToMidiId_.end()) {
-        return it->second;
-    }
-
+    CHECK_AND_RETURN_RET(it == driverIdToMidiId_.end(),it->second);
     int64_t deviceId = GenerateDeviceId();
     driverIdToMidiId_[driverDeviceId] = deviceId;
     return deviceId;
@@ -128,12 +125,11 @@ void MidiDeviceManager::UpdateDevices()
         std::lock_guard<std::mutex> lock(driversMutex_);
         for (const auto& driverPair : drivers_) {
             auto& driver = driverPair.second;
-            if (driver) {
-                auto devices = driver->GetRegisteredDevices();
-                driverDevices.insert(driverDevices.end(), 
-                                 std::make_move_iterator(devices.begin()),
-                                 std::make_move_iterator(devices.end()));
-            }
+            CHECK_AND_CONTINUE_LOG(driver != nullptr, "%{public}d driver is nullptr", driverPair.first);
+            auto devices = driver->GetRegisteredDevices();
+            driverDevices.insert(driverDevices.end(), 
+                std::make_move_iterator(devices.begin()),
+                std::make_move_iterator(devices.end()));
         }
     }
     
@@ -170,10 +166,8 @@ void MidiDeviceManager::CompareDevices(const std::vector<DeviceInformation>& old
                               });
         if (it == oldDevices.end()) {
             addedDevices.push_back(newDevice);
-            MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 
-            ", driverId=%{public}" PRId64 
-            ", name: %{public}s", 
-            newDevice.deviceId, newDevice.driverDeviceId, newDevice.productName.c_str());
+            MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
+                newDevice.deviceId, newDevice.driverDeviceId, newDevice.productName.c_str());
         }
     }
 
@@ -185,26 +179,22 @@ void MidiDeviceManager::CompareDevices(const std::vector<DeviceInformation>& old
                               });
         if (it == newDevices.end()) {
             removedDevices.push_back(oldDevice);
-            MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 
-            ", driverId=%{public}" PRId64 
-            ", name: %{public}s", 
-            oldDevice.deviceId, oldDevice.driverDeviceId, oldDevice.productName.c_str());
+            MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
+                oldDevice.deviceId, oldDevice.driverDeviceId, oldDevice.productName.c_str());
         }
     }
-
-    
-        if (!addedDevices.empty()) {
-            for(auto device : addedDevices)
-            {
-                MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::ADD, device);
-            }
+    if (!addedDevices.empty()) {
+        for(auto device : addedDevices)
+        {
+            MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::ADD, device);
         }
-        if (!removedDevices.empty()) {
-            for(auto device : removedDevices)
-            {
-                MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::REMOVED, device);
-            }
+    }
+    if (!removedDevices.empty()) {
+        for(auto device : removedDevices)
+        {
+            MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::REMOVED, device);
         }
+    }
 }
 
 std::vector<DeviceInformation> MidiDeviceManager::GetDevices()
@@ -265,12 +255,9 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
     }
 
     int32_t result = driver->OpenDevice(device.driverDeviceId);
-    if (result == MIDI_STATUS_OK) {
-        MIDI_INFO_LOG("Device opened successfully: %{public}" PRId64, deviceId);
-    } else {
-        MIDI_ERR_LOG("Failed to open device: %{public}" PRId64, deviceId);
-    }
-    
+    CHECK_AND_RETURN_RET_LOG(result == MIDI_STATUS_OK, result,
+        "Failed to open device: %{public}" PRId64, deviceId);
+    MIDI_INFO_LOG("Device opened successfully: %{public}" PRId64, deviceId);
     return result;
 }
 
@@ -296,7 +283,7 @@ int32_t MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInpu
     inputConnection = connection;
     std::weak_ptr<DeviceConnectionForInput> weakConnection = connection;
     // register DeviceConnectionForInput::HandleDeviceUmpInput
-    auto ret = driver->OpenInputPort(deviceId, static_cast<size_t>(portIndex),
+    auto ret = driver->OpenInputPort(device.driverDeviceId, static_cast<size_t>(portIndex),
         [weakConnection](std::vector<MidiEventInner> &events) {
             if (auto locked = weakConnection.lock()) {
                 locked->HandleDeviceUmpInput(events);
@@ -315,7 +302,7 @@ int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
     }
     auto driver = GetDriverForDeviceType(device.deviceType);
     CHECK_AND_RETURN_RET_LOG(driver != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "driver is nullptr");
-    return driver->CloseInputPort(deviceId,  static_cast<size_t>(portIndex));
+    return driver->CloseInputPort(device.driverDeviceId,  static_cast<size_t>(portIndex));
 }
 
 int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
@@ -338,15 +325,11 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
     }
 
     int32_t result = driver->CloseDevice(device.driverDeviceId);
-    if (result == MIDI_STATUS_OK) {
-        MIDI_INFO_LOG("Device closed successfully: midiId=%{public}" PRId64 
-                     ", driverId=%{public}" PRId64, 
-                     deviceId, device.driverDeviceId);
-    } else {
-        MIDI_ERR_LOG("Failed to close device: midiId=%{public}" PRId64 
-                      ", driverId=%{public}" PRId64, 
-                      deviceId, device.driverDeviceId);
-    }
+    CHECK_AND_RETURN_RET_LOG(result == MIDI_STATUS_OK, result, "Failed to close device: midiId=%{public}" PRId64
+        ", driverId=%{public}" PRId64, deviceId, device.driverDeviceId);
+    MIDI_INFO_LOG("Device closed successfully: midiId=%{public}" PRId64 
+                    ", driverId=%{public}" PRId64, 
+                    deviceId, device.driverDeviceId);
     return result;
 }
 } // namespace MIDI
