@@ -152,7 +152,9 @@ int32_t MidiServiceController::OpenInputPort(uint32_t clientId, std::shared_ptr<
         return MIDI_STATUS_OK;
     }
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
-    deviceManager_.OpenInputPort(inputConnection, deviceId, portIndex);
+    auto ret = deviceManager_.OpenInputPort(inputConnection, deviceId, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open input port fail!");
+    
     if (inputConnection) {
         inputConnection->AddClientConnection(clientId, deviceId, buffer);
     }
@@ -181,7 +183,8 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
     if (inputPort != inputPortConnections.end()) {
         inputPort->second->RemoveClientConnection(clientId);
         if (inputPort->second->IsEmptyClientConections()) {
-            deviceManager_.CloseInputPort(deviceId, portIndex);
+            auto ret = deviceManager_.CloseInputPort(deviceId, portIndex);
+            CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
             inputPortConnections.erase(inputPort);
         }
     }

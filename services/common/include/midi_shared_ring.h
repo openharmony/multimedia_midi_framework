@@ -35,15 +35,6 @@ enum class MidiStatusCode : int32_t {
     INTERNAL_ERROR
 };
 
-struct BatchedEvent {
-    uint64_t             timestamp = 0;
-    std::size_t          length    = 0;
-    std::vector<uint8_t> data;
-    std::size_t          clientIndex  = 0;
-    uint64_t             arrivalOrder = 0;
-};
-
-
 struct alignas(64) ControlHeader {
     std::atomic<uint32_t> readPosition;    // read index range: (0..capacity-1)
     std::atomic<uint32_t> writePosition;   // write index range: (0..capacity-1)
