@@ -179,6 +179,7 @@ void MidiDeviceManager::CompareDevices(const std::vector<DeviceInformation>& old
                               });
         if (it == newDevices.end()) {
             removedDevices.push_back(oldDevice);
+            driverIdToMidiId_.erase(oldDevice.driverDeviceId);
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 oldDevice.deviceId, oldDevice.driverDeviceId, oldDevice.productName.c_str());
         }
@@ -265,6 +266,7 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 int32_t MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
                         int64_t deviceId, uint32_t portIndex)
 {
+    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.deviceId == 0) {
         MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
@@ -295,6 +297,7 @@ int32_t MidiDeviceManager::OpenInputPort(std::shared_ptr<DeviceConnectionForInpu
 
 int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
+    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.deviceId == 0) {
         MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
@@ -334,4 +337,3 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 }
 } // namespace MIDI
 } // namespace OHOS
-

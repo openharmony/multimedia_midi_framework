@@ -27,6 +27,13 @@ using namespace testing::ext;
 class MidiServiceControllerUnitTest : public testing::Test {
 public:
     static void SetUpTestCase() {
+    }
+    static void TearDownTestCase() {
+    }
+
+    void SetUp() override {
+        controller_ = MidiServiceController::GetInstance();
+        controller_->Init();
         mockDriver_ = std::make_unique<MockMidiDeviceDriver>(); 
         rawMockDriver_ = mockDriver_.get();
         controller_->deviceManager_.drivers_.clear();
@@ -34,21 +41,13 @@ public:
         mockCallback_ = std::make_shared<MockMidiServiceCallback>();
         sptr<IRemoteObject> clientObj; 
         controller_->CreateClientInServer(mockCallback_, clientObj, clientId_);
-        
     }
-    static void TearDownTestCase() {
+
+    void TearDown() override {
         controller_->DestroyMidiClient(clientId_);
         controller_->deviceManager_.devices_.clear();
         controller_->deviceManager_.driverIdToMidiId_.clear();
         controller_->deviceManager_.drivers_.clear();
-    }
-
-    void SetUp() override {
-        controller_ = MidiServiceController::GetInstance();
-        controller_->Init                          ();
-    }
-
-    void TearDown() override {
     }
 
     /**

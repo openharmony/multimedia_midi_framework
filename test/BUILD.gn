@@ -15,10 +15,11 @@ import("//build/ohos.gni")
 import("//build/test.gni")
 import("//foundation/multimedia/midi_framework/config.gni")
 
-module_output_path = "midi_framework/"
 group("midi_unit_test") {
   testonly = true
   deps = [
-    ":midi_client_test",
+    "unittest/midi_client_unit_test:midi_client_unit_test",
+    "unittest/midi_device_manager_unit_test:midi_device_manager_unit_test",
+    "unittest/midi_service_controller_unit_test:midi_service_controller_unit_test",
   ]
 }

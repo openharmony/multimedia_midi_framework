@@ -13,10 +13,6 @@
  * limitations under the License.
  */
 
-// HACK: Allow access to private members for testing
-#define private public
-#define protected public
-
 #include "midi_device_mananger.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
@@ -31,24 +27,24 @@ using namespace testing::ext;
 class MidiDeviceManagerUnitTest : public testing::Test {
 public:
     static void SetUpTestCase() {
-        manager_ = std::make_unique<MidiDeviceManager>();
-
-        mockUsbDriver_ = std::make_unique<MockMidiDeviceDriver>();
-        rawUsbDriver_ = mockUsbDriver_.get();
-        manager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockUsbDriver_));
+        
         
     }
 
     static void TearDownTestCase() {
-        manager_->drivers_.clear();
-        manager_->devices_.clear();
-        manager_->driverIdToMidiId_.clear();
     }
 
     void SetUp() override {
+        manager_ = std::make_unique<MidiDeviceManager>();
+        mockUsbDriver_ = std::make_unique<MockMidiDeviceDriver>();
+        rawUsbDriver_ = mockUsbDriver_.get();
+        manager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockUsbDriver_));
     }
 
     void TearDown() override {
+        manager_->drivers_.clear();
+        manager_->devices_.clear();
+        manager_->driverIdToMidiId_.clear();
     }
 
     DeviceInformation CreateDriverDeviceInfo(int64_t driverId, std::string name) {
@@ -60,12 +56,11 @@ public:
         return info;
     }
 
-protected:
+private:
     std::unique_ptr<MidiDeviceManager> manager_;
+    std::unique_ptr<MockMidiDeviceDriver> mockUsbDriver_;
     MockMidiDeviceDriver* rawUsbDriver_ = nullptr;
 };
-
-// --- Test Cases ---
 
 /**
  * @tc.name: GetDevices001

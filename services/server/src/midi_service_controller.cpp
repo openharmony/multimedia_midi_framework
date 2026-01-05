@@ -60,16 +60,19 @@ int32_t MidiServiceController::CreateClientInServer(std::shared_ptr<MidiServiceC
     }
 
     clientId = ++currentClientId_; // todo 查看sessionId
-    auto midiClient = std::make_shared<MidiClientInServer>(clientId, callback);
-    clients_.emplace(clientId, midiClient);
+    sptr<MidiClientInServer> midiClient = new(std::nothrow) MidiClientInServer(clientId, callback);
+    CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient nullptr");
     client = midiClient->AsObject();
+    CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient->AsObject nullptr");
     sptr<MidiServiceDeathRecipient> deathRecipient_ = new(std::nothrow) MidiServiceDeathRecipient(clientId);
+    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "deathRecipient_ nullptr");
     deathRecipient_->SetNotifyCb(
         [this](uint32_t clientId) {
             this->DestroyMidiClient(clientId);
         }
     );
     client->AddDeathRecipient(deathRecipient_);
+    clients_.emplace(clientId, std::move(midiClient));
     MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u", clientId);
     return MIDI_STATUS_OK;
 }
@@ -132,6 +135,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 int32_t MidiServiceController::OpenInputPort(uint32_t clientId, std::shared_ptr<SharedMidiRing> &buffer,
     int64_t deviceId, uint32_t portIndex)
 {
+    MIDI_INFO_LOG("clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(), MIDI_STATUS_UNKNOWN_ERROR,
@@ -144,6 +148,7 @@ int32_t MidiServiceController::OpenInputPort(uint32_t clientId, std::shared_ptr<
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         inputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        MIDI_INFO_LOG("InputPort already opened");
         return MIDI_STATUS_OK;
     }
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
@@ -152,12 +157,19 @@ int32_t MidiServiceController::OpenInputPort(uint32_t clientId, std::shared_ptr<
         inputConnection->AddClientConnection(clientId, deviceId, buffer);
     }
     inputPortConnections.emplace(portIndex, std::move(inputConnection));
+    MIDI_INFO_LOG("OpenInputPort Success");
     return MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
+    MIDI_INFO_LOG("clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
+    return CloseInputPortInner(clientId, deviceId, portIndex);
+}
+
+int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
+{
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(), MIDI_STATUS_OK,
         "device %{public}" PRId64 "not opened", deviceId);
@@ -208,12 +220,13 @@ void MidiServiceController::ClosePortforDevice(uint32_t clientId, int64_t device
         portIndexs.push_back(inputPort.first);
     }
     for (auto portIndex : portIndexs) {
-        CloseInputPort(clientId, deviceId, portIndex);
+        CloseInputPortInner(clientId, deviceId, portIndex);
     }
 }
 
 int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 {
+    MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
     std::lock_guard lock(lock_);
     auto it = clients_.find(clientId);
     CHECK_AND_RETURN_RET_LOG(it != clients_.end(), MIDI_STATUS_UNKNOWN_ERROR,

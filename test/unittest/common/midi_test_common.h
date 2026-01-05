@@ -1,14 +1,13 @@
+
+#ifndef MIDI_TEST_COMMON_H
+#define MIDI_TEST_COMMON_H
 #include "midi_device_driver.h"
 #include "midi_info.h"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-using namespace OHOS;
-using namespace MIDI;
-using namespace testing;
-using namespace testing::ext;
-
-// --- Mocks ---
+namespace OHOS {
+namespace MIDI {
 
 class MockMidiDeviceDriver : public MidiDeviceDriver {
 public:
@@ -26,3 +25,7 @@ public:
     MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, (std::map<int32_t, std::string>) deviceInfo), (override));
     MOCK_METHOD(void, NotifyError, (int32_t code), (override));
 };
+
+}
+}
+#endif 
