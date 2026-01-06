@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,33 +12,91 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "midi_client.h"
-#include "native_midi_base.h"
+
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include "midi_client.h"
+#include "midi_client_private.h"
+#include "midi_service_interface.h"
 
 using namespace OHOS;
 using namespace MIDI;
-using namespace testing::ext;
 using namespace testing;
+using namespace testing::ext;
 
-namespace {
+class MidiServiceMock : public MidiServiceInterface {
+public:
+    MOCK_METHOD(OH_MidiStatusCode, Init, (sptr<MidiCallbackStub> callback, uint32_t &clientId), (override));
+    MOCK_METHOD(OH_MidiStatusCode, GetDevices, ((std::vector<std::map<int32_t, std::string>>) &deviceInfos), (override));
+    MOCK_METHOD(OH_MidiStatusCode, OpenDevice, (int64_t deviceId), (override));
+    MOCK_METHOD(OH_MidiStatusCode, CloseDevice, (int64_t deviceId), (override));
+    MOCK_METHOD(OH_MidiStatusCode, GetDevicePorts, (int64_t deviceId, (std::vector<std::map<int32_t, std::string>>) &portInfos), (override));
+    MOCK_METHOD(OH_MidiStatusCode, OpenInputPort, ((std::shared_ptr<SharedMidiRing>) &buffer, int64_t deviceId, uint32_t portIndex), (override));
+    MOCK_METHOD(OH_MidiStatusCode, CloseInputPort, (int64_t deviceId, uint32_t portIndex), (override));
+    MOCK_METHOD(OH_MidiStatusCode, DestroyMidiClient, (), (override));
+};
 
 class MidiClientUnitTest : public testing::Test {
 public:
-    void SetUp();
-    void TearDown();
+    void SetUp() override {
+        mockService = std::make_shared<MidiServiceMock>();
+        client = std::make_unique<MidiClientPrivate>();
+        client->ipc_ = mockService; 
+    }
+    void TearDown() override {
+        client.reset();
+        mockService.reset();
+    }
+    std::shared_ptr<MidiServiceMock> mockService;
+    std::unique_ptr<MidiClientPrivate> client;
 };
-void MidiClientUnitTest::SetUp()
+
+/**
+ * @tc.name: OpenDevice_001
+ * @tc.desc: Test opening device.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
 {
+    int64_t deviceId = 100;
+    MidiDevice *device = nullptr;
+
+    // Expect OpenDevice to be called twice on the IPC layer
+    EXPECT_CALL(*mockService, OpenDevice(deviceId))
+        .Times(1)
+        .WillRepeatedly(Return(MIDI_STATUS_OK));
+
+    EXPECT_EQ(client->OpenDevice(deviceId, &device), MIDI_STATUS_OK);
+    EXPECT_NE(device, nullptr);
+    delete device;
 }
 
-void MidiClientUnitTest::TearDown()
+/**
+ * @tc.name: GetDevice_001
+ * @tc.desc: Test getting device list with multiple devices.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
 {
-
-}
-
-HWTEST_F(MidiClientUnitTest, Init001, TestSize.Level0)
-{
+    // 1. Prepare mock data from IPC
+    EXPECT_CALL(*mockService, GetDevices(_))
+        .WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
+            infos.push_back({
+                {DEVICE_ID, "1001"},
+                {DEVICE_TYPE, "0"}, 
+                {MIDI_PROTOCOL, "1"},
+                {PRODUCT_NAME, "Mock_Piano"},
+                {VENDOR_NAME, "Huawei"}
+            });
+            infos.push_back({
+                {DEVICE_ID, "1002"},
+                {DEVICE_TYPE, "1"},
+                {MIDI_PROTOCOL, "1"},
+                {PRODUCT_NAME, "Mock_Drum"},
+                {VENDOR_NAME, "Huawei"}
+            });
+            return MIDI_STATUS_OK;
+        }));
     OH_MidiCallbacks callbacks;
     callbacks.onDeviceChange = [](void *userData,
                                       OH_MidiDeviceChangeAction action,
@@ -48,8 +106,156 @@ HWTEST_F(MidiClientUnitTest, Init001, TestSize.Level0)
 
     };
     void *userData = nullptr;
-    MidiClient *midiClient = nullptr;
-    MidiClient::CreateMidiClient(&midiClient, callbacks, userData);
+    client->Init(callbacks, userData);
+    OH_MidiDeviceInformation infoArray[2];
+    size_t numDevices = 2;
+    OH_MidiStatusCode status = client->GetDevices(infoArray, &numDevices);
+
+    // 3. Verify
+    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(numDevices, 2);
+    EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
+    EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
+    EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_STREQ(infoArray[0].productName, "Mock_Piano");
+    EXPECT_STREQ(infoArray[0].vendorName, "Huawei");
+    EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
+    EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
+    EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_STREQ(infoArray[1].productName, "Mock_Drum");
+    EXPECT_STREQ(infoArray[1].vendorName, "Huawei");
 }
 
-}  // namespace
+/**
+ * @tc.name: GetDevices_002
+ * @tc.desc: Test GetDevices when the provided buffer is too small.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
+{
+         EXPECT_CALL(*mockService, GetDevices(_))
+        .WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
+            infos.push_back({
+                {DEVICE_ID, "1001"},
+                {DEVICE_TYPE, "0"}, 
+                {MIDI_PROTOCOL, "1"},
+                {PRODUCT_NAME, "Mock_Piano"},
+                {VENDOR_NAME, "Huawei"}
+            });
+            infos.push_back({
+                {DEVICE_ID, "1002"},
+                {DEVICE_TYPE, "1"},
+                {MIDI_PROTOCOL, "1"},
+                {PRODUCT_NAME, "Mock_Drum"},
+                {VENDOR_NAME, "Huawei"}
+            });
+            return MIDI_STATUS_OK;
+        }));
+    OH_MidiCallbacks callbacks;
+    callbacks.onDeviceChange = [](void *userData,
+                                      OH_MidiDeviceChangeAction action,
+                                      OH_MidiDeviceInformation deviceInfo) {
+                                      };
+    callbacks.onError = [](void *userData, OH_MidiStatusCode code) {
+
+    };
+    void *userData = nullptr;
+    client->Init(callbacks, userData);
+    OH_MidiDeviceInformation infoArrayTest[1]; // Only 1 slot
+    size_t numDevices = 1; 
+    OH_MidiStatusCode status = client->GetDevices(infoArrayTest, &numDevices);
+
+    // Should return insufficient space and update numDevices to required size
+    EXPECT_EQ(status, MIDI_STATUS_INSUFFICIENT_RESULT_SPACE);
+    EXPECT_EQ(numDevices, 2);
+
+    OH_MidiDeviceInformation infoArray[2];
+    status = client->GetDevices(infoArray, &numDevices);
+
+    // 3. Verify
+    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(numDevices, 2);
+    EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
+    EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
+    EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_STREQ(infoArray[0].productName, "Mock_Piano");
+    EXPECT_STREQ(infoArray[0].vendorName, "Huawei");
+    EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
+    EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
+    EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_STREQ(infoArray[1].productName, "Mock_Drum");
+    EXPECT_STREQ(infoArray[1].vendorName, "Huawei");
+}
+
+/**
+ * @tc.name: GetDevicePorts_001
+ * @tc.desc: Test getting port information for a specific device.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
+{
+    int64_t deviceId = 1001;
+
+    EXPECT_CALL(*mockService, GetDevicePorts(deviceId, _))
+        .WillOnce(Invoke([](int64_t id, std::vector<std::map<int32_t, std::string>> &ports) {
+            ports.push_back({
+                {PORT_INDEX, "0"},
+                {DIRECTION, "0"}, // Input
+                {PORT_NAME, "Midi_In_Port"}
+            });
+            ports.push_back({
+                {PORT_INDEX, "1"},
+                {DIRECTION, "1"}, // Output
+                {PORT_NAME, "Midi_Out_Port"}
+            });
+            return MIDI_STATUS_OK;
+        }));
+    OH_MidiPortInformation portArray[2];
+    size_t numPorts = 2;
+    OH_MidiStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
+
+    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(numPorts, 2);
+    EXPECT_EQ(portArray[0].portIndex, 0);
+    EXPECT_EQ(portArray[0].deviceId, 1001);
+    EXPECT_EQ(portArray[0].direction, MIDI_PORT_DIRECTION_INPUT);
+    EXPECT_STREQ(portArray[0].name, "Midi_In_Port");
+    EXPECT_EQ(portArray[1].portIndex, 1);
+    EXPECT_EQ(portArray[1].deviceId, 1001);
+    EXPECT_EQ(portArray[1].direction, MIDI_PORT_DIRECTION_OUTPUT);
+    EXPECT_STREQ(portArray[1].name, "Midi_Out_Port");
+}
+
+/**
+ * @tc.name: GetDevicePorts_001
+ * @tc.desc: Test GetDevicePorts when the device ID is invalid.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
+{
+    int64_t invalidId = -1;
+
+    // Simulate IPC returning error for invalid device
+    EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _))
+        .WillOnce(Return(MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
+
+    OH_MidiPortInformation portArray[1];
+    size_t numPorts = 1;
+    OH_MidiStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
+
+    EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+}
+
+/**
+ * @tc.name: ClosePort_001
+ * @tc.desc: Test closing a port that was never opened.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, ClosePort_001, TestSize.Level0)
+{
+    int64_t deviceId = 102;
+    uint32_t portIndex = 5;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+
+    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
+}

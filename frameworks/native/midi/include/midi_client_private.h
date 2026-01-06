@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "midi_client.h"
-#include "midi_service_client.h"
+#include "midi_service_interface.h"
 #include "midi_shared_ring.h"
 namespace OHOS {
 namespace MIDI {
@@ -59,14 +59,14 @@ private:
 
 class MidiDevicePrivate : public MidiDevice {
 public:
-    MidiDevicePrivate(std::shared_ptr<MidiServiceClient> midiServiceClient, int64_t deviceId);
+    MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, int64_t deviceId);
     virtual ~MidiDevicePrivate();
     OH_MidiStatusCode CloseDevice() override;
     OH_MidiStatusCode OpenInputPort(uint32_t portIndex, OH_OnMidiReceived callback,
                                             void *userData) override;
     OH_MidiStatusCode ClosePort(uint32_t portIndex) override;
 private:
-    std::shared_ptr<MidiServiceClient> ipc_;
+    std::shared_ptr<MidiServiceInterface> ipc_;
     int64_t deviceId_;
     std::mutex inputPortsMutex_;
     std::unordered_map<uint32_t, std::shared_ptr<MidiInputPort>> inputPortsMap_;
@@ -82,7 +82,7 @@ public:
     OH_MidiStatusCode GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts) override;
     OH_MidiStatusCode DestroyMidiClient() override;
 private:
-    std::shared_ptr<MidiServiceClient> ipc_;
+    std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;
     std::vector<OH_MidiDeviceInformation> deviceInfos_;
     sptr<MidiClientCallback> callback_;
