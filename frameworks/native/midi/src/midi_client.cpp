@@ -23,6 +23,7 @@
 #include "midi_log.h"
 #include "midi_client_private.h"
 #include "midi_callback_stub.h"
+#include "midi_service_client.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -117,8 +118,8 @@ int32_t MidiClientCallback::NotifyError(int32_t code)
     return 0;
 }
 
-MidiDevicePrivate::MidiDevicePrivate(std::shared_ptr<MidiServiceClient> midiServiceClient, int64_t deviceId)
-    : ipc_(midiServiceClient), deviceId_(deviceId)
+MidiDevicePrivate::MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, int64_t deviceId)
+    : ipc_(midiServiceInterface), deviceId_(deviceId)
 {
     MIDI_INFO_LOG("MidiDevicePrivate created");
 }
@@ -139,9 +140,7 @@ OH_MidiStatusCode MidiDevicePrivate::OpenInputPort(uint32_t portIndex, OH_OnMidi
     {
         std::lock_guard<std::mutex> lock(inputPortsMutex_);
         auto iter = inputPortsMap_.find(portIndex);
-        if (iter != inputPortsMap_.end()) {
-            return MIDI_STATUS_OK;
-        }
+        CHECK_AND_RETURN_RET(iter == inputPortsMap_.end(), MIDI_STATUS_OK);
     }
     auto inputPort = std::make_shared<MidiInputPort>(callback, userData);
     std::shared_ptr<SharedMidiRing>& buffer = inputPort->GetRingBuffer();
@@ -166,10 +165,9 @@ OH_MidiStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
     {
         std::lock_guard<std::mutex> lock(inputPortsMutex_);
         auto it = inputPortsMap_.find(portIndex);
-        if (it != inputPortsMap_.end()) {
-            ret = ipc_->CloseInputPort(deviceId_, portIndex);
-            inputPortsMap_.erase(it);
-        }
+        CHECK_AND_RETURN_RET(it != inputPortsMap_.end(), MIDI_STATUS_OK);
+        ret = ipc_->CloseInputPort(deviceId_, portIndex);
+        inputPortsMap_.erase(it);
     }
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close inputport fail");
     return MIDI_STATUS_OK;
@@ -195,9 +193,8 @@ bool MidiInputPort::StartReceiverThread()
 bool MidiInputPort::StopReceiverThread()
 {
     bool expected = true;
-    if (!running_.compare_exchange_strong(expected, false)) {
-        return true;
-    }
+    
+    CHECK_AND_RETURN_RET(running_.compare_exchange_strong(expected, false), true);
 
     if (ringBuffer_) {
         std::atomic<uint32_t>* futexPtr = ringBuffer_->GetFutex();
@@ -364,8 +361,8 @@ OH_MidiStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MidiPor
         *numPorts = portInfos.size();
         return MIDI_STATUS_INSUFFICIENT_RESULT_SPACE;
     }
-    
     *numPorts = portInfos.size();
+
     size_t i = 0;
     for (auto portInfo : portInfos) {
         OH_MidiPortInformation info;
@@ -374,6 +371,7 @@ OH_MidiStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MidiPor
         infos[i] = info;
         i++;
     }
+
     return MIDI_STATUS_OK;
 }
 

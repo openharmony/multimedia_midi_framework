@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2025 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,13 +29,15 @@ ohos_unittest("midi_client_unit_test") {
   ]
 
   include_dirs = [
-    "${midi_framework_root}/interfaces/",
+    "${midi_framework_root}/frameworks/native/midi/include",
+    "${midi_framework_root}/interfaces",
     "${midi_framework_root}/interfaces/inner_api/native",
     "${midi_framework_root}/interfaces/kits/c/midi",
   ]
 
   deps = [
     "${midi_framework_root}/frameworks/native/midi:midi_client",
+    "${midi_framework_root}/services/idl:midi_framework_interface",
   ]
 
   sanitize = {

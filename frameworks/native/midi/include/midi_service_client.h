@@ -16,6 +16,7 @@
 #define MIDI_SERVICE_CLIENT_H
 
 #include <memory>
+#include "midi_service_interface.h"
 #include "native_midi_base.h"
 #include "midi_info.h"
 #include "imidi_service.h"
@@ -24,18 +25,18 @@
 #include "midi_shared_ring.h"
 namespace OHOS {
 namespace MIDI {
-class MidiServiceClient {
+class MidiServiceClient : public MidiServiceInterface {
 public:
     MidiServiceClient() = default;
-    ~MidiServiceClient() = default;
-    OH_MidiStatusCode Init(sptr<MidiCallbackStub> callback,uint32_t &clientId);
-    OH_MidiStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos);
-    OH_MidiStatusCode OpenDevice(int64_t deviceId);
-    OH_MidiStatusCode CloseDevice(int64_t deviceId);
-    OH_MidiStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos);
-    OH_MidiStatusCode OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId, uint32_t portIndex);
-    OH_MidiStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex);
-    OH_MidiStatusCode DestroyMidiClient();
+    virtual ~MidiServiceClient() = default;
+    OH_MidiStatusCode Init(sptr<MidiCallbackStub> callback,uint32_t &clientId) override;
+    OH_MidiStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) override;
+    OH_MidiStatusCode OpenDevice(int64_t deviceId) override;
+    OH_MidiStatusCode CloseDevice(int64_t deviceId) override;
+    OH_MidiStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos) override;
+    OH_MidiStatusCode OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId, uint32_t portIndex) override;
+    OH_MidiStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
+    OH_MidiStatusCode DestroyMidiClient() override;
 private:
     sptr<IIpcMidiClientInServer> ipc_;
     sptr<MidiCallbackStub> callback_;
