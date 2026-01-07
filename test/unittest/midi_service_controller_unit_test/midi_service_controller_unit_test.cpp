@@ -107,16 +107,16 @@ HWTEST_F(MidiServiceControllerUnitTest, CreateClient001, TestSize.Level0)
 }
 
 /**
- * @tc.name: CreateClient001
+ * @tc.name: DestroyMidiClient001
  * @tc.desc: Verify client creation generates a valid ID
  * @tc.type: FUNC
  */
-HWTEST_F(MidiServiceControllerUnitTest, CreateClient002, TestSize.Level0)
+HWTEST_F(MidiServiceControllerUnitTest, DestroyMidiClient001, TestSize.Level0)
 {
     int64_t invalidClientId = 99999;
     sptr<IRemoteObject> clientObj;
-    ret = controller_->DestroyMidiClient(invalidClientId);
-    EXPECT_EQ(ret, MIDI_STATUS_OK);
+    int32_t ret = controller_->DestroyMidiClient(invalidClientId);
+    EXPECT_EQ(ret, MIDI_STATUS_INVALID_CLIENT);
 }
 
 /**
@@ -131,11 +131,11 @@ HWTEST_F(MidiServiceControllerUnitTest, GetDevices001, TestSize.Level0)
     auto result = controller_->GetDevices();
     ASSERT_EQ(result.size(), 1);
 
-    EXPECT_STREQ(result[0][DEVICE_ID], std::to_string(deviceId));
-    EXPECT_STREQ(result[0][DEVICE_TYPE], std::to_string(DeviceType::DEVICE_TYPE_USB));
-    EXPECT_STREQ(result[0][MIDI_PROTOCOL], std::to_string(TransportProtocol::PROTOCOL_1_0));
-    EXPECT_STREQ(result[0][PRODUCT_NAME], "Yamaha Keyboard");
-    EXPECT_STREQ(result[0][VENDOR_NAME], "Test");
+    EXPECT_EQ(result[0][DEVICE_ID], std::to_string(deviceId));
+    EXPECT_EQ(result[0][DEVICE_TYPE], std::to_string(DeviceType::DEVICE_TYPE_USB));
+    EXPECT_EQ(result[0][MIDI_PROTOCOL], std::to_string(TransportProtocol::PROTOCOL_1_0));
+    EXPECT_EQ(result[0][PRODUCT_NAME], "Yamaha Keyboard");
+    EXPECT_EQ(result[0][VENDOR_NAME], "Test");
 }
 
 /**
@@ -261,7 +261,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice006, TestSize.Level0)
     EXPECT_CALL(*rawMockDriver_, OpenDevice(_)).Times(0);
 
     int32_t ret = controller_->OpenDevice(invalidClientId, deviceId);
-    EXPECT_NE(ret, MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(ret, MIDI_STATUS_INVALID_CLIENT);
     auto it = controller_->deviceClientContexts_.find(deviceId);
     EXPECT_EQ(it, controller_->deviceClientContexts_.end());
 }
@@ -334,10 +334,10 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseDevice003, TestSize.Level0)
 
     EXPECT_CALL(*rawMockDriver_, CloseDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
 
-    int32_t ret = controller_->CloseDevice(clientId2, deviceId);
+    ret = controller_->CloseDevice(clientId2, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    EXPECT_EQ(it, controller_->deviceClientContexts_.end());
+    auto it2 = controller_->deviceClientContexts_.find(deviceId);
+    EXPECT_EQ(it2, controller_->deviceClientContexts_.end());
     controller_->DestroyMidiClient(clientId2);
 }
 
@@ -388,7 +388,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort002, TestSize.Level0)
 
 /**
  * @tc.name: OpenInputPort003
- * @tc.desc: Two different clients open Input Port
+ * @tc.desc: Two different clients open Input Port, but one of them don't open device;
  * @tc.type: FUNC
  */
 HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort003, TestSize.Level0)
@@ -412,7 +412,38 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort003, TestSize.Level0)
     int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     std::shared_ptr<SharedMidiRing> buffer2;
-    int32_t ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
+    ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
+    EXPECT_EQ(ret, MIDI_STATUS_UNKNOWN_ERROR);
+}
+
+/**
+ * @tc.name: OpenInputPort004
+ * @tc.desc: Two different clients open Input Port
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort004, TestSize.Level0)
+{
+    int64_t driverId = 201;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Midi Controller");
+    uint32_t portIndex = 0;
+    
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    std::shared_ptr<MockMidiServiceCallback> cb2 = std::make_shared<MockMidiServiceCallback>();
+    controller_->CreateClientInServer(cb2, clientObj, clientId2);
+
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
+    controller_->OpenDevice(clientId_, deviceId);
+    controller_->OpenDevice(clientId2, deviceId);
+
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _))
+        .WillOnce(Return(MIDI_STATUS_OK));
+
+    std::shared_ptr<SharedMidiRing> buffer;
+    int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
+    EXPECT_EQ(ret, MIDI_STATUS_OK);
+    std::shared_ptr<SharedMidiRing> buffer2;
+    ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     auto it = controller_->deviceClientContexts_.find(deviceId);
     auto &inputPortConnections = it->second->inputDeviceconnections_;
@@ -452,31 +483,6 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort001, TestSize.Level0)
 }
 
 /**
- * @tc.name: CloseInputPort001
- * @tc.desc: Close Input Port successfully
- * @tc.type: FUNC
- */
-HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort001, TestSize.Level0)
-{
-    int64_t driverId = 300;
-    int64_t deviceId = SimulateDeviceConnection(driverId, "Midi Key");
-    uint32_t portIndex = 0;
-
-    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
-    controller_->OpenDevice(clientId_, deviceId);
-
-    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
-    std::shared_ptr<SharedMidiRing> buffer;
-    controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
-
-    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, portIndex))
-        .WillOnce(Return(MIDI_STATUS_OK));
-
-    int32_t ret = controller_->CloseInputPort(clientId_, deviceId, portIndex);
-    EXPECT_EQ(ret, MIDI_STATUS_OK);
-}
-
-/**
  * @tc.name: CloseInputPort002
  * @tc.desc: Two different clients open and close Input Port
  * @tc.type: FUNC
@@ -493,28 +499,28 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort002, TestSize.Level0)
     controller_->CreateClientInServer(cb2, clientObj, clientId2);
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
     controller_->OpenDevice(clientId_, deviceId);
+    controller_->OpenDevice(clientId2, deviceId);
 
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
     std::shared_ptr<SharedMidiRing> buffer;
     controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     std::shared_ptr<SharedMidiRing> buffer2;
     int32_t ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
-
-    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, portIndex))
-        .WillOnce(Return(MIDI_STATUS_OK));
-
-    int32_t ret = controller_->CloseInputPort(clientId_, deviceId, portIndex);
+    ret = controller_->CloseInputPort(clientId_, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     auto it = controller_->deviceClientContexts_.find(deviceId);
     auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     EXPECT_NE(inputPort, inputPortConnections.end());
-    int32_t ret = controller_->CloseInputPort(clientId2, deviceId, portIndex);
+    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, portIndex))
+        .WillOnce(Return(MIDI_STATUS_OK));
+    ret = controller_->CloseInputPort(clientId2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    auto &inputPortConnections = it->second->inputDeviceconnections_;
-    auto inputPort = inputPortConnections.find(portIndex);
-    EXPECT_EQ(inputPort, inputPortConnections.end());
+    
+    auto it2 = controller_->deviceClientContexts_.find(deviceId);
+    auto &inputPortConnections2 = it2->second->inputDeviceconnections_;
+    auto inputPort2 = inputPortConnections2.find(portIndex);
+    EXPECT_EQ(inputPort2, inputPortConnections2.end());
     controller_->DestroyMidiClient(clientId2);
 }
 

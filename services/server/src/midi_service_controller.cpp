@@ -53,7 +53,6 @@ MidiServiceController* MidiServiceController::GetInstance()
 
 void MidiServiceController::Init()
 {
-    std::lock_guard lock(lock_);
     deviceManager_.Init();
 }
 
@@ -131,7 +130,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     CHECK_AND_RETURN_RET_LOG(deviceManager_.OpenDevice(deviceId) == MIDI_STATUS_OK, MIDI_STATUS_UNKNOWN_ERROR,
         "Open device failed: deviceId=%{public}" PRId64, deviceId);
     std::unordered_set<int32_t> clients = { static_cast<int32_t>(clientId) };
-    sptr<DeviceClientContext> context =  new(std::nothrow) DeviceClientContex(deviceId, std::move(clients));
+    auto context =  std::make_shared<DeviceClientContext>(deviceId, std::move(clients));
     deviceClientContexts_.emplace(deviceId, std::move(context));
     MIDI_INFO_LOG("Device opened successfully: deviceId=%{public}" PRId64 ", clientId=%{public}u", 
              deviceId, clientId);
@@ -229,7 +228,7 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     return MIDI_STATUS_OK;
 }
 
-void MidiServiceController::ClosePortforDevice(uint32_t clientId, int64_t deviceId, DeviceClientContext deviceClientContext)
+void MidiServiceController::ClosePortforDevice(uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext)
 {
     std::vector<uint32_t> portIndexs;
     for (auto const &inputPort : deviceClientContext->inputDeviceconnections_) {
@@ -245,7 +244,7 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
     MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
     std::lock_guard lock(lock_);
     auto it = clients_.find(clientId);
-    CHECK_AND_RETURN_RET_LOG(it != clients_.end(), MIDI_STATUS_INVALID_CLIENT,,
+    CHECK_AND_RETURN_RET_LOG(it != clients_.end(), MIDI_STATUS_INVALID_CLIENT,
         "Client not found for destruction: %{public}u", clientId);
     for (auto deviceIt = deviceClientContexts_.begin(); deviceIt != deviceClientContexts_.end();) {
         auto& clients = deviceIt->second->clients;
@@ -276,6 +275,8 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 void  MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
     if (change == REMOVED) {
+        std::lock_guard lock(lock_);
+        MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
         auto it = deviceClientContexts_.find(device.deviceId);
         if (it != deviceClientContexts_.end()) {
             deviceClientContexts_.erase(it);

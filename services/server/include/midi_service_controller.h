@@ -61,9 +61,9 @@ public:
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation devices);
     void NotifyError(int32_t code);
 private:
-    void ClosePortforDevice(uint32_t clientId, int64_t deviceId, sptr<DeviceClientContext> deviceClientContext);
+    void ClosePortforDevice(uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
-    std::unordered_map<int64_t, sptr<DeviceClientContext>> deviceClientContexts_;
+    std::unordered_map<int64_t, std::shared_ptr<DeviceClientContext>> deviceClientContexts_;
     std::unordered_map<int32_t, sptr<MidiClientInServer>> clients_;
     MidiDeviceManager deviceManager_{};
     static std::atomic<uint32_t> currentClientId_;

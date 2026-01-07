@@ -257,5 +257,5 @@ HWTEST_F(MidiClientUnitTest, ClosePort_001, TestSize.Level0)
     uint32_t portIndex = 5;
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
 
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
+    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_UNKNOWN_ERROR);
 }
