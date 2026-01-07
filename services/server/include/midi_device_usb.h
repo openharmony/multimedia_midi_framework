@@ -24,10 +24,11 @@
 namespace OHOS {
 namespace MIDI {
 
-class UsbDriverCallback: public HDI::Midi::V1_0::IMidiCallback {
+class UsbDriverCallback : public HDI::Midi::V1_0::IMidiCallback {
 public:
-    UsbDriverCallback(UmpInputCallback cb): callback_(cb) {}
+    UsbDriverCallback(UmpInputCallback cb) : callback_(cb) {}
     int32_t OnMidiDataReceived(const std::vector<HDI::Midi::V1_0::MidiMessage> &messages) override;
+
 private:
     UmpInputCallback callback_;
 };
@@ -49,9 +50,10 @@ public:
     int32_t CloseInputPort(int64_t deviceId, size_t portIndex) override;
 
     int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list) override;
+
 private:
     sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;
 };
-}
-}
+} // namespace MIDI
+} // namespace OHOS
 #endif

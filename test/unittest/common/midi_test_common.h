@@ -35,9 +35,10 @@ public:
 
 class MockMidiServiceCallback : public MidiServiceCallback {
 public:
-    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, (std::map<int32_t, std::string>) deviceInfo), (override));
+    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, (std::map<int32_t, std::string>)deviceInfo),
+                (override));
     MOCK_METHOD(void, NotifyError, (int32_t code), (override));
 };
-}
-}
-#endif 
+} // namespace MIDI
+} // namespace OHOS
+#endif

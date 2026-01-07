@@ -39,10 +39,10 @@
 namespace OHOS {
 namespace MIDI {
 namespace {
-    const uint32_t MAX_MMAP_BUFFER_SIZE = 0x2000;
-    static constexpr int INVALID_FD = -1;
-    static constexpr int MINFD = 2;
-}
+const uint32_t MAX_MMAP_BUFFER_SIZE = 0x2000;
+static constexpr int INVALID_FD = -1;
+static constexpr int MINFD = 2;
+} // namespace
 
 class MidiSharedMemoryImpl : public MidiSharedMemory {
 public:
@@ -79,10 +79,10 @@ public:
             CloseFd(fd_);
         }
     }
+
 private:
     int fd_ = -1;
 };
-
 
 MidiSharedMemoryImpl::MidiSharedMemoryImpl(size_t size, const std::string &name)
     : base_(nullptr), fd_(INVALID_FD), size_(size), name_(name)
@@ -94,7 +94,7 @@ MidiSharedMemoryImpl::MidiSharedMemoryImpl(int fd, size_t size, const std::strin
     : base_(nullptr), fd_(dup(fd)), size_(size), name_(name)
 {
     MIDI_DEBUG_LOG("MidiSharedMemory ctor with fd %{public}d size %{public}zu name %{public}s", fd_, size_,
-        name_.c_str());
+                   name_.c_str());
 }
 
 MidiSharedMemoryImpl::~MidiSharedMemoryImpl()
@@ -106,7 +106,7 @@ MidiSharedMemoryImpl::~MidiSharedMemoryImpl()
 int32_t MidiSharedMemoryImpl::Init()
 {
     CHECK_AND_RETURN_RET_LOG((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE), MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "Init falied: size out of range: %{public}zu", size_);
+                             "Init falied: size out of range: %{public}zu", size_);
     bool isFromRemote = false;
     if (fd_ >= 0) {
         if (fd_ == STDIN_FILENO || fd_ == STDOUT_FILENO || fd_ == STDERR_FILENO) {
@@ -117,7 +117,8 @@ int32_t MidiSharedMemoryImpl::Init()
         if (size < 0 || static_cast<size_t>(size) != size_) {
             MIDI_WARNING_LOG("AshmemGetSize faied, get %{public}d", size);
         }
-    } else {
+    }
+    else {
         fd_ = AshmemCreate(name_.c_str(), size_);
         if (fd_ == STDIN_FILENO || fd_ == STDOUT_FILENO || fd_ == STDERR_FILENO) {
             MIDI_WARNING_LOG("fd is special fd: %{public}d", fd_);
@@ -126,11 +127,10 @@ int32_t MidiSharedMemoryImpl::Init()
     }
 
     void *addr = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
-    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, MIDI_STATUS_UNKNOWN_ERROR, "Init falied: fd %{public}d size %{public}zu",
-        fd_, size_);
+    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, MIDI_STATUS_UNKNOWN_ERROR,
+                             "Init falied: fd %{public}d size %{public}zu", fd_, size_);
     base_ = static_cast<uint8_t *>(addr);
-    MIDI_DEBUG_LOG("Init %{public}s <%{public}s> done.", (isFromRemote ? "remote" : "local"),
-        name_.c_str());
+    MIDI_DEBUG_LOG("Init %{public}s <%{public}s> done.", (isFromRemote ? "remote" : "local"), name_.c_str());
     return MIDI_STATUS_OK;
 }
 
@@ -139,9 +139,8 @@ bool MidiSharedMemoryImpl::Marshalling(Parcel &parcel) const
     // Parcel -> MessageParcel
     MessageParcel &msgParcel = static_cast<MessageParcel &>(parcel);
     CHECK_AND_RETURN_RET_LOG((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE), false, "invalid size: %{public}zu", size_);
-    return msgParcel.WriteFileDescriptor(fd_) &&
-        msgParcel.WriteUint64(static_cast<uint64_t>(size_)) &&
-        msgParcel.WriteString(name_);
+    return msgParcel.WriteFileDescriptor(fd_) && msgParcel.WriteUint64(static_cast<uint64_t>(size_)) &&
+           msgParcel.WriteString(name_);
 }
 
 void MidiSharedMemoryImpl::Close()
@@ -160,32 +159,18 @@ void MidiSharedMemoryImpl::Close()
     }
 }
 
-uint8_t *MidiSharedMemoryImpl::GetBase()
-{
-    return base_;
-}
+uint8_t *MidiSharedMemoryImpl::GetBase() { return base_; }
 
-size_t MidiSharedMemoryImpl::GetSize()
-{
-    return size_;
-}
+size_t MidiSharedMemoryImpl::GetSize() { return size_; }
 
-std::string MidiSharedMemoryImpl::GetName()
-{
-    return name_;
-}
+std::string MidiSharedMemoryImpl::GetName() { return name_; }
 
-int MidiSharedMemoryImpl::GetFd()
-{
-    return fd_;
-}
-
+int MidiSharedMemoryImpl::GetFd() { return fd_; }
 
 std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromLocal(size_t size, const std::string &name)
 {
     std::shared_ptr<MidiSharedMemoryImpl> sharedMemory = std::make_shared<MidiSharedMemoryImpl>(size, name);
-    CHECK_AND_RETURN_RET_LOG(sharedMemory->Init() == MIDI_STATUS_OK,
-        nullptr, "CreateFromLocal failed");
+    CHECK_AND_RETURN_RET_LOG(sharedMemory->Init() == MIDI_STATUS_OK, nullptr, "CreateFromLocal failed");
     return sharedMemory;
 }
 
@@ -201,10 +186,7 @@ std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromRemote(int fd, siz
     return sharedMemory;
 }
 
-bool MidiSharedMemory::Marshalling(Parcel &parcel) const
-{
-    return true;
-}
+bool MidiSharedMemory::Marshalling(Parcel &parcel) const { return true; }
 
 MidiSharedMemory *MidiSharedMemory::Unmarshalling(Parcel &parcel)
 {
@@ -221,12 +203,12 @@ MidiSharedMemory *MidiSharedMemory::Unmarshalling(Parcel &parcel)
 
     off_t actualSize = lseek(fd, 0, SEEK_END);
     lseek(fd, 0, SEEK_SET);
-    CHECK_AND_RETURN_RET_LOG((actualSize == (off_t)size) && size != 0,
-        nullptr, "CreateFromRemote failed: actualSize is not equal to declareSize");
+    CHECK_AND_RETURN_RET_LOG((actualSize == (off_t)size) && size != 0, nullptr,
+                             "CreateFromRemote failed: actualSize is not equal to declareSize");
 
     std::string name = msgParcel.ReadString();
 
-    auto memory = new(std::nothrow) MidiSharedMemoryImpl(fd, size, name);
+    auto memory = new (std::nothrow) MidiSharedMemoryImpl(fd, size, name);
     if (memory == nullptr) {
         MIDI_ERR_LOG("not enough memory");
         return nullptr;
@@ -242,10 +224,7 @@ MidiSharedMemory *MidiSharedMemory::Unmarshalling(Parcel &parcel)
 
 //==================== Ring Math ====================//
 // 保留 1 字节空槽（区分空/满）
-inline uint32_t RingUsed(uint32_t r, uint32_t w, uint32_t cap)
-{
-    return (w >= r) ? (w - r) : (cap - (r - w));
-}
+inline uint32_t RingUsed(uint32_t r, uint32_t w, uint32_t cap) { return (w >= r) ? (w - r) : (cap - (r - w)); }
 
 inline uint32_t RingFree(uint32_t r, uint32_t w, uint32_t cap)
 {
@@ -253,11 +232,7 @@ inline uint32_t RingFree(uint32_t r, uint32_t w, uint32_t cap)
     return (cap - 1u) - used;
 }
 
-inline bool IsValidOffset(uint32_t off, uint32_t cap)
-{
-    return off < cap;
-}
-
+inline bool IsValidOffset(uint32_t off, uint32_t cap) { return off < cap; }
 
 //==================== SharedMidiRing Public ====================//
 
@@ -269,10 +244,11 @@ SharedMidiRing::SharedMidiRing(uint32_t ringCapacityBytes) : capacity_(ringCapac
 int32_t SharedMidiRing::Init(int dataFd)
 {
     CHECK_AND_RETURN_RET_LOG(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "failed: invalid totalMemorySize_");
+                             "failed: invalid totalMemorySize_");
     if (dataFd == INVALID_FD) {
         dataMem_ = MidiSharedMemory::CreateFromLocal(totalMemorySize_, "midi_shared_buffer");
-    } else {
+    }
+    else {
         dataMem_ = MidiSharedMemory::CreateFromRemote(dataFd, totalMemorySize_, "midi_shared_buffer");
     }
     base_ = dataMem_->GetBase();
@@ -287,19 +263,16 @@ int32_t SharedMidiRing::Init(int dataFd)
     return MIDI_STATUS_OK;
 }
 
-
 std::shared_ptr<SharedMidiRing> SharedMidiRing::CreateFromLocal(size_t ringCapacityBytes)
 {
     MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
 
     std::shared_ptr<SharedMidiRing> buffer = std::make_shared<SharedMidiRing>(ringCapacityBytes);
-    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == MIDI_STATUS_OK,
-        nullptr, "failed to init.");
+    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == MIDI_STATUS_OK, nullptr, "failed to init.");
     return buffer;
 }
 
-std::shared_ptr<SharedMidiRing> SharedMidiRing::CreateFromRemote(size_t ringCapacityBytes,
-    int dataFd)
+std::shared_ptr<SharedMidiRing> SharedMidiRing::CreateFromRemote(size_t ringCapacityBytes, int dataFd)
 {
     MIDI_DEBUG_LOG("dataFd %{public}d", dataFd);
 
@@ -318,8 +291,7 @@ bool SharedMidiRing::Marshalling(Parcel &parcel) const
 {
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, false, "dataMem_ is nullptr.");
-    return messageParcel.WriteUint32(capacity_) &&
-        messageParcel.WriteFileDescriptor(dataMem_->GetFd());
+    return messageParcel.WriteUint32(capacity_) && messageParcel.WriteFileDescriptor(dataMem_->GetFd());
 }
 
 SharedMidiRing *SharedMidiRing::Unmarshalling(Parcel &parcel)
@@ -332,14 +304,15 @@ SharedMidiRing *SharedMidiRing::Unmarshalling(Parcel &parcel)
     int minfd = 2; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
 
-    auto buffer = new(std::nothrow) SharedMidiRing(ringSize);
+    auto buffer = new (std::nothrow) SharedMidiRing(ringSize);
     if (buffer == nullptr || buffer->Init(dataFd) != MIDI_STATUS_OK) {
         MIDI_ERR_LOG("failed to init.");
-        if (buffer != nullptr) delete buffer;
+        if (buffer != nullptr)
+            delete buffer;
         CloseFd(dataFd);
         return nullptr;
     }
-    
+
     if (ringSize != buffer->capacity_) {
         MIDI_WARNING_LOG("data in shared memory wrong");
     }
@@ -348,31 +321,15 @@ SharedMidiRing *SharedMidiRing::Unmarshalling(Parcel &parcel)
     return buffer;
 }
 
+uint32_t SharedMidiRing::GetCapacity() const { return capacity_; }
 
-uint32_t SharedMidiRing::GetCapacity() const
-{
-    return capacity_;
-}
+uint32_t SharedMidiRing::GetReadPosition() const { return controler_->readPosition.load(); }
 
-uint32_t SharedMidiRing::GetReadPosition() const
-{
-    return controler_->readPosition.load();
-}
+uint32_t SharedMidiRing::GetWritePosition() const { return controler_->writePosition.load(); }
 
-uint32_t SharedMidiRing::GetWritePosition() const
-{
-    return controler_->writePosition.load();
-}
+uint8_t *SharedMidiRing::GetDataBase() { return ringBase_; }
 
-uint8_t *SharedMidiRing::GetDataBase()
-{
-    return ringBase_;
-}
-
-bool SharedMidiRing::IsEmpty() const
-{
-    return GetReadPosition() == GetWritePosition();
-}
+bool SharedMidiRing::IsEmpty() const { return GetReadPosition() == GetWritePosition(); }
 
 std::atomic<uint32_t> *SharedMidiRing::GetFutex()
 {
@@ -382,20 +339,12 @@ std::atomic<uint32_t> *SharedMidiRing::GetFutex()
     return &controler_->futexObj;
 }
 
-
-ControlHeader* SharedMidiRing::GetControlHeader()
-{
-    return controler_;
-}
-
+ControlHeader *SharedMidiRing::GetControlHeader() { return controler_; }
 
 FutexCode SharedMidiRing::WaitFor(int64_t timeoutInNs, const std::function<bool(void)> &pred)
 {
-    return FutexTool::FutexWait(GetFutex(), timeoutInNs, [&pred] () {
-        return pred();
-    });
+    return FutexTool::FutexWait(GetFutex(), timeoutInNs, [&pred]() { return pred(); });
 }
-
 
 void SharedMidiRing::WakeFutex(uint32_t wakeVal)
 {
@@ -404,23 +353,18 @@ void SharedMidiRing::WakeFutex(uint32_t wakeVal)
     }
 }
 
-void SharedMidiRing::NotifyConsumer(uint32_t wakeVal)
-{
-    WakeFutex(wakeVal);
-}
+void SharedMidiRing::NotifyConsumer(uint32_t wakeVal) { WakeFutex(wakeVal); }
 
 //==================== Write Side ====================//
 
-MidiStatusCode SharedMidiRing::TryWriteEvent(const MidiEventInner& event, bool notify)
+MidiStatusCode SharedMidiRing::TryWriteEvent(const MidiEventInner &event, bool notify)
 {
     uint32_t written = 0;
     return TryWriteEvents(&event, 1, &written, notify);
 }
 
-MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEventInner* events,
-                                              uint32_t eventCount,
-                                              uint32_t* eventsWritten,
-                                              bool notify)
+MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEventInner *events, uint32_t eventCount,
+                                              uint32_t *eventsWritten, bool notify)
 {
     if (eventsWritten) {
         *eventsWritten = 0;
@@ -435,7 +379,7 @@ MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEventInner* events,
     uint32_t writeIndex = controler_->writePosition.load();
 
     for (uint32_t i = 0; i < eventCount; ++i) {
-        const MidiEventInner& event = events[i];
+        const MidiEventInner &event = events[i];
         if (!ValidateOneEvent(event)) {
             break;
         }
@@ -465,7 +409,7 @@ MidiStatusCode SharedMidiRing::TryWriteEvents(const MidiEventInner* events,
 
 //==================== Read Side (Peek + Commit) ====================//
 
-MidiStatusCode SharedMidiRing::PeekNext(PeekedEvent& outEvent)
+MidiStatusCode SharedMidiRing::PeekNext(PeekedEvent &outEvent)
 {
     outEvent = PeekedEvent{};
 
@@ -481,7 +425,7 @@ MidiStatusCode SharedMidiRing::PeekNext(PeekedEvent& outEvent)
             return ret;
         }
 
-        const ShmMidiEventHeader* header = reinterpret_cast<const ShmMidiEventHeader*>(ringBase_ + readIndex);
+        const ShmMidiEventHeader *header = reinterpret_cast<const ShmMidiEventHeader *>(ringBase_ + readIndex);
         ret = HandleWrapIfNeeded(*header, readIndex);
         if (ret == MidiStatusCode::OK) {
             continue;
@@ -493,7 +437,7 @@ MidiStatusCode SharedMidiRing::PeekNext(PeekedEvent& outEvent)
     }
 }
 
-void SharedMidiRing::CommitRead(const PeekedEvent& ev)
+void SharedMidiRing::CommitRead(const PeekedEvent &ev)
 {
     uint32_t end = ev.endOffset;
     if (end >= capacity_) {
@@ -502,9 +446,8 @@ void SharedMidiRing::CommitRead(const PeekedEvent& ev)
     controler_->readPosition.store(end);
 }
 
-void SharedMidiRing::DrainToBatch(std::vector<MidiEvent>& outEvents,
-                                  std::vector<std::vector<uint32_t>>& outPayloadBuffers,
-                                  uint32_t maxEvents)
+void SharedMidiRing::DrainToBatch(std::vector<MidiEvent> &outEvents,
+                                  std::vector<std::vector<uint32_t>> &outPayloadBuffers, uint32_t maxEvents)
 {
     uint32_t count = 0;
     while (maxEvents == 0 || count < maxEvents) {
@@ -530,7 +473,7 @@ void SharedMidiRing::DrainToBatch(std::vector<MidiEvent>& outEvents,
 
 //==================== Private Helpers (All <= 50 lines) ====================//
 
-MidiStatusCode SharedMidiRing::ValidateWriteArgs(const MidiEventInner* events, uint32_t eventCount) const
+MidiStatusCode SharedMidiRing::ValidateWriteArgs(const MidiEventInner *events, uint32_t eventCount) const
 {
     if (eventCount == 0) {
         return MidiStatusCode::OK;
@@ -544,7 +487,7 @@ MidiStatusCode SharedMidiRing::ValidateWriteArgs(const MidiEventInner* events, u
     return MidiStatusCode::OK;
 }
 
-bool SharedMidiRing::ValidateOneEvent(const MidiEventInner& event) const
+bool SharedMidiRing::ValidateOneEvent(const MidiEventInner &event) const
 {
     // if (event.length > 0 && event.data == nullptr) { // to be deleted
     //     return false;
@@ -555,24 +498,19 @@ bool SharedMidiRing::ValidateOneEvent(const MidiEventInner& event) const
         return false;
     }
     const size_t payloadBytes = event.length * sizeof(uint32_t);
-    const size_t maxLeftBytes =
-        static_cast<size_t>(capacity_) - 1u - sizeof(ShmMidiEventHeader);
-    CHECK_AND_RETURN_RET_LOG(payloadBytes <= maxLeftBytes, false,
-        "event length overflow");
+    const size_t maxLeftBytes = static_cast<size_t>(capacity_) - 1u - sizeof(ShmMidiEventHeader);
+    CHECK_AND_RETURN_RET_LOG(payloadBytes <= maxLeftBytes, false, "event length overflow");
     return true;
 }
 
-MidiStatusCode SharedMidiRing::TryWriteOneEvent(const MidiEventInner& event,
-                                                uint32_t totalBytes,
-                                                uint32_t readIndex,
-                                                uint32_t& writeIndex)
+MidiStatusCode SharedMidiRing::TryWriteOneEvent(const MidiEventInner &event, uint32_t totalBytes, uint32_t readIndex,
+                                                uint32_t &writeIndex)
 {
     const uint32_t freeSize = RingFree(readIndex, writeIndex, capacity_);
     CHECK_AND_RETURN_RET(freeSize >= totalBytes, MidiStatusCode::WOULD_BLOCK);
 
     UpdateWriteIndexIfNeed(writeIndex, totalBytes);
-    const uint32_t writeSize =
-        (writeIndex < readIndex) ? (readIndex - writeIndex - 1u) : (capacity_ - writeIndex);
+    const uint32_t writeSize = (writeIndex < readIndex) ? (readIndex - writeIndex - 1u) : (capacity_ - writeIndex);
     CHECK_AND_RETURN_RET(writeSize >= totalBytes, MidiStatusCode::WOULD_BLOCK);
 
     WriteEvent(writeIndex, event);
@@ -583,7 +521,7 @@ MidiStatusCode SharedMidiRing::TryWriteOneEvent(const MidiEventInner& event,
     return MidiStatusCode::OK;
 }
 
-bool SharedMidiRing::UpdateWriteIndexIfNeed(uint32_t& writeIndex, uint32_t totalBytes)
+bool SharedMidiRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t totalBytes)
 {
     const uint32_t tail = capacity_ - writeIndex;
     if (tail >= totalBytes) {
@@ -592,32 +530,31 @@ bool SharedMidiRing::UpdateWriteIndexIfNeed(uint32_t& writeIndex, uint32_t total
 
     // if tailBytes not enough, wrap and update writeIndex
     if (tail >= sizeof(ShmMidiEventHeader)) {
-        auto* header = reinterpret_cast<ShmMidiEventHeader*>(ringBase_ + writeIndex);
+        auto *header = reinterpret_cast<ShmMidiEventHeader *>(ringBase_ + writeIndex);
         header->timestamp = 0;
-        header->length    = 0;
-        header->flags     = SHM_EVENT_FLAG_WRAP;
+        header->length = 0;
+        header->flags = SHM_EVENT_FLAG_WRAP;
     }
     writeIndex = 0;
     controler_->writePosition.store(writeIndex);
     return true;
 }
 
-void SharedMidiRing::WriteEvent(uint32_t writeIndex, const MidiEventInner& event)
+void SharedMidiRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event)
 {
-    uint8_t* dst = ringBase_ + writeIndex;
-    auto* header = reinterpret_cast<ShmMidiEventHeader*>(dst);
+    uint8_t *dst = ringBase_ + writeIndex;
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(dst);
     header->timestamp = event.timestamp;
-    header->length    = static_cast<uint32_t>(event.length);
-    header->flags     = SHM_EVENT_FLAG_NONE;
+    header->length = static_cast<uint32_t>(event.length);
+    header->flags = SHM_EVENT_FLAG_NONE;
 
-    uint8_t* payload = dst + sizeof(ShmMidiEventHeader);
+    uint8_t *payload = dst + sizeof(ShmMidiEventHeader);
     const size_t payloadBytes = event.length * sizeof(uint32_t);
     CHECK_AND_RETURN_LOG(payloadBytes > 0, "copy length is zero!");
-    memcpy_s(payload, payloadBytes,
-        reinterpret_cast<const void*>(event.data), payloadBytes);
+    memcpy_s(payload, payloadBytes, reinterpret_cast<const void *>(event.data), payloadBytes);
 }
 
-MidiStatusCode SharedMidiRing::UpdateReadIndexIfNeed(uint32_t& readIndex, uint32_t writeIndex)
+MidiStatusCode SharedMidiRing::UpdateReadIndexIfNeed(uint32_t &readIndex, uint32_t writeIndex)
 {
     if (!IsValidOffset(readIndex, capacity_) || !IsValidOffset(writeIndex, capacity_)) {
         return MidiStatusCode::SHM_BROKEN;
@@ -625,20 +562,17 @@ MidiStatusCode SharedMidiRing::UpdateReadIndexIfNeed(uint32_t& readIndex, uint32
     if (readIndex == writeIndex) {
         return MidiStatusCode::WOULD_BLOCK;
     }
-    CHECK_AND_RETURN_RET_LOG(readIndex != writeIndex, MidiStatusCode::WOULD_BLOCK,
-        "no event in ring buffer");
+    CHECK_AND_RETURN_RET_LOG(readIndex != writeIndex, MidiStatusCode::WOULD_BLOCK, "no event in ring buffer");
 
     const uint32_t tail = capacity_ - readIndex;
     if (tail < sizeof(ShmMidiEventHeader)) {
         readIndex = 0;
-        CHECK_AND_RETURN_RET_LOG(readIndex != writeIndex, MidiStatusCode::WOULD_BLOCK,
-            "no event in ring buffer");
+        CHECK_AND_RETURN_RET_LOG(readIndex != writeIndex, MidiStatusCode::WOULD_BLOCK, "no event in ring buffer");
     }
     return MidiStatusCode::OK;
 }
 
-
-MidiStatusCode SharedMidiRing::HandleWrapIfNeeded(const ShmMidiEventHeader& header, uint32_t& readIndex)
+MidiStatusCode SharedMidiRing::HandleWrapIfNeeded(const ShmMidiEventHeader &header, uint32_t &readIndex)
 {
     if ((header.flags & SHM_EVENT_FLAG_WRAP) == 0) {
         return MidiStatusCode::WOULD_BLOCK; // no wrap
@@ -651,7 +585,8 @@ MidiStatusCode SharedMidiRing::HandleWrapIfNeeded(const ShmMidiEventHeader& head
     return MidiStatusCode::OK; // wrap, continue
 }
 
-MidiStatusCode SharedMidiRing::BuildPeekedEvent(const ShmMidiEventHeader& header, uint32_t readIndex, PeekedEvent& outEvent)
+MidiStatusCode SharedMidiRing::BuildPeekedEvent(const ShmMidiEventHeader &header, uint32_t readIndex,
+                                                PeekedEvent &outEvent)
 {
     const uint32_t needed = static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + header.length * sizeof(uint32_t));
     if (needed > (capacity_ - 1u)) {
@@ -661,10 +596,10 @@ MidiStatusCode SharedMidiRing::BuildPeekedEvent(const ShmMidiEventHeader& header
         return MidiStatusCode::SHM_BROKEN;
     }
 
-    outEvent.headerPtr   = &header;
-    outEvent.payloadPtr  = reinterpret_cast<const uint8_t*>(&header) + sizeof(ShmMidiEventHeader);
-    outEvent.timestamp   = header.timestamp;
-    outEvent.length      = header.length;
+    outEvent.headerPtr = &header;
+    outEvent.payloadPtr = reinterpret_cast<const uint8_t *>(&header) + sizeof(ShmMidiEventHeader);
+    outEvent.timestamp = header.timestamp;
+    outEvent.length = header.length;
     outEvent.beginOffset = readIndex;
 
     uint32_t end = readIndex + needed; // end = (r + needed) % capacity_;
@@ -675,10 +610,9 @@ MidiStatusCode SharedMidiRing::BuildPeekedEvent(const ShmMidiEventHeader& header
     return MidiStatusCode::OK;
 }
 
-MidiEvent SharedMidiRing::CopyOut(const PeekedEvent& peekedEvent,
-                                  std::vector<uint32_t>& outPayloadBuffer) const
+MidiEvent SharedMidiRing::CopyOut(const PeekedEvent &peekedEvent, std::vector<uint32_t> &outPayloadBuffer) const
 {
-    MidiEvent event {};
+    MidiEvent event{};
     event.timestamp = peekedEvent.timestamp;
 
     const size_t wordCount = static_cast<size_t>(peekedEvent.length);
@@ -688,10 +622,7 @@ MidiEvent SharedMidiRing::CopyOut(const PeekedEvent& peekedEvent,
     outPayloadBuffer.resize(wordCount);
 
     if (payloadBytes > 0) {
-        (void)memcpy_s(outPayloadBuffer.data(),
-                       payloadBytes,
-                       peekedEvent.payloadPtr,
-                       payloadBytes);
+        (void)memcpy_s(outPayloadBuffer.data(), payloadBytes, peekedEvent.payloadPtr, payloadBytes);
     }
 
     event.data = outPayloadBuffer.data();

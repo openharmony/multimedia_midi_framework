@@ -23,7 +23,6 @@
 #include "midi_client_connection.h"
 #include "midi_shared_ring.h"
 
-
 using namespace testing::ext;
 using namespace std::chrono;
 
@@ -38,9 +37,9 @@ void MidiClientConnectionUnitTest::SetUp(void) {}
 
 void MidiClientConnectionUnitTest::TearDown(void) {}
 
-static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t>& payloadWords)
+static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t> &payloadWords)
 {
-    MidiEventInner midiEventInner {};
+    MidiEventInner midiEventInner{};
     midiEventInner.timestamp = timestamp;
     midiEventInner.length = payloadWords.size();
     midiEventInner.data = payloadWords.data();
@@ -87,7 +86,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerCreateRingBuffer_
 
     // Verify memset_s executed: check a few bytes are 0.
     // (Do not scan whole buffer to keep UT fast.)
-    const uint8_t* dataBase = sharedRing->GetDataBase();
+    const uint8_t *dataBase = sharedRing->GetDataBase();
     EXPECT_EQ(0u, dataBase[0]);
     EXPECT_EQ(0u, dataBase[1]);
     EXPECT_EQ(0u, dataBase[2]);
@@ -104,7 +103,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     ClientConnectionInServer clientConnection(10, 20, 30);
     ASSERT_EQ(MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
 
-    std::vector<uint32_t> payloadWords {0x11223344, 0x55667788, 0x99AABBCC};
+    std::vector<uint32_t> payloadWords{0x11223344, 0x55667788, 0x99AABBCC};
     MidiEventInner midiEventInner = MakeMidiEventInner(12345, payloadWords);
 
     EXPECT_EQ(MIDI_STATUS_OK, clientConnection.TrySendToClient(midiEventInner));
@@ -113,7 +112,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     std::shared_ptr<SharedMidiRing> sharedRing = clientConnection.GetRingBuffer();
     ASSERT_NE(nullptr, sharedRing);
 
-    SharedMidiRing::PeekedEvent peekedEvent {};
+    SharedMidiRing::PeekedEvent peekedEvent{};
     EXPECT_EQ(MidiStatusCode::OK, sharedRing->PeekNext(peekedEvent));
     EXPECT_EQ(12345u, peekedEvent.timestamp);
     EXPECT_EQ(payloadWords.size(), peekedEvent.length);
@@ -167,7 +166,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerPendingQueue_001,
     EXPECT_FALSE(clientConnection.IsPendingFull());
     EXPECT_EQ(nullptr, clientConnection.PeekPendingTop());
 
-    ClientConnectionInServer::PendingEvent pendingEventOut {};
+    ClientConnectionInServer::PendingEvent pendingEventOut{};
     EXPECT_FALSE(clientConnection.PopPendingTop(pendingEventOut));
 
     // Enqueue three events with different due times.
@@ -188,14 +187,14 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerPendingQueue_001,
     EXPECT_FALSE(clientConnection.IsPendingFull());
 
     // Peek should return the earliest due event.
-    const ClientConnectionInServer::PendingEvent* topPending = clientConnection.PeekPendingTop();
+    const ClientConnectionInServer::PendingEvent *topPending = clientConnection.PeekPendingTop();
     ASSERT_NE(nullptr, topPending);
     EXPECT_EQ(200u, topPending->timestamp);
     ASSERT_EQ(sizeof(payloadData2), topPending->data.size());
     EXPECT_EQ(payloadData2[0], topPending->data[0]);
 
     // Pop should return the same earliest event.
-    ClientConnectionInServer::PendingEvent poppedEvent {};
+    ClientConnectionInServer::PendingEvent poppedEvent{};
     ASSERT_TRUE(clientConnection.PopPendingTop(poppedEvent));
     EXPECT_EQ(200u, poppedEvent.timestamp);
     ASSERT_EQ(sizeof(payloadData2), poppedEvent.data.size());
@@ -245,7 +244,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerPendingQueue_002,
     EXPECT_FALSE(clientConnection.EnqueueNonRealtime(payloadData, sizeof(payloadData), dueTime, 1000));
     EXPECT_TRUE(clientConnection.HasPending()); // still has the first one
 
-    ClientConnectionInServer::PendingEvent poppedEvent {};
+    ClientConnectionInServer::PendingEvent poppedEvent{};
     EXPECT_TRUE(clientConnection.PopPendingTop(poppedEvent));
     EXPECT_EQ(999u, poppedEvent.timestamp);
 

@@ -42,6 +42,6 @@ public:
     virtual int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list) = 0;
 };
 
-}
-}
+} // namespace MIDI
+} // namespace OHOS
 #endif

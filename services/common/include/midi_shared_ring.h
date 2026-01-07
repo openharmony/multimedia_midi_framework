@@ -97,7 +97,7 @@ public:
 
         uint64_t timestamp = 0;
         uint32_t length    = 0;
-        uint32_t beginOffset = 0;  // header 
+        uint32_t beginOffset = 0;  // header
         uint32_t endOffset   = 0;  // header + payload range[0, capacity]
     };
 

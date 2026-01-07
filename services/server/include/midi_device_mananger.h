@@ -33,11 +33,12 @@ struct DevicePortContext {
 
 class EventSubscriber : public EventFwk::CommonEventSubscriber {
 public:
-    explicit EventSubscriber(const EventFwk::CommonEventSubscribeInfo &subscribeInfo,
-                           std::function<void()> callback)
-        : EventFwk::CommonEventSubscriber(subscribeInfo), callback_(std::move(callback)) {}
+    explicit EventSubscriber(const EventFwk::CommonEventSubscribeInfo &subscribeInfo, std::function<void()> callback)
+        : EventFwk::CommonEventSubscriber(subscribeInfo), callback_(std::move(callback))
+    {
+    }
     void OnReceiveEvent(const EventFwk::CommonEventData &data) override;
-    
+
 private:
     std::function<void()> callback_;
 };
@@ -52,17 +53,18 @@ public:
     void UpdateDevices();
     int32_t OpenDevice(int64_t deviceId);
     int32_t CloseDevice(int64_t deviceId);
-    int32_t OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection,
-                        int64_t deviceId, uint32_t portIndex);
+    int32_t OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection, int64_t deviceId,
+                          uint32_t portIndex);
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex);
+
 private:
     int64_t GenerateDeviceId();
     int64_t GetOrCreateDeviceId(int64_t driverDeviceId, DeviceType type);
 
     DeviceInformation GetDeviceForDeviceId(int64_t deviceId);
     MidiDeviceDriver *GetDriverForDeviceType(DeviceType type);
-    void CompareDevices(const std::vector<DeviceInformation>& oldDevices, 
-        const std::vector<DeviceInformation>& newDevices);
+    void CompareDevices(const std::vector<DeviceInformation> &oldDevices,
+                        const std::vector<DeviceInformation> &newDevices);
     std::unordered_map<DeviceType, std::unique_ptr<MidiDeviceDriver>> drivers_;
     std::vector<DeviceInformation> devices_{};
     std::shared_ptr<EventSubscriber> eventSubscriber_{nullptr};

@@ -44,12 +44,12 @@ public:
     void TearDown() override {}
 };
 
-static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t>& payloadWords)
+static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t> &payloadWords)
 {
-    MidiEventInner midiEventInner {};
+    MidiEventInner midiEventInner{};
     midiEventInner.timestamp = timestamp;
-    midiEventInner.length = payloadWords.size();     // words
-    midiEventInner.data = payloadWords.data();       // const uint32_t*
+    midiEventInner.length = payloadWords.size(); // words
+    midiEventInner.data = payloadWords.data();   // const uint32_t*
     return midiEventInner;
 }
 
@@ -104,7 +104,6 @@ HWTEST_F(MidiDeviceConnectionUnitTest, UniqueFdMove_001, TestSize.Level1)
     UniqueFd firstFd(eventFileDescriptor1);
     UniqueFd secondFd(eventFileDescriptor2);
 
-
     UniqueFd movedFd(std::move(firstFd));
     EXPECT_FALSE(firstFd.Valid());
     EXPECT_TRUE(movedFd.Valid());
@@ -126,7 +125,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, UniqueFdMove_001, TestSize.Level1)
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseClients_001, TestSize.Level1)
 {
-    DeviceConnectionInfo deviceConnectionInfo {};
+    DeviceConnectionInfo deviceConnectionInfo{};
     deviceConnectionInfo.driver = nullptr;
     deviceConnectionInfo.deviceId = 1;
     deviceConnectionInfo.direction = MidiPortDirection::INPUT;
@@ -160,7 +159,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseClients_001, TestSize
     EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConections());
 
     // GetInfo interface coverage
-    const auto& returnedInfo = deviceConnectionBase.GetInfo();
+    const auto &returnedInfo = deviceConnectionBase.GetInfo();
     EXPECT_EQ(deviceConnectionInfo.deviceId, returnedInfo.deviceId);
     EXPECT_EQ(deviceConnectionInfo.portIndex, returnedInfo.portIndex);
 }
@@ -174,7 +173,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseClients_001, TestSize
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Level1)
 {
-    DeviceConnectionInfo deviceConnectionInfo {};
+    DeviceConnectionInfo deviceConnectionInfo{};
     deviceConnectionInfo.driver = nullptr;
     deviceConnectionInfo.deviceId = 2;
     deviceConnectionInfo.direction = MidiPortDirection::INPUT;
@@ -189,8 +188,8 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
     ASSERT_NE(nullptr, clientRingBuffer1);
     ASSERT_NE(nullptr, clientRingBuffer2);
 
-    std::vector<uint32_t> payloadWords1 {0x11111111, 0x22222222};
-    std::vector<uint32_t> payloadWords2 {0x33333333, 0x44444444, 0x55555555};
+    std::vector<uint32_t> payloadWords1{0x11111111, 0x22222222};
+    std::vector<uint32_t> payloadWords2{0x33333333, 0x44444444, 0x55555555};
 
     std::vector<MidiEventInner> deviceEvents;
     deviceEvents.push_back(MakeMidiEventInner(10, payloadWords1));
@@ -199,34 +198,34 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
     inputConnection.HandleDeviceUmpInput(deviceEvents);
 
     // Verify both client rings received 2 events in order.
-    for (auto* ringPointer : {clientRingBuffer1.get(), clientRingBuffer2.get()}) {
-        SharedMidiRing::PeekedEvent peekedEvent1 {};
+    for (auto *ringPointer : {clientRingBuffer1.get(), clientRingBuffer2.get()}) {
+        SharedMidiRing::PeekedEvent peekedEvent1{};
         ASSERT_EQ(MidiStatusCode::OK, ringPointer->PeekNext(peekedEvent1));
         EXPECT_EQ(10u, peekedEvent1.timestamp);
         // SharedMidiRing stores payload length in bytes
         EXPECT_EQ(payloadWords1.size(), static_cast<size_t>(peekedEvent1.length));
         ringPointer->CommitRead(peekedEvent1);
 
-        SharedMidiRing::PeekedEvent peekedEvent2 {};
+        SharedMidiRing::PeekedEvent peekedEvent2{};
         ASSERT_EQ(MidiStatusCode::OK, ringPointer->PeekNext(peekedEvent2));
         EXPECT_EQ(20u, peekedEvent2.timestamp);
         EXPECT_EQ(payloadWords2.size(), static_cast<size_t>(peekedEvent2.length));
         ringPointer->CommitRead(peekedEvent2);
 
-        SharedMidiRing::PeekedEvent peekedEvent3 {};
+        SharedMidiRing::PeekedEvent peekedEvent3{};
         EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ringPointer->PeekNext(peekedEvent3));
     }
 
     // Remove one client and broadcast again, should only affect remaining client.
     inputConnection.RemoveClientConnection(1);
 
-    std::vector<uint32_t> payloadWords3 {0xAAAA5555};
+    std::vector<uint32_t> payloadWords3{0xAAAA5555};
     std::vector<MidiEventInner> deviceEvents2;
     deviceEvents2.push_back(MakeMidiEventInner(30, payloadWords3));
     inputConnection.HandleDeviceUmpInput(deviceEvents2);
 
     // client 1 ring should have no new data
-    SharedMidiRing::PeekedEvent peekedEventAfterRemove {};
+    SharedMidiRing::PeekedEvent peekedEventAfterRemove{};
     EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, clientRingBuffer1->PeekNext(peekedEventAfterRemove));
 
     // client 2 ring should have the new event
@@ -244,7 +243,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_001, TestSize.Level1)
 {
-    DeviceConnectionInfo deviceConnectionInfo {};
+    DeviceConnectionInfo deviceConnectionInfo{};
     deviceConnectionInfo.driver = nullptr;
     deviceConnectionInfo.deviceId = 3;
     deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;
@@ -275,7 +274,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_001, TestSize.L
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.Level1)
 {
-    DeviceConnectionInfo deviceConnectionInfo {};
+    DeviceConnectionInfo deviceConnectionInfo{};
     deviceConnectionInfo.driver = nullptr;
     deviceConnectionInfo.deviceId = 4;
     deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;
@@ -298,15 +297,15 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
     // 2) realtime: timestamp==0, payload > maxSendCacheBytes -> TryAppendToSendCache false, cover flush + SendToDriver
     // 3) non-realtime: timestamp treated as delay(ns), set to very small -> enqueue pending, arm timerfd, then due pops
     uint32_t dummyWord = 0x12345678;
-    MidiEventInner realtimeEmptyPayload {};
+    MidiEventInner realtimeEmptyPayload{};
     realtimeEmptyPayload.timestamp = 0;
     realtimeEmptyPayload.length = 0;
     realtimeEmptyPayload.data = &dummyWord; // ValidateOneEvent requires data != nullptr
 
-    std::vector<uint32_t> realtimeLargePayloadWords {0x11111111, 0x22222222, 0x33333333}; // 12 bytes
+    std::vector<uint32_t> realtimeLargePayloadWords{0x11111111, 0x22222222, 0x33333333}; // 12 bytes
     MidiEventInner realtimeLargePayload = MakeMidiEventInner(0, realtimeLargePayloadWords);
 
-    std::vector<uint32_t> nonRealtimePayloadWords {0xAAAAAAAA, 0xBBBBBBBB}; // 8 bytes
+    std::vector<uint32_t> nonRealtimePayloadWords{0xAAAAAAAA, 0xBBBBBBBB}; // 8 bytes
     MidiEventInner nonRealtimeEvent = MakeMidiEventInner(1 /* 1ns delay */, nonRealtimePayloadWords);
 
     // Write events into ring
@@ -331,7 +330,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
 
     // Ring should have been drained (best-effort check; if pending was full it might stop early,
     // but in current implementation pending limit is not wired, so it should drain).
-    SharedMidiRing::PeekedEvent peekedEvent {};
+    SharedMidiRing::PeekedEvent peekedEvent{};
     EXPECT_TRUE(clientRingBuffer->PeekNext(peekedEvent) == MidiStatusCode::WOULD_BLOCK ||
                 clientRingBuffer->PeekNext(peekedEvent) == MidiStatusCode::OK);
 }
@@ -343,7 +342,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_003, TestSize.Level1)
 {
-    DeviceConnectionInfo deviceConnectionInfo {};
+    DeviceConnectionInfo deviceConnectionInfo{};
     deviceConnectionInfo.driver = nullptr;
     deviceConnectionInfo.deviceId = 5;
     deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;

@@ -32,6 +32,6 @@ public:
     // TearDown: Called after each test cases
     void TearDown(void);
 };
-}
-}
+} // namespace MIDI
+} // namespace OHOS
 #endif

@@ -217,7 +217,7 @@ typedef enum {
 typedef struct {
     /**
      * @brief Timestamp in nanoseconds.
-     * Base time obtained via clock_gettime(CLOCK_MONOTONIC, &time) 
+     * Base time obtained via clock_gettime(CLOCK_MONOTONIC, &time)
      * 0 indicates "send immediately".
      */
     uint64_t timestamp;
@@ -360,7 +360,7 @@ typedef void (*OH_OnMidiDeviceChange)(void *userData,
  * @brief Callback for receiving Midi data (Batch Processing)
  *
  * @note The callback is invoked on a high-priority thread.
- * @note The 'events' array and its data pointers are transient and valid ONLY 
+ * @note The 'events' array and its data pointers are transient and valid ONLY
  * for the duration of this callback. If you need to keep the data, copy it.
  *
  * @param userData User context provided during port opening.

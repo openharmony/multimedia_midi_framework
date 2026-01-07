@@ -27,7 +27,7 @@ namespace {
 const uint32_t IS_READY = 0;
 const uint32_t IS_NOT_READY = 1;
 const uint32_t IS_PRE_EXIT = 2;
-}
+} // namespace
 enum FutexCode : int32_t {
     FUTEX_SUCCESS = 0,
     FUTEX_TIMEOUT,

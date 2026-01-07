@@ -40,7 +40,7 @@ public:
     uint8_t WordCount() const;
 
 private:
-    uint32_t data_[4] = { 0 }; // Zero-initialized by default
+    uint32_t data_[4] = {0}; // Zero-initialized by default
     uint8_t word_count_ = 0;
 };
 #endif

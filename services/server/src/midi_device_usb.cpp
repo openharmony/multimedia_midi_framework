@@ -24,15 +24,11 @@ using namespace OHOS::HDI::Midi::V1_0;
 namespace OHOS {
 namespace MIDI {
 
-UsbMidiTransportDeviceDriver::UsbMidiTransportDeviceDriver()
-{
-    midiHdi_ = IMidiInterface::Get(true);
-}
+UsbMidiTransportDeviceDriver::UsbMidiTransportDeviceDriver() { midiHdi_ = IMidiInterface::Get(true); }
 static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceInfo device)
 {
     std::vector<PortInformation> portInfos;
-    for (const auto &port : device.ports)
-    {
+    for (const auto &port : device.ports) {
         PortInformation portInfo;
         portInfo.portId = port.portId;
         portInfo.name = port.name;
@@ -61,16 +57,9 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
     return deviceInfos;
 }
 
-int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
-{
-    return midiHdi_->OpenDevice(deviceId);
-}
+int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId) { return midiHdi_->OpenDevice(deviceId); }
 
-int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
-{
-    return midiHdi_->CloseDevice(deviceId);
-}
-
+int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId) { return midiHdi_->CloseDevice(deviceId); }
 
 int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
 {
@@ -88,11 +77,11 @@ int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t por
     return 0;
 }
 
-int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi::V1_0::MidiMessage>& messages)
+int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> &messages)
 {
     std::vector<MidiEventInner> events;
     events.reserve(messages.size());
-    for (auto& message: messages) {
+    for (auto &message : messages) {
         MidiEventInner event = {
             .timestamp = message.timestamp,
             .length = message.data.size(),

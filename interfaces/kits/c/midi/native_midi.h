@@ -26,7 +26,7 @@
  *
  * @brief Declare Midi related interfaces.
  *
- * This file interfaces are used for Midi device management, 
+ * This file interfaces are used for Midi device management,
  * Midi message sending and receiving, and device status monitoring.
  *
  * @library libohmidi.so
@@ -118,7 +118,7 @@ OH_MidiStatusCode OH_MidiOpenDevice(OH_MidiClient *client, int64_t deviceId, OH_
  * @since 24
  */
 OH_MidiStatusCode OH_MidiOpenBleDevice(OH_MidiClient *client, const char *deviceAddr, OH_MidiDevice **device,
-    int64_t *deviceId);
+                                       int64_t *deviceId);
 
 /**
  * @brief Close Midi device
@@ -144,7 +144,7 @@ OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device);
  * @since 24
  */
 OH_MidiStatusCode OH_MidiGetDevicePorts(OH_MidiClient *client, int64_t deviceId, OH_MidiPortInformation *infos,
-    size_t *numPorts);
+                                        size_t *numPorts);
 
 /**
  * @brief Open Midi input port (Receive Data)
@@ -163,10 +163,8 @@ OH_MidiStatusCode OH_MidiGetDevicePorts(OH_MidiClient *client, int64_t deviceId,
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device,
-                                       OH_MidiPortDescriptor portIndex,
-                                       OH_OnMidiReceived callback,
-                                       void *userData);
+OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device, OH_MidiPortDescriptor portIndex,
+                                       OH_OnMidiReceived callback, void *userData);
 
 /**
  * @brief Open Midi output port (Send Data)
@@ -180,8 +178,7 @@ OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device,
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenOutputPort(OH_MidiDevice *device,
-                                        OH_MidiPortDescriptor descriptor);
+OH_MidiStatusCode OH_MidiOpenOutputPort(OH_MidiDevice *device, OH_MidiPortDescriptor descriptor);
 
 /**
  * @brief Close Midi input port
@@ -201,10 +198,10 @@ OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex);
  *
  * Attempts to write an array of events to the shared memory buffer.
  *
- * - Atomicity: Each event in the array is treated atomically. 
+ * - Atomicity: Each event in the array is treated atomically.
  * It is either fully written or not written at all.
- * - Partial Success: If the buffer becomes full midway, the function returns 
- * {@link #MIDI_STATUS_WOULD_BLOCK} and sets eventsWritten to the number of events 
+ * - Partial Success: If the buffer becomes full midway, the function returns
+ * {@link #MIDI_STATUS_WOULD_BLOCK} and sets eventsWritten to the number of events
  * successfully enqueued.
  *
  * @param device Target device handle.
@@ -220,10 +217,7 @@ OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiSend(OH_MidiDevice *device,
-                              uint32_t portIndex,
-                              OH_MidiEvent *events,
-                              uint32_t eventCount,
+OH_MidiStatusCode OH_MidiSend(OH_MidiDevice *device, uint32_t portIndex, OH_MidiEvent *events, uint32_t eventCount,
                               uint32_t *eventsWritten);
 
 /**
@@ -251,16 +245,13 @@ OH_MidiStatusCode OH_MidiSend(OH_MidiDevice *device,
  * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiSendSysEx(OH_MidiDevice *device,
-                                   uint32_t portIndex,
-                                   uint8_t *data,
-                                   uint32_t byteSize);
+OH_MidiStatusCode OH_MidiSendSysEx(OH_MidiDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
 
 /**
  * @brief Flush pending messages in output buffer
  *
- * Immediately discards all MIDI events currently waiting in the output buffer 
- * for the specified port. This includes events scheduled for future timestamps 
+ * Immediately discards all MIDI events currently waiting in the output buffer
+ * for the specified port. This includes events scheduled for future timestamps
  * that haven't been processed by the service yet.
  *
  * @note This does NOT send "All Notes Off" messages. It simply clears the queue.

@@ -26,15 +26,10 @@
 namespace OHOS {
 namespace MIDI {
 namespace {
-    static constexpr size_t MAX_PENDING_EVENTS = 4096;
+static constexpr size_t MAX_PENDING_EVENTS = 4096;
 }
 
-
-
-enum class MidiPortDirection : uint32_t {
-    INPUT = 0,
-    OUTPUT = 1
-};
+enum class MidiPortDirection : uint32_t { INPUT = 0, OUTPUT = 1 };
 
 struct DeviceConnectionInfo {
     MidiDeviceDriver *driver = nullptr;
@@ -43,18 +38,17 @@ struct DeviceConnectionInfo {
     uint32_t portIndex;
 };
 
-
 class UniqueFd {
 public:
     UniqueFd() = default;
     explicit UniqueFd(int fd) : fd_(fd) {}
     ~UniqueFd();
 
-    UniqueFd(const UniqueFd&) = delete;
-    UniqueFd& operator=(const UniqueFd&) = delete;
+    UniqueFd(const UniqueFd &) = delete;
+    UniqueFd &operator=(const UniqueFd &) = delete;
 
-    UniqueFd(UniqueFd&& other) noexcept;
-    UniqueFd& operator=(UniqueFd&& other) noexcept;
+    UniqueFd(UniqueFd &&other) noexcept;
+    UniqueFd &operator=(UniqueFd &&other) noexcept;
 
     int Get() const { return fd_; }
     bool Valid() const { return fd_ >= 0; }
@@ -64,16 +58,15 @@ private:
     int fd_ = -1;
 };
 
-
 class DeviceConnectionBase {
 public:
     explicit DeviceConnectionBase(DeviceConnectionInfo info);
     virtual ~DeviceConnectionBase() = default;
 
-    DeviceConnectionBase(const DeviceConnectionBase&) = delete;
-    DeviceConnectionBase& operator=(const DeviceConnectionBase&) = delete;
+    DeviceConnectionBase(const DeviceConnectionBase &) = delete;
+    DeviceConnectionBase &operator=(const DeviceConnectionBase &) = delete;
 
-    const DeviceConnectionInfo& GetInfo() const { return info_; }
+    const DeviceConnectionInfo &GetInfo() const { return info_; }
 
     virtual int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle,
                                         std::shared_ptr<SharedMidiRing> &buffer);
@@ -98,9 +91,8 @@ public:
 
     void HandleDeviceUmpInput(std::vector<MidiEventInner> &events);
 
-
 private:
-    void BroadcastToClients(const MidiEventInner& ev);
+    void BroadcastToClients(const MidiEventInner &ev);
 };
 
 class DeviceConnectionForOutput final : public DeviceConnectionBase {
@@ -108,11 +100,9 @@ public:
     explicit DeviceConnectionForOutput(DeviceConnectionInfo info);
     ~DeviceConnectionForOutput() override;
 
-
     // to manage the thread
     int32_t Start();
     int32_t Stop();
-
 
     int GetNotifyEventFdForClients() const;
 
@@ -120,19 +110,17 @@ public:
     void SetPerClientMaxPendingEvents(size_t maxPendingEvents);
     void SetMaxSendCacheBytes(size_t maxSendCacheBytes);
 
-
 private:
     // worker loop
     void ThreadMain();
     void HandleWakeupOnce();
 
     void DrainAllClientsRings();
-    void DrainSingleClientRing(ClientConnectionInServer& clientConnection);
-    bool ConsumeRealtimeEvent(SharedMidiRing& clientRing, const SharedMidiRing::PeekedEvent& ringEvent);
-    bool ConsumeNonRealtimeEvent(ClientConnectionInServer& clientConnection,
-                                 SharedMidiRing& clientRing,
-                                 const SharedMidiRing::PeekedEvent& ringEvent);
-    
+    void DrainSingleClientRing(ClientConnectionInServer &clientConnection);
+    bool ConsumeRealtimeEvent(SharedMidiRing &clientRing, const SharedMidiRing::PeekedEvent &ringEvent);
+    bool ConsumeNonRealtimeEvent(ClientConnectionInServer &clientConnection, SharedMidiRing &clientRing,
+                                 const SharedMidiRing::PeekedEvent &ringEvent);
+
     // todo: due + (1 or 2)ms <= now
     void CollectDueEventsFromClientHeaps();
 
@@ -143,9 +131,9 @@ private:
     void UpdateNextTimer();
 
     // helper：在所有 client 堆顶找最早 due 的 client
-    std::shared_ptr<ClientConnectionInServer> FindClientWithEarliestDue(
-        const std::vector<std::shared_ptr<ClientConnectionInServer>>& clientsSnapshot,
-        std::chrono::steady_clock::time_point& outEarliestDueTime);
+    std::shared_ptr<ClientConnectionInServer>
+    FindClientWithEarliestDue(const std::vector<std::shared_ptr<ClientConnectionInServer>> &clientsSnapshot,
+                              std::chrono::steady_clock::time_point &outEarliestDueTime);
 
     // send cache helper
     bool TryAppendToSendCache(const std::vector<uint8_t> &payload);
@@ -161,12 +149,12 @@ private:
         std::vector<uint8_t> data;
     };
 
-    std::atomic<bool> running_ {false};
+    std::atomic<bool> running_{false};
     std::thread worker_;
 
-    UniqueFd notifyEventFd_;  // eventfd: clients -> server notify
-    UniqueFd epollFd_;        // epoll: wait eventfd + timerfd
-    UniqueFd timerFd_;        // timerfd: pending 最早到期
+    UniqueFd notifyEventFd_; // eventfd: clients -> server notify
+    UniqueFd epollFd_;       // epoll: wait eventfd + timerfd
+    UniqueFd timerFd_;       // timerfd: pending 最早到期
 
     size_t maxSendCacheBytes_ = 64 * 1024;
     size_t currentSendCacheBytes_ = 0;

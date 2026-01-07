@@ -24,29 +24,13 @@
 
 namespace OHOS {
 namespace MIDI {
-enum DeviceInformationProperty {
-    DEVICE_ID,
-    DEVICE_TYPE,
-    MIDI_PROTOCOL,
-    PRODUCT_NAME,
-    VENDOR_NAME
-};
+enum DeviceInformationProperty { DEVICE_ID, DEVICE_TYPE, MIDI_PROTOCOL, PRODUCT_NAME, VENDOR_NAME };
 
-enum ProtInformationProperty {
-    PORT_INDEX,
-    DIRECTION,
-    PORT_NAME
-};
+enum ProtInformationProperty { PORT_INDEX, DIRECTION, PORT_NAME };
 
-enum PortDirection {
-    PORT_DIRECTION_INPUT = 0,
-    PORT_DIRECTION_OUTPUT = 1
-};
+enum PortDirection { PORT_DIRECTION_INPUT = 0, PORT_DIRECTION_OUTPUT = 1 };
 
-enum DeviceType {
-    DEVICE_TYPE_USB = 0,
-    DEVICE_TYPE_BLE = 1
-};
+enum DeviceType { DEVICE_TYPE_USB = 0, DEVICE_TYPE_BLE = 1 };
 
 enum DeviceChangeType {
     ADD = 0,
@@ -65,7 +49,7 @@ struct PortInformation {
     TransportProtocol transportProtocol;
 };
 
-struct DeviceInformation{
+struct DeviceInformation {
     int64_t deviceId;
     int64_t driverDeviceId;
     DeviceType deviceType;
@@ -76,10 +60,10 @@ struct DeviceInformation{
     DeviceInformation() : deviceId(0), deviceType(DeviceType::DEVICE_TYPE_USB) {}
 };
 
-struct MidiEvent{
+struct MidiEvent {
     /**
      * @brief Timestamp in nanoseconds.
-     * Base time obtained via clock_gettime(CLOCK_MONOTONIC, &time) 
+     * Base time obtained via clock_gettime(CLOCK_MONOTONIC, &time)
      * 0 indicates "send immediately".
      */
     uint64_t timestamp;
@@ -110,6 +94,6 @@ public:
     virtual void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) = 0;
     virtual void NotifyError(int32_t code) = 0;
 };
-}
-}
+} // namespace MIDI
+} // namespace OHOS
 #endif

@@ -37,7 +37,7 @@ int32_t MidiClientInServer::GetDevices(std::vector<std::map<int32_t, std::string
     return MIDI_STATUS_OK;
 }
 
-int32_t MidiClientInServer::GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports) 
+int32_t MidiClientInServer::GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports)
 {
     ports = MidiServiceController::GetInstance()->GetDevicePorts(deviceId);
     return MIDI_STATUS_OK;

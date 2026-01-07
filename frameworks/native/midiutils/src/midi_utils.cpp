@@ -37,8 +37,7 @@ int64_t ClockTime::GetCurNano()
     struct timespec time;
     clockid_t clockId = CLOCK_MONOTONIC;
     int ret = clock_gettime(clockId, &time);
-    CHECK_AND_RETURN_RET_LOG(ret >= 0, result,
-        "GetCurNanoTime fail, result:%{public}d", ret);
+    CHECK_AND_RETURN_RET_LOG(ret >= 0, result, "GetCurNanoTime fail, result:%{public}d", ret);
     result = (time.tv_sec * MIDI_NS_PER_SECOND) + time.tv_nsec;
     return result;
 }
@@ -49,8 +48,7 @@ int64_t ClockTime::GetRealNano()
     struct timespec time;
     clockid_t clockId = CLOCK_REALTIME;
     int ret = clock_gettime(clockId, &time);
-    CHECK_AND_RETURN_RET_LOG(ret >= 0, result,
-        "GetRealNanotime fail, result:%{public}d", ret);
+    CHECK_AND_RETURN_RET_LOG(ret >= 0, result, "GetRealNanotime fail, result:%{public}d", ret);
     result = (time.tv_sec * MIDI_NS_PER_SECOND) + time.tv_nsec;
     return result;
 }
@@ -61,8 +59,7 @@ int64_t ClockTime::GetBootNano()
     struct timespec time;
     clockid_t clockId = CLOCK_BOOTTIME;
     int ret = clock_gettime(clockId, &time);
-    CHECK_AND_RETURN_RET_LOG(ret >= 0, result,
-        "GetBootNanotime fail, result:%{public}d", ret);
+    CHECK_AND_RETURN_RET_LOG(ret >= 0, result, "GetBootNanotime fail, result:%{public}d", ret);
     result = (time.tv_sec * MIDI_NS_PER_SECOND) + time.tv_nsec;
     return result;
 }
@@ -70,8 +67,7 @@ int64_t ClockTime::GetBootNano()
 int32_t ClockTime::AbsoluteSleep(int64_t nanoTime)
 {
     int32_t ret = -1; // -1 for bad result.
-    CHECK_AND_RETURN_RET_LOG(nanoTime > 0, ret,
-        "AbsoluteSleep invalid sleep time :%{public}" PRId64 " ns", nanoTime);
+    CHECK_AND_RETURN_RET_LOG(nanoTime > 0, ret, "AbsoluteSleep invalid sleep time :%{public}" PRId64 " ns", nanoTime);
     struct timespec time;
     time.tv_sec = nanoTime / MIDI_NS_PER_SECOND;
     time.tv_nsec = nanoTime - (time.tv_sec * MIDI_NS_PER_SECOND); // Avoids % operation.
@@ -105,8 +101,7 @@ std::string ClockTime::NanoTimeToString(int64_t nanoTime)
 int32_t ClockTime::RelativeSleep(int64_t nanoTime)
 {
     int32_t ret = -1; // -1 for bad result.
-    CHECK_AND_RETURN_RET_LOG(nanoTime > 0, ret,
-        "AbsoluteSleep invalid sleep time :%{public}" PRId64 " ns", nanoTime);
+    CHECK_AND_RETURN_RET_LOG(nanoTime > 0, ret, "AbsoluteSleep invalid sleep time :%{public}" PRId64 " ns", nanoTime);
     struct timespec time;
     time.tv_sec = nanoTime / MIDI_NS_PER_SECOND;
     time.tv_nsec = nanoTime - (time.tv_sec * MIDI_NS_PER_SECOND); // Avoids % operation.

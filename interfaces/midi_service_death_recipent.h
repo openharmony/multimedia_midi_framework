@@ -23,7 +23,7 @@ namespace OHOS {
 namespace MIDI {
 class MidiServiceDeathRecipient : public IRemoteObject::DeathRecipient {
 public:
-    explicit MidiServiceDeathRecipient(uint32_t clientId) : clientId_(clientId){}
+    explicit MidiServiceDeathRecipient(uint32_t clientId) : clientId_(clientId) {}
     virtual ~MidiServiceDeathRecipient() = default;
     DISALLOW_COPY_AND_MOVE(MidiServiceDeathRecipient);
     void OnRemoteDied(const wptr<IRemoteObject> &remote)
@@ -34,15 +34,12 @@ public:
         }
     }
     using NotifyCbFunc = std::function<void(uint32_t)>;
-    void SetNotifyCb(NotifyCbFunc func)
-    {
-        diedCb_ = func;
-    }
+    void SetNotifyCb(NotifyCbFunc func) { diedCb_ = func; }
 
 private:
     NotifyCbFunc diedCb_ = nullptr;
     uint32_t clientId_ = 0;
 };
-} // namespace AudioStandard
+} // namespace MIDI
 } // namespace OHOS
 #endif // AUDIO_SERVER_DEATH_RECIPIENT_H

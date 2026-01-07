@@ -28,13 +28,13 @@ public:
     int32_t GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports) override;
     int32_t OpenDevice(int64_t deviceId) override;
     int32_t CloseDevice(int64_t deviceId) override;
-    int32_t OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer,
-        int64_t deviceId, uint32_t portIndex) override;
+    int32_t OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId, uint32_t portIndex) override;
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t DestroyMidiClient() override;
     void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo);
     void NotifyError(int32_t code);
-private: 
+
+private:
     uint32_t clientId_;
     std::shared_ptr<MidiServiceCallback> callback_;
 };

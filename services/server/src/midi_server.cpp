@@ -25,10 +25,7 @@ namespace OHOS {
 namespace MIDI {
 REGISTER_SYSTEM_ABILITY_BY_ID(MidiServer, MIDI_SERVICE_ID, false)
 
-MidiServer::MidiServer(int32_t systemAbilityId, bool runOnCreate)
-    : SystemAbility(systemAbilityId, runOnCreate)
-{
-}
+MidiServer::MidiServer(int32_t systemAbilityId, bool runOnCreate) : SystemAbility(systemAbilityId, runOnCreate) {}
 
 void MidiServer::OnStart()
 {
@@ -37,12 +34,10 @@ void MidiServer::OnStart()
     Publish(this);
 }
 
-void MidiServer::OnDump()
-{
+void MidiServer::OnDump() {}
 
-}
-
-int32_t MidiServer::CreateClientInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client, uint32_t &clientId)
+int32_t MidiServer::CreateClientInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
+                                         uint32_t &clientId)
 {
     CHECK_AND_RETURN_RET_LOG(controller_, MIDI_STATUS_UNKNOWN_ERROR, "controller_ is nullptr");
     sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
@@ -51,7 +46,6 @@ int32_t MidiServer::CreateClientInServer(const sptr<IRemoteObject> &object, sptr
     CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
     return controller_->CreateClientInServer(callback, client, clientId);
 }
-
 
 } // namespace MIDI
 } // namespace OHOS

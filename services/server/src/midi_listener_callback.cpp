@@ -20,16 +20,9 @@
 #include "midi_listener_callback.h"
 namespace OHOS {
 namespace MIDI {
-MidiListenerCallback::MidiListenerCallback(const sptr<IMidiCallback> &listener)
-    : callback_(listener)
-{
+MidiListenerCallback::MidiListenerCallback(const sptr<IMidiCallback> &listener) : callback_(listener) {}
 
-}
-
-MidiListenerCallback::~MidiListenerCallback()
-{
-
-}
+MidiListenerCallback::~MidiListenerCallback() {}
 
 void MidiListenerCallback::NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo)
 {

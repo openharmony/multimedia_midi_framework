@@ -25,7 +25,8 @@ public:
     virtual ~MidiListenerCallback();
     void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) override;
     void NotifyError(int32_t code) override;
-private: 
+
+private:
     sptr<IMidiCallback> callback_;
 };
 } // namespace MIDI

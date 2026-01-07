@@ -29,7 +29,7 @@
 class UmpProcessor {
 public:
     // Callback definition for receiving generated UMPs
-    using UmpCallback = std::function<void(const UmpPacket&)>;
+    using UmpCallback = std::function<void(const UmpPacket &)>;
 
     UmpProcessor();
 
@@ -39,7 +39,7 @@ public:
      * @param len Length of the byte array.
      * @param callback Function called whenever a UMP is ready.
      */
-    void ProcessBytes(const uint8_t* data, size_t len, UmpCallback callback);
+    void ProcessBytes(const uint8_t *data, size_t len, UmpCallback callback);
 
     // Set the destination Group (0-15) for generated UMPs
     void SetGroup(uint8_t group);
@@ -49,16 +49,16 @@ private:
     uint8_t group_;
 
     // --- Channel / Common Message State ---
-    uint8_t cv_buffer_[3];          // Buffer for Channel Voice / Common
-    uint8_t cv_pos_;                // Current index in cv_buffer_
-    uint8_t running_status_;        // Cached status for 8n-En messages
-    uint8_t expected_len_;          // Expected data bytes (1 or 2)
+    uint8_t cv_buffer_[3];   // Buffer for Channel Voice / Common
+    uint8_t cv_pos_;         // Current index in cv_buffer_
+    uint8_t running_status_; // Cached status for 8n-En messages
+    uint8_t expected_len_;   // Expected data bytes (1 or 2)
 
     // --- SysEx State (MT=3) ---
-    bool in_sysex_;                 // True if we are inside a SysEx (between F0 and F7)
-    uint8_t sysex_buffer_[6];       // Holds up to 6 bytes of SysEx data
-    uint8_t sysex_pos_;             // Current count in sysex_buffer_
-    bool sysex_has_started_;        // True if we have already sent a "Start" packet for current SysEx
+    bool in_sysex_;           // True if we are inside a SysEx (between F0 and F7)
+    uint8_t sysex_buffer_[6]; // Holds up to 6 bytes of SysEx data
+    uint8_t sysex_pos_;       // Current count in sysex_buffer_
+    bool sysex_has_started_;  // True if we have already sent a "Start" packet for current SysEx
 
     // --- Helpers ---
     int GetExpectedDataLength(uint8_t status);

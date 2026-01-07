@@ -27,15 +27,18 @@ namespace OHOS {
 namespace MIDI {
 class MidiServer : public SystemAbility, public MidiServiceStub {
     DECLARE_SYSTEM_ABILITY(MidiServer);
+
 public:
     DISALLOW_COPY_AND_MOVE(MidiServer);
     explicit MidiServer(int32_t systemAbilityId, bool runOnCreate = true);
     virtual ~MidiServer() = default;
     void OnDump() override;
     void OnStart() override;
-    int32_t CreateClientInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client, uint32_t &clientId) override;
+    int32_t CreateClientInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
+                                 uint32_t &clientId) override;
+
 private:
-    MidiServiceController* controller_;
+    MidiServiceController *controller_;
 };
 } // namespace MIDI
 } // namespace OHOS

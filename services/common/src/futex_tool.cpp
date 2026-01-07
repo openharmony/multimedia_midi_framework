@@ -31,7 +31,7 @@ namespace MIDI {
 namespace {
 const int32_t WAIT_TRY_COUNT = 50;
 const int64_t SEC_TO_NANOSEC = 1000000000;
-}
+} // namespace
 // FUTEX_WAIT using relative timeout value.
 void TimeoutToRelativeTime(int64_t timeout, struct timespec &realtime)
 {
@@ -70,7 +70,9 @@ FutexCode FutexTool::FutexWait(std::atomic<uint32_t> *futexPtr, int64_t timeout,
             }
         }
 
-        if (pred()) { return FUTEX_SUCCESS; }
+        if (pred()) {
+            return FUTEX_SUCCESS;
+        }
 
         cost = ClockTime::GetCurNano() - timeIn;
         if (cost >= timeout && timeout > 0) {
@@ -83,11 +85,13 @@ FutexCode FutexTool::FutexWait(std::atomic<uint32_t> *futexPtr, int64_t timeout,
         res = syscall(__NR_futex, futexPtr, FUTEX_WAIT, IS_NOT_READY, (timeout <= 0 ? NULL : &waitTime), NULL, 0);
         auto sysErr = errno;
 
-        if (pred()) { return FUTEX_SUCCESS; }
+        if (pred()) {
+            return FUTEX_SUCCESS;
+        }
 
         if ((res != 0) && (sysErr == ETIMEDOUT)) {
-            MIDI_WARNING_LOG("wait:%{public}" PRId64"ns timeout, result:%{public}ld sysErr[%{public}d]:%{public}s",
-                timeout, res, sysErr, strerror(sysErr));
+            MIDI_WARNING_LOG("wait:%{public}" PRId64 "ns timeout, result:%{public}ld sysErr[%{public}d]:%{public}s",
+                             timeout, res, sysErr, strerror(sysErr));
             return FUTEX_TIMEOUT;
         }
 

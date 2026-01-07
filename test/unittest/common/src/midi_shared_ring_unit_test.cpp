@@ -217,16 +217,14 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingMarshalling_001, TestSize.Level1)
     delete out;
 }
 
-
 static MidiEventInner MakeEvent(uint64_t ts, const std::vector<uint32_t> &payload)
 {
-    MidiEventInner ev {};
+    MidiEventInner ev{};
     ev.timestamp = ts;
     ev.length = payload.size();
     ev.data = payload.data();
     return ev;
 }
-
 
 /**
  * @tc.name   : Test SharedMidiRing TryWriteEvents API
@@ -245,7 +243,6 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_001, TestSize.Leve
     EXPECT_TRUE(ring.IsEmpty());
 }
 
-
 /**
  * @tc.name   : Test SharedMidiRing TryWriteEvents API
  * @tc.number : SharedMidiRingTryWriteEvents_002
@@ -263,7 +260,6 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_002, TestSize.Leve
     EXPECT_TRUE(ring.IsEmpty());
 }
 
-
 /**
  * @tc.name   : Test SharedMidiRing TryWriteEvents API
  * @tc.number : SharedMidiRingTryWriteEvents_003
@@ -274,7 +270,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_003, TestSize.Leve
     SharedMidiRing ring(0);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    std::vector<uint32_t> payload {0x11223344};
+    std::vector<uint32_t> payload{0x11223344};
     MidiEventInner ev = MakeEvent(0, payload);
 
     uint32_t written = 0;
@@ -282,7 +278,6 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_003, TestSize.Leve
     EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ret);
     EXPECT_EQ(0u, written);
 }
-
 
 /**
  * @tc.name   : Test SharedMidiRing TryWriteEvents API
@@ -294,7 +289,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_004, TestSize.Leve
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    MidiEventInner ev {};
+    MidiEventInner ev{};
     ev.timestamp = 0;
     ev.length = 1;
     ev.data = nullptr; // const uint32_t* 也可以置空
@@ -316,7 +311,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_005, TestSize.Leve
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    std::vector<uint32_t> payload {0x11111111, 0x22222222};
+    std::vector<uint32_t> payload{0x11111111, 0x22222222};
     MidiEventInner ev = MakeEvent(123, payload);
 
     uint32_t written = 0;
@@ -336,10 +331,10 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_006, TestSize.Leve
     SharedMidiRing ring(64);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    std::vector<uint32_t> payload1 (8, 0x11111111);
-    std::vector<uint32_t> payload2 (8, 0xaaaaaaaa);
+    std::vector<uint32_t> payload1(8, 0x11111111);
+    std::vector<uint32_t> payload2(8, 0xaaaaaaaa);
 
-    MidiEventInner events[2] = { MakeEvent(1, payload1), MakeEvent(2, payload2) };
+    MidiEventInner events[2] = {MakeEvent(1, payload1), MakeEvent(2, payload2)};
 
     uint32_t written = 0;
     auto ret = ring.TryWriteEvents(events, 2, &written);
@@ -372,7 +367,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_007, TestSize.Leve
     ASSERT_NE(nullptr, ctrl);
     ctrl->readPosition.store(64);
 
-    std::vector<uint32_t> payload2 {0xa, 0xb, 0xc, 0xd};
+    std::vector<uint32_t> payload2{0xa, 0xb, 0xc, 0xd};
     MidiEventInner ev2 = MakeEvent(20, payload2);
 
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev2, 1, &written, false));
@@ -380,11 +375,10 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_007, TestSize.Leve
 
     auto *base = ring.GetDataBase();
     ASSERT_NE(nullptr, base);
-    auto *wrapHdr = reinterpret_cast<ShmMidiEventHeader*>(base + writeAfterEv1);
+    auto *wrapHdr = reinterpret_cast<ShmMidiEventHeader *>(base + writeAfterEv1);
     EXPECT_EQ(SHM_EVENT_FLAG_WRAP, wrapHdr->flags);
     EXPECT_EQ(0u, wrapHdr->length);
 }
-
 
 /**
  * @tc.name   : Test SharedMidiRing TryWriteEvents API
@@ -397,7 +391,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_008, TestSize.Leve
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     uint32_t dummyWord = 0x12345678;
-    MidiEventInner ev {};
+    MidiEventInner ev{};
     ev.timestamp = 77;
     ev.length = 0;
     ev.data = &dummyWord; // ValidateOneEvent requires data != nullptr even if length==0
@@ -413,7 +407,6 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_008, TestSize.Leve
     EXPECT_EQ(0u, peek.length);
 }
 
-
 /**
  * @tc.name   : Test SharedMidiRing TryWriteEvent API
  * @tc.number : SharedMidiRingTryWriteEvent1_001
@@ -424,7 +417,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvent_001, TestSize.Level
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    std::vector<uint32_t> payload {0x11111111, 0x22222222};
+    std::vector<uint32_t> payload{0x11111111, 0x22222222};
     MidiEventInner ev = MakeEvent(123, payload);
 
     EXPECT_EQ(MidiStatusCode::OK, ring.TryWriteEvent(ev));
@@ -473,7 +466,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_003, TestSize.Level1)
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
-    ctrl->readPosition.store(128);  // invalid offset (==cap)
+    ctrl->readPosition.store(128); // invalid offset (==cap)
     ctrl->writePosition.store(0);
 
     SharedMidiRing::PeekedEvent peek;
@@ -502,7 +495,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_004, TestSize.Level1)
     ASSERT_EQ(100u, writeAfterEv1);
 
     // Read event1 first.
-    SharedMidiRing::PeekedEvent p1 {};
+    SharedMidiRing::PeekedEvent p1{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p1));
     EXPECT_EQ(10u, p1.timestamp);
     EXPECT_EQ(21u, p1.length);
@@ -516,7 +509,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_004, TestSize.Level1)
     ASSERT_EQ(1u, written);
 
     // Now readIndex points to WRAP header; PeekNext should consume it and return event2 at offset 0.
-    SharedMidiRing::PeekedEvent p2 {};
+    SharedMidiRing::PeekedEvent p2{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p2));
     EXPECT_EQ(20u, p2.timestamp);
     EXPECT_EQ(4u, p2.length);
@@ -564,7 +557,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCommitRead_001, TestSize.Level1)
     ASSERT_NE(nullptr, ctrl);
     ctrl->readPosition.store(10);
 
-    SharedMidiRing::PeekedEvent ev {};
+    SharedMidiRing::PeekedEvent ev{};
     ev.endOffset = 128; // == capacity
     ring.CommitRead(ev);
     EXPECT_EQ(0u, ring.GetReadPosition());
@@ -585,9 +578,11 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_001, TestSize.Level1
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    std::vector<uint32_t> p1(3, 0); FillU32(p1, 0x30);
-    std::vector<uint32_t> p2(2, 0); FillU32(p2, 0x40);
-    MidiEventInner evs[2] = { MakeEvent(1, p1), MakeEvent(2, p2) };
+    std::vector<uint32_t> p1(3, 0);
+    FillU32(p1, 0x30);
+    std::vector<uint32_t> p2(2, 0);
+    FillU32(p2, 0x40);
+    MidiEventInner evs[2] = {MakeEvent(1, p1), MakeEvent(2, p2)};
 
     uint32_t written = 0;
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(evs, 2, &written, false));
@@ -623,7 +618,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_002, TestSize.Level1
 
     std::vector<uint32_t> p1(1, 0x111);
     std::vector<uint32_t> p2(1, 0x222);
-    MidiEventInner evs[2] = { MakeEvent(1, p1), MakeEvent(2, p2) };
+    MidiEventInner evs[2] = {MakeEvent(1, p1), MakeEvent(2, p2)};
 
     uint32_t written = 0;
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(evs, 2, &written, false));

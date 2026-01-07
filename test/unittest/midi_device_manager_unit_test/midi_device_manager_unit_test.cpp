@@ -26,28 +26,27 @@ using namespace testing::ext;
 
 class MidiDeviceManagerUnitTest : public testing::Test {
 public:
-    static void SetUpTestCase() {
-        
-        
-    }
+    static void SetUpTestCase() {}
 
-    static void TearDownTestCase() {
-    }
+    static void TearDownTestCase() {}
 
-    void SetUp() override {
+    void SetUp() override
+    {
         manager_ = std::make_unique<MidiDeviceManager>();
         mockUsbDriver_ = std::make_unique<MockMidiDeviceDriver>();
         rawUsbDriver_ = mockUsbDriver_.get();
         manager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockUsbDriver_));
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         manager_->drivers_.clear();
         manager_->devices_.clear();
         manager_->driverIdToMidiId_.clear();
     }
 
-    DeviceInformation CreateDriverDeviceInfo(int64_t driverId, std::string name) {
+    DeviceInformation CreateDriverDeviceInfo(int64_t driverId, std::string name)
+    {
         DeviceInformation info;
         info.driverDeviceId = driverId;
         info.deviceType = DeviceType::DEVICE_TYPE_USB;
@@ -59,7 +58,7 @@ public:
 private:
     std::unique_ptr<MidiDeviceManager> manager_;
     std::unique_ptr<MockMidiDeviceDriver> mockUsbDriver_;
-    MockMidiDeviceDriver* rawUsbDriver_ = nullptr;
+    MockMidiDeviceDriver *rawUsbDriver_ = nullptr;
 };
 
 /**
@@ -70,8 +69,7 @@ private:
 HWTEST_F(MidiDeviceManagerUnitTest, GetDevices001, TestSize.Level1)
 {
 
-    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices())
-        .WillOnce(Return(std::vector<DeviceInformation>{}));
+    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(std::vector<DeviceInformation>{}));
 
     manager_->UpdateDevices();
     auto devices = manager_->GetDevices();
@@ -87,16 +85,15 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level1)
 {
     int64_t driverId = 101;
     std::string prodName = "Test Piano";
-    std::vector<DeviceInformation> driverDevs = { CreateDriverDeviceInfo(driverId, prodName) };
+    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, prodName)};
 
-    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices())
-        .WillOnce(Return(driverDevs));
+    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
 
     manager_->UpdateDevices();
 
     auto devices = manager_->GetDevices();
     ASSERT_EQ(devices.size(), 1);
-    
+
     EXPECT_EQ(devices[0].productName, prodName);
     EXPECT_EQ(devices[0].driverDeviceId, driverId);
     EXPECT_NE(devices[0].deviceId, 0);
@@ -112,10 +109,10 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level1)
 HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice001, TestSize.Level1)
 {
     int64_t driverId = 202;
-    std::vector<DeviceInformation> driverDevs = { CreateDriverDeviceInfo(driverId, "USB MIDI") };
+    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();
-    
+
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
     EXPECT_CALL(*rawUsbDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
@@ -132,7 +129,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice001, TestSize.Level1)
 HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice002, TestSize.Level1)
 {
     int64_t fakeGlobalId = 999999;
-    
+
     EXPECT_CALL(*rawUsbDriver_, OpenDevice(_)).Times(0);
 
     int32_t ret = manager_->OpenDevice(fakeGlobalId);
@@ -147,7 +144,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice002, TestSize.Level1)
 HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level1)
 {
     int64_t driverId = 303;
-    std::vector<DeviceInformation> driverDevs = { CreateDriverDeviceInfo(driverId, "USB MIDI") };
+    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();
     int64_t globalId = manager_->GetDevices()[0].deviceId;
@@ -167,13 +164,12 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level1)
 {
     int64_t driverId = 404;
     size_t portIndex = 1;
-    std::vector<DeviceInformation> driverDevs = { CreateDriverDeviceInfo(driverId, "USB MIDI") };
+    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, OpenInputPort(driverId, portIndex, _))
-        .WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*rawUsbDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
     int32_t ret = manager_->OpenInputPort(inputConnection, globalId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
@@ -188,13 +184,12 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level1)
 {
     int64_t driverId = 505;
     size_t portIndex = 0;
-    std::vector<DeviceInformation> driverDevs = { CreateDriverDeviceInfo(driverId, "USB MIDI") };
+    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, CloseInputPort(driverId, portIndex))
-        .WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*rawUsbDriver_, CloseInputPort(driverId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));
 
     int32_t ret = manager_->CloseInputPort(globalId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
@@ -209,13 +204,12 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level1)
 {
     int64_t driverId = 606;
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices())
-        .WillOnce(Return(std::vector<DeviceInformation>{ CreateDriverDeviceInfo(driverId, "To Remove") }));
+        .WillOnce(Return(std::vector<DeviceInformation>{CreateDriverDeviceInfo(driverId, "To Remove")}));
     manager_->UpdateDevices();
     ASSERT_EQ(manager_->GetDevices().size(), 1);
     int64_t oldGlobalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices())
-        .WillOnce(Return(std::vector<DeviceInformation>{}));
+    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(std::vector<DeviceInformation>{}));
 
     manager_->UpdateDevices();
 
@@ -236,31 +230,31 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level1)
 HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level1)
 {
     auto mockBleDriver = std::make_unique<MockMidiDeviceDriver>();
-    MockMidiDeviceDriver* rawBleDriver = mockBleDriver.get();
+    MockMidiDeviceDriver *rawBleDriver = mockBleDriver.get();
     manager_->drivers_.emplace(DeviceType::DEVICE_TYPE_BLE, std::move(mockBleDriver));
 
     int64_t usbDriverId = 10;
     int64_t bleDriverId = 20;
 
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices())
-        .WillOnce(Return(std::vector<DeviceInformation>{ CreateDriverDeviceInfo(usbDriverId, "USB Piano") }));
-    
+        .WillOnce(Return(std::vector<DeviceInformation>{CreateDriverDeviceInfo(usbDriverId, "USB Piano")}));
+
     DeviceInformation bleDev = CreateDriverDeviceInfo(bleDriverId, "BLE Guitar");
     bleDev.deviceType = DeviceType::DEVICE_TYPE_BLE;
-    EXPECT_CALL(*rawBleDriver, GetRegisteredDevices())
-        .WillOnce(Return(std::vector<DeviceInformation>{ bleDev }));
+    EXPECT_CALL(*rawBleDriver, GetRegisteredDevices()).WillOnce(Return(std::vector<DeviceInformation>{bleDev}));
 
     manager_->UpdateDevices();
     auto allDevices = manager_->GetDevices();
 
     EXPECT_EQ(allDevices.size(), 2);
-    
 
     bool foundUsb = false;
     bool foundBle = false;
-    for(auto& d : allDevices) {
-        if(d.deviceType == DeviceType::DEVICE_TYPE_USB && d.productName == "USB Piano") foundUsb = true;
-        if(d.deviceType == DeviceType::DEVICE_TYPE_BLE && d.productName == "BLE Guitar") foundBle = true;
+    for (auto &d : allDevices) {
+        if (d.deviceType == DeviceType::DEVICE_TYPE_USB && d.productName == "USB Piano")
+            foundUsb = true;
+        if (d.deviceType == DeviceType::DEVICE_TYPE_BLE && d.productName == "BLE Guitar")
+            foundBle = true;
     }
     EXPECT_TRUE(foundUsb);
     EXPECT_TRUE(foundBle);

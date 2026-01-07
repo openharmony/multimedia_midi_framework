@@ -24,7 +24,7 @@ UmpPacket::UmpPacket(uint32_t w0) {
 // Universal constructor for variable length
 UmpPacket::UmpPacket(std::initializer_list<uint32_t> words) {
     word_count_ = static_cast<uint8_t>(std::min(words.size(), (size_t)4));
-    
+
     size_t i = 0;
     for (uint32_t w : words) {
         if (i < 4) data_[i++] = w;
