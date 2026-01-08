@@ -19,6 +19,11 @@
             "project": "build",
             "path": "build",
             "pr_url": "https://gitcode.com/openharmony/build/pull/6402"
+        },
+        {
+            "project": "systemabilitymgr_samgr",
+            "path": "foundation/systemabilitymgr/samgr",
+            "pr_url": "https://gitcode.com/openharmony/systemabilitymgr_samgr/pull/1400"
         }
     ]
 }
