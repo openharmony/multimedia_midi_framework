@@ -24,6 +24,7 @@
 #include "midi_client_private.h"
 #include "midi_callback_stub.h"
 #include "midi_service_client.h"
+#include "securec.h"
 
 namespace OHOS {
 namespace MIDI {

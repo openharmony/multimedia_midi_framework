@@ -23,6 +23,7 @@
 #include "midi_log.h"
 #include "iservice_registry.h"
 #include "system_ability_definition.h"
+#include "securec.h"
 
 namespace OHOS {
 namespace MIDI {

@@ -21,7 +21,7 @@
 #include "native_midi_base.h"
 #include "midi_log.h"
 #include "midi_client_connection.h"
-
+#include "securec.h"
 
 namespace OHOS {
 namespace MIDI {
