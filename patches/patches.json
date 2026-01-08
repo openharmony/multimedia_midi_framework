@@ -24,6 +24,11 @@
             "project": "systemabilitymgr_samgr",
             "path": "foundation/systemabilitymgr/samgr",
             "pr_url": "https://gitcode.com/openharmony/systemabilitymgr_samgr/pull/1400"
+        },
+        {
+            "project": "vendor_hihope",
+            "path": "vendor/hihope",
+            "pr_url": "https://gitcode.com/openharmony/vendor_hihope/pull/1600"
         }
     ]
 }
