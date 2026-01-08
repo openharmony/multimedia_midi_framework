@@ -105,14 +105,14 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevicePort
 int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), MIDI_STATUS_UNKNOWN_ERROR,
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), MIDI_STATUS_INVALID_CLIENT,
                              "Client not found: %{public}u", clientId);
     auto it = deviceClientContexts_.find(deviceId);
     if (it != deviceClientContexts_.end()) {
         CHECK_AND_RETURN_RET_LOG(
-            it->second.clients.find(clientId) == it->second.clients.end(), MIDI_STATUS_DEVICE_ALREADY_OPEN,
+            it->second->clients.find(clientId) == it->second->clients.end(), MIDI_STATUS_DEVICE_ALREADY_OPEN,
             "Device already opened by client: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
-        it->second.clients.insert(clientId);
+        it->second->clients.insert(clientId);
         MIDI_INFO_LOG("Client added to existing device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId,
                       clientId);
         return MIDI_STATUS_OK;

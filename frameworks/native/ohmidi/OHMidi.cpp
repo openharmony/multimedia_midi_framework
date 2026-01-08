@@ -97,7 +97,7 @@ OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device, OH_MidiPortDescrip
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice*) device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid parameter");
     
-    OH_MidiStatusCode ret = midiDevice->OpenInputPort(portIndex, callback, userData);
+    OH_MidiStatusCode ret = midiDevice->OpenInputPort(descriptor.portIndex, callback, userData);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
     return MIDI_STATUS_OK;
 }

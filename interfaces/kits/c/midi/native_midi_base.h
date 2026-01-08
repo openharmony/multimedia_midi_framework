@@ -139,12 +139,12 @@ typedef enum {
     /**
      * @brief Input port (Device -> Host).
      */
-    MIDI_PORT_DIRECTION_INPUT  = 1,
+    MIDI_PORT_DIRECTION_INPUT  = 0,
 
     /**
      * @brief Output port (Host -> Device).
      */
-    MIDI_PORT_DIRECTION_OUTPUT = 2
+    MIDI_PORT_DIRECTION_OUTPUT = 1
 } OH_MidiPortDirection;
 
 /**
