@@ -321,6 +321,7 @@ OH_MidiStatusCode MidiClientPrivate::Init(OH_MidiCallbacks callbacks, void *user
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::map<int32_t, std::string>> deviceInfos;
     ret = ipc_->GetDevices(deviceInfos);
+    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
     for (auto deviceInfo : deviceInfos) {
         OH_MidiDeviceInformation info;
         bool ret = ConvertToDeviceInformation(deviceInfo, info);
@@ -333,6 +334,7 @@ OH_MidiStatusCode MidiClientPrivate::Init(OH_MidiCallbacks callbacks, void *user
 void MidiClientPrivate::DeviceChange(OH_MidiDeviceChangeAction change, OH_MidiDeviceInformation info)
 {
     std::lock_guard<std::mutex> lock(mutex_);
+    MIDI_INFO_LOG("DeviceChange: %{public}d", change);
     if (change == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         deviceInfos_.push_back(info);
         return;
@@ -391,13 +393,12 @@ OH_MidiStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MidiPor
     CHECK_AND_RETURN_RET(*numPorts != 0, MIDI_STATUS_OK);
     CHECK_AND_RETURN_RET(infos != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
-    size_t i = 0;
-    for (auto portInfo : portInfos) {
+    
+    for (size_t i = 0; i < portInfos.size(); i++) {
         OH_MidiPortInformation info;
-        bool ret = ConvertToPortInformation(portInfo, deviceId, info);
+        bool ret = ConvertToPortInformation(portInfos[i], deviceId, info);
         CHECK_AND_CONTINUE_LOG(ret, "ConvertToPortInformation failed");
         infos[i] = info;
-        i++;
     }
 
     return MIDI_STATUS_OK;
