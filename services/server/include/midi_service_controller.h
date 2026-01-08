@@ -32,15 +32,15 @@
 namespace OHOS {
 namespace MIDI {
 
-struct DeviceClientContext {
+class DeviceClientContext {
+public:
+    DeviceClientContext(int64_t id, std::unordered_set<int32_t> clientIds)
+        : deviceId(id), clients(std::move(clientIds)) {}
+    ~DeviceClientContext();
     int64_t deviceId;
     std::unordered_set<int32_t> clients;
     std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForInput>> inputDeviceconnections_;
-    DeviceClientContext(int64_t id, std::unordered_set<int32_t> clientIds) : deviceId(id), clients(std::move(clientIds))
-    {
-    }
-}; // todo 改成class 方便析构时 关闭fd
-
+};
 class MidiServiceController {
 public:
     MidiServiceController();
@@ -61,9 +61,9 @@ public:
     void NotifyError(int32_t code);
 
 private:
-    void ClosePortforDevice(uint32_t clientId, int64_t deviceId, DeviceClientContext deviceClientContext);
+    void ClosePortforDevice(uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
-    std::unordered_map<int64_t, DeviceClientContext> deviceClientContexts_;
+    std::unordered_map<int64_t, std::shared_ptr<DeviceClientContext>> deviceClientContexts_;
     std::unordered_map<int32_t, sptr<MidiClientInServer>> clients_;
     MidiDeviceManager deviceManager_{};
     static std::atomic<uint32_t> currentClientId_;

@@ -59,7 +59,7 @@ static void FillU32(std::vector<uint32_t> &buf, uint32_t base)
  * @tc.number : SharedMidiRingInit_001
  * @tc.desc   : Init with local shared memory (dataFd = -1).
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_001, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 256;
     SharedMidiRing ring(RING_CAPACITY_BYTES);
@@ -84,7 +84,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_001, TestSize.Level1)
  * @tc.number : SharedMidiRingInit_002
  * @tc.desc   : Init with remote fd created by ashmem.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_002, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_002, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 512;
     const size_t totalSize = sizeof(ControlHeader) + static_cast<size_t>(RING_CAPACITY_BYTES);
@@ -115,7 +115,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_002, TestSize.Level1)
  * @tc.number : SharedMidiRingInit_003
  * @tc.desc   : Init with zero ring capacity (edge case).
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_003, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_003, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 0;
     SharedMidiRing ring(RING_CAPACITY_BYTES);
@@ -140,7 +140,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_003, TestSize.Level1)
  * @tc.number : SharedMidiRingInit_004
  * @tc.desc   : Init failed when totalMemorySize_ exceeds MAX_MMAP_BUFFER_SIZE.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_004, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_004, TestSize.Level0)
 {
     // totalMemorySize_ = sizeof(ControlHeader) + ringCapacityBytes
     // 这里 ringCapacityBytes >= MAX_MMAP_BUFFER_SIZE，必然超过上限
@@ -160,7 +160,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_004, TestSize.Level1)
  * @tc.number : SharedMidiRingInit_005
  * @tc.desc   : Init called twice should reset read/write positions.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_005, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_005, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 256;
     SharedMidiRing ring(RING_CAPACITY_BYTES);
@@ -186,7 +186,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingInit_005, TestSize.Level1)
  * @tc.number : SharedMidiRingCreateFromRemote_001
  * @tc.desc   : CreateFromRemote should return nullptr when fd is invalid (<=2).
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCreateFromRemote_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCreateFromRemote_001, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 128;
     auto ring = SharedMidiRing::CreateFromRemote(RING_CAPACITY_BYTES, 2); // STDERR_FILENO
@@ -198,7 +198,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCreateFromRemote_001, TestSize.Le
  * @tc.number : SharedMidiRingMarshalling_001
  * @tc.desc   : Marshalling then Unmarshalling should succeed and produce a usable ring.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingMarshalling_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingMarshalling_001, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 256;
     auto ring = SharedMidiRing::CreateFromLocal(RING_CAPACITY_BYTES);
@@ -231,7 +231,7 @@ static MidiEventInner MakeEvent(uint64_t ts, const std::vector<uint32_t> &payloa
  * @tc.number : SharedMidiRingTryWriteEvents_001
  * @tc.desc   : eventCount == 0 should return INVALID_ARGUMENT and write 0 events.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_001, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -248,7 +248,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_001, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_002
  * @tc.desc   : events == nullptr and eventCount > 0 should return INVALID_ARGUMENT.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_002, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_002, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -265,7 +265,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_002, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_003
  * @tc.desc   : capacity too small should return SHM_BROKEN.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_003, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_003, TestSize.Level0)
 {
     SharedMidiRing ring(0);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -284,7 +284,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_003, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_004
  * @tc.desc   : invalid event (data == nullptr) should not write anything and return WOULD_BLOCK.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_004, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_004, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -306,7 +306,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_004, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_005
  * @tc.desc   : write single event successfully.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_005, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_005, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -326,7 +326,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_005, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_006
  * @tc.desc   : partial write when ring free space not enough for all events.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_006, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_006, TestSize.Level0)
 {
     SharedMidiRing ring(64);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -347,7 +347,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_006, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_007
  * @tc.desc   : cover wrap marker branch in UpdateWriteIndexIfNeed.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_007, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_007, TestSize.Level0)
 {
     SharedMidiRing ring(128);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -385,7 +385,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_007, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvents_008
  * @tc.desc   : length == 0 should be accepted, payload copy skipped (WriteEvent early return).
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_008, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_008, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -412,7 +412,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvents_008, TestSize.Leve
  * @tc.number : SharedMidiRingTryWriteEvent1_001
  * @tc.desc   : write single event successfully.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvent_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvent_001, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -431,7 +431,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingTryWriteEvent_001, TestSize.Level
  * @tc.number : SharedMidiRingPeekNext_001
  * @tc.desc   : empty ring -> WOULD_BLOCK.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_001, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -445,7 +445,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_001, TestSize.Level1)
  * @tc.number : SharedMidiRingPeekNext_002
  * @tc.desc   : capacity too small -> SHM_BROKEN.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_002, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_002, TestSize.Level0)
 {
     SharedMidiRing ring(0);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -459,7 +459,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_002, TestSize.Level1)
  * @tc.number : SharedMidiRingPeekNext_003
  * @tc.desc   : invalid offsets -> SHM_BROKEN.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_003, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_003, TestSize.Level0)
 {
     SharedMidiRing ring(128);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -478,7 +478,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_003, TestSize.Level1)
  * @tc.number : SharedMidiRingPeekNext_004
  * @tc.desc   : wrap marker should be consumed and continue to next event.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_004, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_004, TestSize.Level0)
 {
     SharedMidiRing ring(128);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -521,7 +521,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_004, TestSize.Level1)
  * @tc.number : SharedMidiRingPeekNext_005
  * @tc.desc   : corrupted header (needed > cap-1) -> SHM_BROKEN.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_005, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_005, TestSize.Level0)
 {
     SharedMidiRing ring(128);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -548,7 +548,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingPeekNext_005, TestSize.Level1)
  * @tc.number : SharedMidiRingCommitRead_001
  * @tc.desc   : endOffset >= capacity should wrap to 0.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCommitRead_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCommitRead_001, TestSize.Level0)
 {
     SharedMidiRing ring(128);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -573,7 +573,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingCommitRead_001, TestSize.Level1)
  * @tc.number : SharedMidiRingDrainToBatch_001
  * @tc.desc   : drain all events when maxEvents==0.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_001, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_001, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -611,7 +611,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_001, TestSize.Level1
  * @tc.number : SharedMidiRingDrainToBatch_002
  * @tc.desc   : respect maxEvents limit.
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_002, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_002, TestSize.Level0)
 {
     SharedMidiRing ring(256);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
@@ -643,7 +643,7 @@ HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_002, TestSize.Level1
  * @tc.number : SharedMidiRingDrainToBatch_003
  * @tc.desc   : stop draining when PeekNext returns SHM_BROKEN (corrupted header).
  */
-HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_003, TestSize.Level1)
+HWTEST_F(MidiSharedRingUnitTest, SharedMidiRingDrainToBatch_003, TestSize.Level0)
 {
     SharedMidiRing ring(128);
     ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));

@@ -64,7 +64,7 @@ public:
     OH_MidiStatusCode ClosePort(uint32_t portIndex) override;
 
 private:
-    std::shared_ptr<MidiServiceInterface> ipc_;
+    std::weak_ptr<MidiServiceInterface> ipc_;
     int64_t deviceId_;
     std::mutex inputPortsMutex_;
     std::unordered_map<uint32_t, std::shared_ptr<MidiInputPort>> inputPortsMap_;
@@ -79,7 +79,7 @@ public:
     OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
     OH_MidiStatusCode GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts) override;
     OH_MidiStatusCode DestroyMidiClient() override;
-
+    void DeviceChange(OH_MidiDeviceChangeAction change, OH_MidiDeviceInformation info);
 private:
     std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;

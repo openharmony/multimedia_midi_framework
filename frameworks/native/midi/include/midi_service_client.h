@@ -23,12 +23,13 @@
 #include "midi_callback_stub.h"
 #include "iipc_midi_client_in_server.h"
 #include "midi_shared_ring.h"
+#include "midi_service_death_recipent.h"
 namespace OHOS {
 namespace MIDI {
 class MidiServiceClient : public MidiServiceInterface {
 public:
     MidiServiceClient() = default;
-    virtual ~MidiServiceClient() = default;
+    virtual ~MidiServiceClient();
     OH_MidiStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) override;
     OH_MidiStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) override;
     OH_MidiStatusCode OpenDevice(int64_t deviceId) override;
@@ -42,6 +43,7 @@ public:
 private:
     sptr<IIpcMidiClientInServer> ipc_;
     sptr<MidiCallbackStub> callback_;
+    sptr<MidiServiceDeathRecipient> deathRecipient_;
     std::mutex lock_;
 };
 } // namespace MIDI

@@ -311,7 +311,7 @@ HWTEST_F(MidiClientUnitTest, ClosePort_001, TestSize.Level0)
     uint32_t portIndex = 5;
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
 
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
+    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
 
 /**
@@ -359,8 +359,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
     OH_MidiStatusCode closeStatus = device->ClosePort(portIndex);
     EXPECT_EQ(closeStatus, MIDI_STATUS_OK);
 
-    // Close again -> no IPC call, should just return OK
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
+    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
 
 /**
@@ -412,8 +411,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_003, TestSize.Level
     OH_MidiStatusCode status = device->OpenInputPort(portIndex, MidiReceivedTrampoline, &callbackCapture);
     EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
-    // ClosePort on non-opened should return OK and should not call IPC CloseInputPort.
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
+    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
 
 /**

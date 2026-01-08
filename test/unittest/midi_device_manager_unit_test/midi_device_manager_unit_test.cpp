@@ -66,7 +66,7 @@ private:
  * @tc.desc: Verify empty list is returned when no drivers have devices
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, GetDevices001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, GetDevices001, TestSize.Level0)
 {
 
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(std::vector<DeviceInformation>{}));
@@ -81,7 +81,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, GetDevices001, TestSize.Level1)
  * @tc.desc: Verify device discovery and ID mapping
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level0)
 {
     int64_t driverId = 101;
     std::string prodName = "Test Piano";
@@ -106,7 +106,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level1)
  * @tc.desc: Successfully open a device using its Global ID
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice001, TestSize.Level0)
 {
     int64_t driverId = 202;
     std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
@@ -126,7 +126,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice001, TestSize.Level1)
  * @tc.desc: Fail to open non-existent global ID
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice002, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice002, TestSize.Level0)
 {
     int64_t fakeGlobalId = 999999;
 
@@ -141,7 +141,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice002, TestSize.Level1)
  * @tc.desc: Successfully close a device
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level0)
 {
     int64_t driverId = 303;
     std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
@@ -160,7 +160,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level1)
  * @tc.desc: Verify OpenInputPort is routed to driver
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level0)
 {
     int64_t driverId = 404;
     size_t portIndex = 1;
@@ -180,7 +180,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level1)
  * @tc.desc: Verify CloseInputPort is routed to driver
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level0)
 {
     int64_t driverId = 505;
     size_t portIndex = 0;
@@ -200,7 +200,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level1)
  * @tc.desc: Verify devices are removed from list when driver no longer reports them
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level0)
 {
     int64_t driverId = 606;
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices())
@@ -227,7 +227,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level1)
  * @tc.desc: Test handling multiple drivers (e.g. USB and BLE)
  * @tc.type: FUNC
  */
-HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level1)
+HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level0)
 {
     auto mockBleDriver = std::make_unique<MockMidiDeviceDriver>();
     MockMidiDeviceDriver *rawBleDriver = mockBleDriver.get();
