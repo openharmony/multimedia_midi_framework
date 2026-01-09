@@ -114,11 +114,9 @@ FutexCode FutexTool::FutexWait(std::atomic<uint32_t> *futexPtr, int64_t timeout,
                 return FUTEX_OPERATION_FAILED;
             }
         }
-
         if (pred()) {
             return FUTEX_SUCCESS;
         }
-
         if (!RecalculateWaitTime(timeout, timeIn, waitTime)) {
             return FUTEX_TIMEOUT;
         }
@@ -127,7 +125,6 @@ FutexCode FutexTool::FutexWait(std::atomic<uint32_t> *futexPtr, int64_t timeout,
         if (sysRet == FUTEX_TIMEOUT) {
             return FUTEX_TIMEOUT;
         }
-
         if (pred()) {
             return FUTEX_SUCCESS;
         }
