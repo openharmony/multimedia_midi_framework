@@ -6,9 +6,9 @@
             "pr_url": "https://gitcode.com/openharmony/drivers_interface/pull/1836"
         },
         {
-            "project": "productdefine_commmon",
+            "project": "productdefine_common",
             "path": "productdefine/common",
-            "pr_url": "https://gitcode.com/openharmony/productdefine_commmon/pull/1083"
+            "pr_url": "https://gitcode.com/openharmony/productdefine_common/pull/1083"
         },
         {
             "project": "drivers_peripheral",
