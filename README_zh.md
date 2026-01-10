@@ -19,7 +19,7 @@
 midi_framework部件为OpenHarmony系统提供了统一的MIDI设备访问、数据传输及协议处理能力，使得应用能够直接调用系统提供的接口实现外部MIDI设备的发现、连接以及高性能的指令收发功能。
 
 **图 1** MIDI组件架构图<a name="fig_midi_arch"></a>
-![midi_framework部件架构图](figures/figure_architecture.png)
+![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)
 
 ### 基本概念<a name="section_concepts"></a>
 
