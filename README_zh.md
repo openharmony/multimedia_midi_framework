@@ -160,11 +160,15 @@ void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDev
     }
 }
 
-// 2. 定义数据接收回调 (注意：接收到的始终为 UMP 格式数据)
+// 2. 定义数据接收回调
+// 注意：OH_MidiEvent 中的 data 是 uint32_t* 类型，指向 UMP 数据包
 void OnMidiReceived(void *userData, const OH_MidiEvent *events, size_t eventCount) {
     for (size_t i = 0; i < eventCount; ++i) {
-        // 示例：打印收到的第一个 64位 数据字
-        printf("[Rx] Timestamp=%llu, Data=0x%llX\n", events[i].timestamp, events[i].data[0]);
+        // 打印该事件的第一个 32位 UMP 字
+        // 如果是 MIDI 1.0 Channel Voice (32-bit)，length 通常为 1 (word)
+        if (events[i].data != nullptr) {
+            printf("[Rx] Timestamp=%llu, Data=0x%08X\n", events[i].timestamp, events[i].data[0]);
+        }
     }
 }
 
@@ -222,12 +226,19 @@ void MidiDemo() {
                         if (OH_MidiOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
                             printf("Output port %d opened. Sending data...\n", port.portIndex);
 
-                            // 构建 UMP 数据包 (示例: MIDI 1.0 Note On -> Channel 0, Note 60, Vel 100)
-                            // UMP Format (32-bit): [MT(4) | Group(4) | Status(8) | Note(8) | Vel(8)]
-                            // 0x20903C64 -> MT=0x2 (MIDI 1.0 Channel Voice)
+                            // 构建 UMP 数据包
+                            // 示例: MIDI 1.0 Note On -> Channel 0, Note 60, Vel 100
+                            // UMP (32-bit) = [MT(4) | Group(4) | Status(8) | Note(8) | Vel(8)]
+                            // 0x2 -> MT (MIDI 1.0 Channel Voice)
+                            // 0x90 -> Note On, Channel 0
+                            // 0x3C -> Note 60
+                            // 0x64 -> Velocity 100
+                            uint32_t umpMsg[1] = { 0x20903C64 };
+
                             OH_MidiEvent event;
                             event.timestamp = 0; // 0 表示立即发送
-                            event.data[0] = 0x20903C64;
+                            event.length = 1; // 数据长度 (1 word)
+                            event.data = umpMsg; // 指向 32位 数组
 
                             uint32_t written = 0;
                             OH_MidiSend(device, port.portIndex, &event, 1, &written);
@@ -238,7 +249,7 @@ void MidiDemo() {
                 // 模拟业务运行，等待数据接收
                 std::this_thread::sleep_for(std::chrono::seconds(2));
 
-                // 6. 资源释放：关闭端口
+                // 6. 资源释放：关闭端口 (这里简化逻辑，实际应记录打开的端口索引)
                 for (const auto& port : ports) {
                     OH_MidiClosePort(device, port.portIndex);
                 }
@@ -256,8 +267,8 @@ void MidiDemo() {
 
 #### 注意事项
 
+* **数据格式**：`OH_MidiEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
 * **内存获取模式**：`OH_MidiGetDevices` 和 `OH_MidiGetDevicePorts` 均采用“两次调用”模式。第一次传入 `nullptr` 获取数量，第二次传入分配好的缓冲区获取实际数据。
-* **UMP 数据格式**：无论选择何种协议语义（Protocol Semantics），接口收发的数据**始终为 UMP (Universal MIDI Packet) 格式**。对于 MIDI 1.0 设备，SDK 会自动完成 UMP 与 Byte Stream 的转换。
 * **非阻塞发送**：`OH_MidiSend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
 * **回调限制**：`OnMidiReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
 
