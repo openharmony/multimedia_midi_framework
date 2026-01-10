@@ -10,6 +10,7 @@ midi_framework部件主要具备以下功能：
 * **数据传输**：支持基于UMP（Universal MIDI Packet）协议的高性能数据发送与接收。
 
 **图 1** midi_framework部件架构图
+![](figures/zh-cn_image_midi_framework.png)
 
 架构中主要模块的功能说明如下：
 
