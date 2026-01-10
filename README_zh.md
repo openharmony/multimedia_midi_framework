@@ -127,7 +127,7 @@ midi_framework部件向开发者提供了C语言原生接口（Native API），�
 | **OH_MidiOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。       |
 | **OH_MidiOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。       |
 | **OH_MidiSend**           | 向指定输出端口发送MIDI数据。                     |
-| **OH_MidiClosePort**      | 关闭指定的端口，停止数据传输。                   |
+| **OH_MidiClosePort**      | 关闭指定的输入/输出端口，停止数据传输。          |
 
 ### 开发步骤<a name="section_steps"></a>
 
