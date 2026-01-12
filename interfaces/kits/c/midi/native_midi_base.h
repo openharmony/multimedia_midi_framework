@@ -139,7 +139,7 @@ typedef enum {
     /**
      * @brief Input port (Device -> Host).
      */
-    MIDI_PORT_DIRECTION_INPUT  = 0,
+    MIDI_PORT_DIRECTION_INPUT = 0,
 
     /**
      * @brief Output port (Host -> Device).
@@ -195,10 +195,7 @@ typedef enum {
  * @brief Midi Device Type
  * @since 24
  */
-typedef enum {
-    MIDI_DEVICE_TYPE_USB = 0,
-    MIDI_DEVICE_TYPE_BLE = 1
-} OH_MidiDeviceType;
+typedef enum { MIDI_DEVICE_TYPE_USB = 0, MIDI_DEVICE_TYPE_BLE = 1 } OH_MidiDeviceType;
 
 /**
  * @brief Device connection state change action
@@ -352,9 +349,8 @@ typedef struct OH_MidiDeviceStruct OH_MidiDevice;
  * @param deviceInfo Information of the changed device.
  * @since 24
  */
-typedef void (*OH_OnMidiDeviceChange)(void *userData,
-                                      OH_MidiDeviceChangeAction action,
-                                      OH_MidiDeviceInformation deviceInfo);
+typedef void (*OH_OnMidiDeviceChange)(
+    void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation deviceInfo);
 
 /**
  * @brief Callback for receiving Midi data (Batch Processing)
@@ -401,4 +397,4 @@ typedef struct {
 }
 #endif
 /** @} */
-#endif // NATIVE_MIDI_BASE_H
+#endif  // NATIVE_MIDI_BASE_H
