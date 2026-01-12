@@ -154,7 +154,7 @@ midi_framework部件向开发者提供了C语言原生接口（Native API），�
 // 1. 定义设备热插拔回调
 void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation info) {
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
-        printf("[Hotplug] Device Connected: ID=%ld, Name=%s\n", info.midiDeviceId, info.name);
+        printf("[Hotplug] Device Connected: ID=%ld, Name=%s\n", info.midiDeviceId, info.productName);
     } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
         printf("[Hotplug] Device Disconnected: ID=%ld\n", info.midiDeviceId);
     }
@@ -183,7 +183,7 @@ void MidiDemo() {
     OH_MidiClient *client = nullptr;
     OH_MidiCallbacks callbacks;
     callbacks.onDeviceChange = OnDeviceChange;
-    callbacks.onError = nullptr;
+    callbacks.onError = OnError;
 
     OH_MidiStatusCode ret = OH_MidiClientCreate(&client, callbacks, nullptr);
     if (ret != MIDI_STATUS_OK) {
