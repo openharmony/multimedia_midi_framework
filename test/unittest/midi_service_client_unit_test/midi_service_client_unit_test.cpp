@@ -14,29 +14,30 @@
  */
 
 #include "midi_info.h"
-#include "native_midi_base.h"
 #include "midi_service_client.h"
+#include "native_midi_base.h"
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
 using namespace OHOS;
 using namespace MIDI;
 using namespace testing;
 using namespace testing::ext;
 
-
 class MockMidiCallbackStub : public MidiCallbackStub {
 public:
-    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)), (override));
+    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
+                (override));
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
 };
 
 class MockIpcMidiClientInServer : public IIpcMidiClientInServer {
 public:
-    MOCK_METHOD(int32_t, GetDevices, ((std::vector<std::map<int32_t, std::string>> &devices)), (override));
+    MOCK_METHOD(int32_t, GetDevices, ((std::vector<std::map<int32_t, std::string>> & devices)), (override));
     MOCK_METHOD(int32_t, OpenDevice, (int64_t), (override));
     MOCK_METHOD(int32_t, CloseDevice, (int64_t), (override));
-    MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, (std::vector<std::map<int32_t, std::string>>&)), (override));
+    MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, (std::vector<std::map<int32_t, std::string>> &)), (override));
     MOCK_METHOD(int32_t, OpenInputPort, (std::shared_ptr<SharedMidiRing> &, int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, CloseInputPort, (int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, DestroyMidiClient, (), (override));
@@ -47,7 +48,8 @@ class MockIRemoteObject : public IRemoteObject {
 public:
     MockIRemoteObject() : IRemoteObject(u"IRemoteObject") {}
     MOCK_METHOD(int32_t, GetObjectRefCount, (), (override));
-    MOCK_METHOD(int, SendRequest, (uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option), (override));
+    MOCK_METHOD(int, SendRequest, (uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option),
+                (override));
     MOCK_METHOD(bool, AddDeathRecipient, (const sptr<DeathRecipient> &recipient), (override));
     MOCK_METHOD(bool, RemoveDeathRecipient, (const sptr<DeathRecipient> &recipient), (override));
     MOCK_METHOD(int, Dump, (int fd, const std::vector<std::u16string> &args), (override));
@@ -64,11 +66,7 @@ public:
     void TearDown() override {}
 };
 
-
-static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiClientInServer> &ipc)
-{
-    client.ipc_ = ipc;
-}
+static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiClientInServer> &ipc) { client.ipc_ = ipc; }
 
 /**
  * @tc.name: Init_001

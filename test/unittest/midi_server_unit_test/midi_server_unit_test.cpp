@@ -13,21 +13,23 @@
  * limitations under the License.
  */
 
-#include <map>
-#include "midi_info.h"
-#include "native_midi_base.h"
+#include "iremote_stub.h"
+#include "iservice_registry.h"
+#include "message_parcel.h"
 #include "midi_client_in_server.h"
+#include "midi_info.h"
 #include "midi_listener_callback.h"
 #include "midi_server.h"
 #include "midi_test_common.h"
-#include "iservice_registry.h"
-#include "system_ability_definition.h"
-#include "message_parcel.h"
+#include "native_midi_base.h"
 #include "parcel.h"
-#include "iremote_stub.h"
+#include "system_ability_definition.h"
+#include <map>
 
-#include <gtest/gtest.h>
+
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
 using namespace OHOS;
 using namespace MIDI;
 using namespace testing;
@@ -35,31 +37,31 @@ using namespace testing::ext;
 
 class MockIMidiCallback : public IMidiCallback {
 public:
-    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)), (override));
+    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
+                (override));
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
     MOCK_METHOD(sptr<IRemoteObject>, AsObject, (), (override));
 };
-
 
 // class MockIRemoteObject : public IRemoteObject {
 // public:
 //     MockIRemoteObject() : IRemoteObject(u"IRemoteObject") {}
 //     MOCK_METHOD(int32_t, GetObjectRefCount, (), (override));
-//     MOCK_METHOD(int, SendRequest, (uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option), (override));
-//     MOCK_METHOD(bool, AddDeathRecipient, (const sptr<DeathRecipient> &recipient), (override));
+//     MOCK_METHOD(int, SendRequest, (uint32_t code, MessageParcel &data, MessageParcel &reply, MessageOption &option),
+//     (override)); MOCK_METHOD(bool, AddDeathRecipient, (const sptr<DeathRecipient> &recipient), (override));
 //     MOCK_METHOD(bool, RemoveDeathRecipient, (const sptr<DeathRecipient> &recipient), (override));
 //     MOCK_METHOD(int, Dump, (int fd, const std::vector<std::u16string> &args), (override));
 // };
 
 class TestMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
-    int32_t NotifyDeviceChange(int32_t, const std::map<int32_t, std::string>&) override { return 0; }
+    int32_t NotifyDeviceChange(int32_t, const std::map<int32_t, std::string> &) override { return 0; }
     int32_t NotifyError(int32_t) override { return 0; }
 };
 
-class MockMidiServiceController: public MidiServiceController {
-    MOCK_METHOD(int32_t, CreateClientInServer, (std::shared_ptr<MidiServiceCallback> callback, sptr<IRemoteObject> &client,
-                                 uint32_t &clientId));
+class MockMidiServiceController : public MidiServiceController {
+    MOCK_METHOD(int32_t, CreateClientInServer,
+                (std::shared_ptr<MidiServiceCallback> callback, sptr<IRemoteObject> &client, uint32_t &clientId));
 };
 
 class MidiServerUnitTest : public testing::Test {
@@ -108,7 +110,6 @@ HWTEST_F(MidiServerUnitTest, MidiClientInServer_GetDevicePorts001, TestSize.Leve
     EXPECT_TRUE(ports.empty());
 }
 
-
 /**
  * @tc.name: MidiClientInServer_OpenDevice001
  * @tc.desc: call controller's OpenDevice()
@@ -138,7 +139,6 @@ HWTEST_F(MidiServerUnitTest, MidiClientInServer_OpenInputPort001, TestSize.Level
     std::shared_ptr<SharedMidiRing> buffer;
     int64_t deviceId = 12345;
     uint32_t portIndex = 1;
-
 
     MidiClientInServer client(id, mockCallback);
     EXPECT_NE(MIDI_STATUS_OK, client.OpenInputPort(buffer, deviceId, portIndex));
@@ -242,7 +242,6 @@ HWTEST_F(MidiServerUnitTest, MidiListenerCallback_NotifyError001, TestSize.Level
     EXPECT_NE(nullptr, listener.callback_);
 }
 
-
 /**
  * @tc.name: MidiServer_OnStart001
  * @tc.desc: call callback's OnStart
@@ -279,7 +278,7 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateClientInServer001, TestSize.Level0
 
     // EXPECT_CALL(*controler, CreateClientInServer(_, _, _))
     //     .WillOnce(Return(MIDI_STATUS_OK));
-    
+
     EXPECT_NE(nullptr, server->controller_);
     EXPECT_EQ(MIDI_STATUS_OK, server->CreateClientInServer(object, client, clientId));
     delete controler;

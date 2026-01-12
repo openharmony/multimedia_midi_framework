@@ -18,12 +18,13 @@
 #endif
 
 #include <cinttypes>
-#include <ctime>
-#include <sstream>
-#include <ostream>
 #include <climits>
+#include <ctime>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <unistd.h>
+
 
 #include "midi_log.h"
 #include "midi_utils.h"

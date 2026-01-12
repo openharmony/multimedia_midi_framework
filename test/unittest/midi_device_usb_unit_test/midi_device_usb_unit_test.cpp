@@ -13,33 +13,35 @@
  * limitations under the License.
  */
 
-
 #include "midi_device_driver.h"
 #include "midi_device_usb.h"
 #include "midi_info.h"
 #include "native_midi_base.h"
 #include "v1_0/imidi_interface.h"
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
 using namespace OHOS;
 using namespace MIDI;
 using namespace testing;
 using namespace testing::ext;
 
-
 class MockIMidiInterface : public HDI::Midi::V1_0::IMidiInterface {
 public:
-    MOCK_METHOD(int32_t, GetDeviceList, (std::vector<HDI::Midi::V1_0::MidiDeviceInfo>& deviceList), (override));
+    MOCK_METHOD(int32_t, GetDeviceList, (std::vector<HDI::Midi::V1_0::MidiDeviceInfo> & deviceList), (override));
     MOCK_METHOD(int32_t, OpenDevice, (int64_t deviceId), (override));
     MOCK_METHOD(int32_t, CloseDevice, (int64_t deviceId), (override));
-    MOCK_METHOD(int32_t, OpenInputPort, (int64_t deviceId, uint32_t portId, const sptr<HDI::Midi::V1_0::IMidiCallback>& dataCallback), (override));
+    MOCK_METHOD(int32_t, OpenInputPort,
+                (int64_t deviceId, uint32_t portId, const sptr<HDI::Midi::V1_0::IMidiCallback> &dataCallback),
+                (override));
     MOCK_METHOD(int32_t, OpenOutputPort, (int64_t deviceId, uint32_t portId), (override));
     MOCK_METHOD(int32_t, CloseInputPort, (int64_t deviceId, uint32_t portId), (override));
     MOCK_METHOD(int32_t, CloseOutputPort, (int64_t deviceId, uint32_t portId), (override));
-    MOCK_METHOD(int32_t, SendMidiMessages, (int64_t deviceId, uint32_t portId, const std::vector<HDI::Midi::V1_0::MidiMessage>& messages), (override));
+    MOCK_METHOD(int32_t, SendMidiMessages,
+                (int64_t deviceId, uint32_t portId, const std::vector<HDI::Midi::V1_0::MidiMessage> &messages),
+                (override));
 };
-
 
 class MidiDeviceUsbUnitTest : public testing::Test {
 public:
@@ -51,7 +53,6 @@ public:
 
     void TearDown() override {}
 };
-
 
 /**
  * @tc.name: GetRegisteredDevices_001
@@ -68,7 +69,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_001, TestSize.Level0)
 
     EXPECT_CALL(*mockMidiHdi, GetDeviceList(_))
         .Times(1)
-        .WillOnce(Invoke([](std::vector<HDI::Midi::V1_0::MidiDeviceInfo>& deviceList) {
+        .WillOnce(Invoke([](std::vector<HDI::Midi::V1_0::MidiDeviceInfo> &deviceList) {
             deviceList.clear();
             return MIDI_STATUS_OK;
         }));
@@ -99,21 +100,21 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
 
     EXPECT_CALL(*mockMidiHdi, GetDeviceList(_))
         .Times(1)
-        .WillOnce(Invoke([&](std::vector<HDI::Midi::V1_0::MidiDeviceInfo>& deviceList) {
+        .WillOnce(Invoke([&](std::vector<HDI::Midi::V1_0::MidiDeviceInfo> &deviceList) {
             deviceList.clear();
 
-            HDI::Midi::V1_0::MidiDeviceInfo device {};
+            HDI::Midi::V1_0::MidiDeviceInfo device{};
             device.deviceId = expectedDeviceId;
             device.protocol = HDI::Midi::V1_0::MIDI_PROTOCOL_1_0;
             device.productName = "TestProduct";
             device.vendorName = "TestVendor";
 
-            HDI::Midi::V1_0::MidiPortInfo port0 {};
+            HDI::Midi::V1_0::MidiPortInfo port0{};
             port0.portId = expectedPortId0;
             port0.name = "InputPort0";
             port0.direction = HDI::Midi::V1_0::PORT_DIRECTION_INPUT;
 
-            HDI::Midi::V1_0::MidiPortInfo port1 {};
+            HDI::Midi::V1_0::MidiPortInfo port1{};
             port1.portId = expectedPortId1;
             port1.name = "OutputPort1";
             port1.direction = HDI::Midi::V1_0::PORT_DIRECTION_OUTPUT;
@@ -128,8 +129,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
     auto deviceInfos = driver.GetRegisteredDevices();
 
     ASSERT_EQ(1u, deviceInfos.size());
-    const auto& devInfo = deviceInfos[0];
-
+    const auto &devInfo = deviceInfos[0];
 
     EXPECT_EQ(expectedDeviceId, devInfo.driverDeviceId);
     EXPECT_EQ(DEVICE_TYPE_USB, devInfo.deviceType);
@@ -150,7 +150,6 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
     EXPECT_EQ(static_cast<TransportProtocol>(expectedProtocol), devInfo.portInfos[1].transportProtocol);
 }
 
-
 /**
  * @tc.name: OpenDevice001
  * @tc.desc: open correct deviceId, expect ok
@@ -165,7 +164,6 @@ HWTEST_F(MidiDeviceUsbUnitTest, OpenDevice001, TestSize.Level0)
     driver.midiHdi_ = mockMidiHdi;
     EXPECT_EQ(0, driver.OpenDevice(123));
 }
-
 
 /**
  * @tc.name: CloseDevice001
@@ -182,7 +180,6 @@ HWTEST_F(MidiDeviceUsbUnitTest, CloseDevice001, TestSize.Level0)
     driver.midiHdi_ = mockMidiHdi;
     EXPECT_EQ(0, driver.CloseDevice(123));
 }
-
 
 /**
  * @tc.name: OpenInputPort001
@@ -209,11 +206,11 @@ HWTEST_F(MidiDeviceUsbUnitTest, OpenInputPort001, TestSize.Level0)
 
     EXPECT_CALL(*mockMidiHdi, OpenInputPort(deviceId, portIndex, _))
         .Times(1)
-        .WillOnce(Invoke([&](int64_t, uint32_t, const sptr<HDI::Midi::V1_0::IMidiCallback>& dataCallback) {
+        .WillOnce(Invoke([&](int64_t, uint32_t, const sptr<HDI::Midi::V1_0::IMidiCallback> &dataCallback) {
             capturedCallback = dataCallback;
             return MIDI_STATUS_OK;
         }));
-    
+
     EXPECT_EQ(MIDI_STATUS_OK, driver.OpenInputPort(deviceId, portIndex, inputCallback));
     ASSERT_NE(nullptr, capturedCallback);
 
@@ -240,7 +237,6 @@ HWTEST_F(MidiDeviceUsbUnitTest, OpenInputPort001, TestSize.Level0)
     EXPECT_EQ(1u, receivedEvents[1].length);
     ASSERT_NE(nullptr, receivedEvents[1].data);
 }
-
 
 /**
  * @tc.name: CloseInputPort001
