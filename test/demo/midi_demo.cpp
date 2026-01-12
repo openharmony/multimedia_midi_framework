@@ -50,8 +50,7 @@ static void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_
 {
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId << ", Name=" << info.productName << endl;
-    }
-    else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
+    } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
         cout << "[Hotplug] Device Disconnected: ID=" << info.midiDeviceId << endl;
     }
 }
@@ -84,8 +83,7 @@ static void SendMidiNote(OH_MidiDevice *device, int8_t portIndex)
     int ret = OH_MidiSend(device, portIndex, &event, 1, &written);
     if (ret == MIDI_STATUS_OK) {
         cout << "[Tx] Note On sent to port " << static_cast<int>(portIndex) << endl;
-    }
-    else {
+    } else {
         cout << "[Tx] Failed to send data, error: " << ret << endl;
     }
 
@@ -117,8 +115,7 @@ static void SetupPorts(OH_MidiClient *client, OH_MidiDevice *device, int64_t dev
                 cout << "Input Port " << port.portIndex << " opened (Listening...)" << endl;
                 outOpenedPorts.push_back(port.portIndex);
             }
-        }
-        else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
+        } else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
             if (OH_MidiOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
                 cout << "Output Port " << port.portIndex << " opened." << endl;
                 outOpenedPorts.push_back(port.portIndex);
