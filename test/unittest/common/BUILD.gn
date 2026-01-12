@@ -20,7 +20,7 @@ module_output_path = "midi_framework/"
 ohos_unittest("midi_common_unittest") {
   testonly = true
   module_out_path = module_output_path
-  
+
   cflags = [
     "-Wall",
     "-Werror",
@@ -34,8 +34,9 @@ ohos_unittest("midi_common_unittest") {
     "${midi_framework_root}/frameworks/native/midiutils/include",
     "${midi_framework_root}/interfaces/kits/c/midi",
   ]
-  
+
   sources = [
+    "./src/futex_tool_unit_test.cpp",
     "./src/midi_shared_ring_unit_test.cpp",
   ]
 

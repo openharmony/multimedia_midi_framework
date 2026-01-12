@@ -37,6 +37,7 @@ ohos_unittest("midi_client_unit_test") {
 
   deps = [
     "${midi_framework_root}/frameworks/native/midi:midi_client",
+    "${midi_framework_root}/services:midi_service",
     "${midi_framework_root}/services/idl:midi_framework_interface",
   ]
 
