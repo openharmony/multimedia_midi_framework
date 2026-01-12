@@ -13,46 +13,48 @@
         "name": "midi_framework",
         "subsystem": "multimedia",
         "syscap": [
-          "SystemCapability.Multimedia.Audio.Midi"
+            "SystemCapability.Multimedia.Audio.Midi"
         ],
         "features": [],
-        "adapted_system_type": [ "standard" ],
+        "adapted_system_type": [
+            "standard"
+        ],
         "rom": "4500KB",
         "ram": "4000KB",
         "deps": {
-          "components": [
-            "ability_base",
-            "bluetooth",
-            "c_utils",
-            "common_event_service",
-            "hicollie",
-            "hitrace",
-            "hilog",
-            "init",
-            "ipc",
-            "safwk",
-            "samgr",
-            "usb_manager",
-            "drivers_interface_midi"
-          ],
-          "third_party": []
+            "components": [
+                "ability_base",
+                "bluetooth",
+                "c_utils",
+                "common_event_service",
+                "hicollie",
+                "hitrace",
+                "hilog",
+                "init",
+                "ipc",
+                "safwk",
+                "samgr",
+                "usb_manager",
+                "drivers_interface_midi"
+            ],
+            "third_party": []
         },
         "build": {
-          "group_type": {
-            "base_group": [],
-            "fwk_group": [
-              "//foundation/multimedia/midi_framework/frameworks/native/ohmidi:ohmidi"
-            ],
-            "service_group": [
-              "//foundation/multimedia/midi_framework/sa_profile:midi_service_sa_profile",
-              "//foundation/multimedia/midi_framework/services:midi_service_packages"
+            "group_type": {
+                "base_group": [],
+                "fwk_group": [
+                    "//foundation/multimedia/midi_framework/frameworks/native/ohmidi:ohmidi"
+                ],
+                "service_group": [
+                    "//foundation/multimedia/midi_framework/sa_profile:midi_service_sa_profile",
+                    "//foundation/multimedia/midi_framework/services:midi_service_packages"
+                ]
+            },
+            "inner_kits": [],
+            "test": [
+                "//foundation/multimedia/midi_framework/test:midi_unit_test",
+                "//foundation/multimedia/midi_framework/test:midi_demo_test"
             ]
-          },
-          "inner_kits": [
-          ],
-          "test": [
-              "//foundation/multimedia/midi_framework/test:midi_unit_test"
-          ]
         }
     }
 }

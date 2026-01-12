@@ -15,6 +15,11 @@ import("//build/ohos.gni")
 import("//build/test.gni")
 import("//foundation/multimedia/midi_framework/config.gni")
 
+group("midi_demo_test") {
+  testonly = true
+  deps = [ "demo:midi_demo" ]
+}
+
 group("midi_unit_test") {
   testonly = true
   deps = [

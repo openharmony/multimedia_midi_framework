@@ -31,7 +31,41 @@ namespace MIDI {
 namespace {
 const int32_t WAIT_TRY_COUNT = 50;
 const int64_t SEC_TO_NANOSEC = 1000000000;
+
+// Default implementation calling the real syscall
+long RealSysCall(std::atomic<uint32_t> *futexPtr, int op, int val, const struct timespec *timeout)
+{
+    // The syscall interface requires raw pointers and specific casts
+    return syscall(__NR_futex, futexPtr, op, val, timeout, NULL, 0);
+}
+
+// Default implementation calling the real time utility
+int64_t RealGetTime()
+{
+    return ClockTime::GetCurNano();
+}
+
+// Global wrappers initialized with default real implementations
+FutexTool::FutexSysCall g_sysCallFunc = RealSysCall;
+FutexTool::TimeGetter g_timeFunc = RealGetTime;
+
 }  // namespace
+
+// Exposed interface to inject mocks for Unit Testing
+void FutexTool::SetStubFunc(const FutexSysCall &sysCall, const TimeGetter &timeCall)
+{
+    if (sysCall) {
+        g_sysCallFunc = sysCall;
+    } else {
+        g_sysCallFunc = RealSysCall;
+    }
+
+    if (timeCall) {
+        g_timeFunc = timeCall;
+    } else {
+        g_timeFunc = RealGetTime;
+    }
+}
 
 // FUTEX_WAIT using relative timeout value.
 void TimeoutToRelativeTime(int64_t timeout, struct timespec &realtime)
@@ -62,7 +96,7 @@ bool RecalculateWaitTime(int64_t timeout, int64_t timeIn, struct timespec &waitT
     if (timeout <= 0) {
         return true;
     }
-    int64_t cost = ClockTime::GetCurNano() - timeIn;
+    int64_t cost = g_timeFunc() - timeIn;
     if (cost >= timeout) {
         return false;
     }
@@ -73,7 +107,7 @@ bool RecalculateWaitTime(int64_t timeout, int64_t timeIn, struct timespec &waitT
 // Helper: Execute the actual syscall
 FutexCode ExecFutexWaitSyscall(std::atomic<uint32_t> *futexPtr, int64_t timeout, struct timespec *waitTimePtr)
 {
-    long res = syscall(__NR_futex, futexPtr, FUTEX_WAIT, IS_NOT_READY, waitTimePtr, NULL, 0);
+    long res = g_sysCallFunc(futexPtr, FUTEX_WAIT, IS_NOT_READY, waitTimePtr);
     auto sysErr = errno;
 
     if ((res != 0) && (sysErr == ETIMEDOUT)) {
@@ -99,7 +133,7 @@ FutexCode FutexTool::FutexWait(std::atomic<uint32_t> *futexPtr, int64_t timeout,
         return checkRet;
     }
 
-    int64_t timeIn = ClockTime::GetCurNano();
+    int64_t timeIn = g_timeFunc();
     struct timespec waitTime;
     if (timeout > 0) {
         TimeoutToRelativeTime(timeout, waitTime);
@@ -145,12 +179,12 @@ FutexCode FutexTool::FutexWake(std::atomic<uint32_t> *futexPtr, uint32_t wakeVal
     }
     if (wakeVal == IS_PRE_EXIT) {
         futexPtr->store(IS_PRE_EXIT);
-        syscall(__NR_futex, futexPtr, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
+        g_sysCallFunc(futexPtr, FUTEX_WAKE, INT_MAX, NULL);
         return FUTEX_SUCCESS;
     }
     uint32_t expect = IS_NOT_READY;
     if (futexPtr->compare_exchange_strong(expect, IS_READY)) {
-        long res = syscall(__NR_futex, futexPtr, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
+        long res = g_sysCallFunc(futexPtr, FUTEX_WAKE, INT_MAX, NULL);
         if (res < 0) {
             MIDI_ERR_LOG("failed:%{public}ld, errno[%{public}d]:%{public}s", res, errno, strerror(errno));
             return FUTEX_OPERATION_FAILED;
