@@ -134,7 +134,8 @@ OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device);
 /**
  * @brief Get port information (Double Call Pattern)
  *
- * @param device Target device handle.
+ * @param client Target client handle.
+ * @param deviceId Device ID.
  * @param infos User-allocated buffer, or nullptr.
  * @param numPorts Capacity (in) / Actual count (out).
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
