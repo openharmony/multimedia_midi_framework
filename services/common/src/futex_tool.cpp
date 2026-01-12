@@ -31,21 +31,21 @@ namespace MIDI {
 namespace {
 const int32_t WAIT_TRY_COUNT = 50;
 const int64_t SEC_TO_NANOSEC = 1000000000;
+} // namespace
 
 // Default implementation calling the real syscall
-static long g_RealSysCall(std::atomic<uint32_t> *futexPtr, int op, int val, const struct timespec *timeout)
+static long RealSysCall(std::atomic<uint32_t> *futexPtr, int op, int val, const struct timespec *timeout)
 {
     // The syscall interface requires raw pointers and specific casts
     return syscall(__NR_futex, futexPtr, op, val, timeout, NULL, 0);
 }
 
 // Default implementation calling the real time utility
-static int64_t g_RealGetTime() { return ClockTime::GetCurNano(); }
+static int64_t RealGetTime() { return ClockTime::GetCurNano(); }
 
 // Global wrappers initialized with default real implementations
-FutexTool::FutexSysCall g_sysCallFunc = g_RealSysCall;
-FutexTool::TimeGetter g_timeFunc = g_RealGetTime;
-} // namespace
+FutexTool::FutexSysCall g_sysCallFunc = RealSysCall;
+FutexTool::TimeGetter g_timeFunc = RealGetTime;
 
 // Exposed interface to inject mocks for Unit Testing
 void FutexTool::SetStubFunc(const FutexSysCall &sysCall, const TimeGetter &timeCall)
@@ -53,13 +53,13 @@ void FutexTool::SetStubFunc(const FutexSysCall &sysCall, const TimeGetter &timeC
     if (sysCall) {
         g_sysCallFunc = sysCall;
     } else {
-        g_sysCallFunc = g_RealSysCall;
+        g_sysCallFunc = RealSysCall;
     }
 
     if (timeCall) {
         g_timeFunc = timeCall;
     } else {
-        g_timeFunc = g_RealGetTime;
+        g_timeFunc = RealGetTime;
     }
 }
 
