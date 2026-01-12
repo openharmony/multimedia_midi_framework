@@ -24,5 +24,8 @@ group("midi_unit_test") {
     "unittest/midi_service_controller_unit_test:midi_service_controller_unit_test",
     "unittest/midi_client_connection:midi_client_connection_unittest",
     "unittest/midi_device_connection:midi_device_connection_unittest",
+    "unittest/midi_device_usb_unit_test:midi_device_usb_unittest",
+    "unittest/midi_server_unit_test:midi_server_unittest",
+    "unittest/midi_service_client_unit_test:midi_service_client_unittest",
   ]
 }
