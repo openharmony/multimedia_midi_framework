@@ -1,66 +1,39 @@
-# midi_framework部件<a name="ZH-CN_TOPIC_MIDI_001"></a>
+# midi_framework
 
-* [简介](#section_intro)
-* [基本概念](#section_concepts)
+## 简介
 
+MIDI（Musical Instrument Digital Interface）设备是指符合 MIDI 标准协议的电子乐器、控制器及周边音频设备（如电子琴、电子鼓、打击垫、合成器等）。
 
-* [目录](#section_dir)
-* [编译构建](#section_build)
-* [使用说明](#section_usage)
-* [接口说明](#section_api)
-* [开发步骤](#section_steps)
-* [支持设备](#section_devices)
+`midi_framework` 是 OpenHarmony 操作系统中用于管理和控制 MIDI 设备的模块。它提供统一的 MIDI 设备发现、数据传输及协议解析接口，屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
 
+midi_framework 包含以下常用功能：
 
-* [相关仓](#section_related)
+* **设备发现与管理**：支持查询已连接 USB 及 BLE MIDI 设备的列表、热插拔监听及连接 BLE MIDI 设备。
+* **高性能数据传输**：支持基于 UMP（Universal MIDI Packet）协议的指令收发。
 
-## 简介<a name="section_intro"></a>
+## 系统架构
 
-midi_framework部件为OpenHarmony系统提供了统一的MIDI设备访问、数据传输及协议处理能力，使得应用能够直接调用系统提供的接口实现外部MIDI设备的发现、连接以及高性能的指令收发功能。
-
-midi_framework部件主要具备以下常见功能：
-
-* **设备发现与连接**：支持MIDI设备的枚举、信息查询、热插拔监听（USB MIDI设备）以及设备连接。
-* **数据传输**：支持基于UMP（Universal MIDI Packet）协议的高性能数据发送与接收。
-
-**图 1** MIDI部件架构图<a name="fig_midi_arch"></a>
 ![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)
+**图 1** OpenHarmony MIDI 服务架构图
 
-### 基本概念<a name="section_concepts"></a>
+* **MIDI 设备控制服务 (MidiServer)**: 提供设备管理与数据传输的核心能力。
+* **连接管理**：负责管理应用端（Client）与服务端的会话，处理端口（Port）的打开、关闭及多客户端路由分发。
+* **协议处理**：内置 UMP 协议处理器，负责 MIDI 2.0（UMP）与 MIDI 1.0（Byte Stream）之间的协议解析与自动转换，确保上层应用收到的数据格式统一。
+* **传输调度**：基于共享内存与无锁环形队列（Shared Ring Buffer）实现跨进程的高性能数据传输。
 
-* **MIDI (Musical Instrument Digital Interface)**
-乐器数字接口，是电子乐器、终端设备之间交换音乐信息（如音符、控制参数等）的标准协议。
-* **UMP (Universal MIDI Packet)**
-通用 MIDI 数据包。这是 MIDI 2.0 规范引入的一种基于 32 位字（Word）构建的数据格式。
-> **注意**：本部件采用 **UMP Native** 设计。无论底层硬件是 MIDI 1.0 还是 MIDI 2.0 设备，也无论应用层选择何种协议语义，**应用层收到的所有 MIDI 数据均为 UMP 格式**。对于 MIDI 1.0 设备，系统会自动将其数据封装为 UMP 数据包（Message Type 0x2 或 0x3）。
+* **Audio Kit与OHMIDI**: 音频开发套件，是音频相关服务对外提供的 API 接口集合。它为应用提供音频相关能力，MIDI服务主要关注的是其中OHMIDI对外提供的已连接设备信息查询、建立设备链接、端口管理以及MIDI数据传输的能力。
+* **USB 服务与蓝牙服务**: MIDI 服务依赖的关键系统能力。
+* 依赖 **USB 服务** 实现 USB 设备的连接事件上报。
+* 依赖 **蓝牙服务** 实现 BLE MIDI 设备的连接与 GATT 特性读写。
 
-* **协议语义 (Midi Protocol)**
-指 MIDI 连接在交互行为上的规则，而非数据格式。
-* **MIDI 1.0 语义**：限制数据传输仅使用 MIDI 1.0 兼容的消息类型（如 Note On/Off, Control Change），适用于需要与传统软件或硬件互通的场景。
-* **MIDI 2.0 语义**：允许使用高精度的 MIDI 2.0 消息（如 32-bit Velocity, Attribute Controller），适用于高性能音乐创作场景。
+* **MIDI HDI 驱动 (开发中)**: 系统中实现 MIDI 硬件抽象的模块。
+* 该模块负责对接底层内核驱动（如 ALSA `snd-usb-audio` 或厂商私有驱动），将MIDI设备特定的操作抽象为统一的 `IMidiInterface` 接口。
+* **现状说明**：当前版本主要通过对接标准 ALSA 接口实现 USB MIDI 支持；完整的 HDI 驱动接口定义及厂商适配层正在标准化开发过程中，待发布。
 
-* **MIDI 端口 (MIDI Port)**
-MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可以拥有多个输入端口和输出端口，每个端口独立传输 MIDI 数据流。
-
-架构中主要模块的功能说明如下：
-
-**表 1** 模块功能介绍
-
-| 模块名称            | 功能                                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **MIDI客户端**      | 提供MIDI客户端创建、销毁及回调注册的接口，是应用与服务交互的入口。                                                 |
-| **设备发现与管理**  | 提供当前系统连接的MIDI设备枚举、设备信息查询、设备上下线事件监听接口以及通过MAC地址链接蓝牙设备的接口。            |
-| **连接会话管理**    | 管理应用端与服务端的连接会话，处理端口（Port）的打开、关闭及多客户端路由分发逻辑。                                 |
-| **数据传输**        | 基于共享内存与无锁环形队列（Shared Ring Buffer）实现跨进程的高性能MIDI数据传输。                                   |
-| **协议处理器**      | 用于处理MIDI 2.0（UMP）与MIDI 1.0（Byte Stream）之间的协议解析与自动转换。                                         |
-| **USB设备适配**     | 负责与MIDI HDI交互，间接访问ALSA驱动，实现标准USB MIDI设备的指令读写与控制。                                       |
-| **BLE设备适配**     | 负责对接系统蓝牙服务，实现BLE MIDI设备的指令读写与控制。                                                           |
-| **IPC通信模块**     | 定义并实现客户端与服务端之间的跨进程通信接口，处理请求调度。                                                       |
-| **MIDI硬件驱动HDI** | 提供MIDI硬件驱动的抽象接口，通过该接口对服务层屏蔽底层硬件差异（如声卡设备节点），向服务层提供统一的数据读写能力。 |
-
-## 目录<a name="section_dir"></a>
+## 目录
 
 仓目录结构如下：
+
 
 ```
 /foundation/multimedia/midi_framework      # MIDI部件业务代码
@@ -77,7 +50,7 @@ MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可
 │   └── kits                               # 对外接口
 ├── sa_profile                             # 系统服务配置文件
 ├── services                               # MIDI服务层实现
-│   ├── common                             # 服务端通用组件 (Futex同步, 共享内存, 无锁队列, UMP协议处理)
+│   ├── common                             # 服务端通用组件 (共享内存, UMP协议处理)
 │   ├── etc                                # 进程启动配置 (midi_server.cfg)
 │   ├── idl                                # IPC通信接口定义
 │   └── server                             # 服务端核心逻辑 (设备管理, 驱动适配, 客户端连接管理)
@@ -87,7 +60,14 @@ MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可
 
 ```
 
-## 编译构建<a name="section_build"></a>
+## 约束
+
+* **内核支持**：OpenHarmony 开发设备的内核必须开启 `snd-usb-audio` 模块支持（针对 USB MIDI），或具备标准的蓝牙协议栈（针对 BLE MIDI）。
+* **UMP Native 设计**：本服务采用全链路 UMP 格式设计。无论物理设备是 MIDI 1.0 还是 2.0，应用层接口收发的数据均为 UMP 格式。
+* **驱动依赖**：
+* 当前对 USB MIDI 设备的支持依赖于 Linux 标准 ALSA 驱动。
+
+## 编译构建
 
 根据不同的目标平台，使用以下命令进行编译：
 
@@ -108,11 +88,11 @@ MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可
 > **说明：**
 > `{product_name}` 为当前支持的平台名称，例如 `rk3568`。
 
-## 使用说明<a name="section_usage"></a>
+## 使用说明
 
-### 接口说明<a name="section_api"></a>
+### 接口说明
 
-midi_framework部件向开发者提供了C语言原生接口（Native API），主要涵盖客户端管理、设备管理及端口操作。主要接口及其功能如下：
+midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端管理、设备管理及端口操作。主要接口及其功能如下：
 
 **表 2** 接口说明
 
@@ -123,13 +103,14 @@ midi_framework部件向开发者提供了C语言原生接口（Native API），�
 | **OH_MidiGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
 | **OH_MidiGetDevicePorts** | 获取指定设备的端口信息。                                             |
 | **OH_MidiOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
+| **OH_MidiOpenBleDevice**  | 打开指定的BLE MIDI设备，建立链接会话。                               |
 | **OH_MidiCloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
 | **OH_MidiOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
 | **OH_MidiOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
 | **OH_MidiSend**           | 向指定输出端口发送MIDI数据。                                         |
 | **OH_MidiClosePort**      | 关闭指定的输入或输出端口，停止数据传输。                             |
 
-### 开发步骤<a name="section_steps"></a>
+### 开发步骤
 
 以下演示使用 Native API 开发 MIDI 应用的完整流程，包含客户端创建、热插拔监听、设备发现、数据收发及资源释放。
 
@@ -273,22 +254,43 @@ void MidiDemo() {
 * **非阻塞发送**：`OH_MidiSend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
 * **回调限制**：`OnMidiReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
 
-## 支持设备<a name="section_devices"></a>
+### BLE MIDI 设备接入说明
 
-midi_framework 部件目前主要支持以下类型的 MIDI 设备连接：
+对于需要使用蓝牙 MIDI 设备的场景，应用需自行负责设备的扫描与发现，通过特定接口将设备接入 MIDI 服务。具体流程如下：
 
-1. **USB MIDI 设备**
-支持符合 **USB Audio Class (UAC)** 规范的通用设备。此类设备接入系统后，由内核自动识别并生成 ALSA 设备节点，midi_framework 通过访问这些节点实现数据交互。
-* **常见设备**：USB MIDI 键盘、电子鼓、打击垫、合成器等。
-* **连接方式**：USB Type-C 有线连接。
+1. **扫描设备**：
+应用需调用系统蓝牙接口（如 `@ohos.bluetooth.ble`）启动 BLE 扫描。为了过滤出支持 MIDI 协议的设备，需设置 `ScanFilter` 的 `serviceUuid` 为蓝牙 SIG 定义的 MIDI 服务 UUID。
+* **MIDI Service UUID**: `03B80E5A-EDE8-4B33-A751-6CE34EC4C700` (参照 [Bluetooth Low Energy MIDI Specification](https://midi.org/midi-over-bluetooth-low-energy-ble-midi))
+2. **建立连接**：
+扫描获取到目标设备的 MAC 地址（`deviceId`）后，调用 **OH_MidiOpenBleDevice** 接口进行连接。
+```cpp
+OH_MidiDevice *device = nullptr;
+int64_t midiDeviceId = 0;
+// deviceAddr: 从蓝牙扫描结果中获取的 MAC 地址字符串 (如 "XX:XX:XX:XX:XX:XX")
+OH_MidiStatusCode ret = OH_MidiOpenBleDevice(client, deviceAddr, &device, &midiDeviceId);
+```
+3. **统一管理**：
+连接成功后，MIDI 服务会将该 BLE 设备视为已连接的 MIDI 设备：
+* 该设备会被自动添加至 `OH_MidiGetDevices` 能够获取的设备列表中。
+* 返回的 `OH_MidiDevice` 句柄与 USB 设备获取的句柄功能一致，均可使用 **OH_MidiGetDevicePorts**、**OH_MidiOpenInputPort**、**OH_MidiSend** 等接口进行端口操作与数据收发。
 
-2. **BLE MIDI 设备**
-支持符合 **MIDI over Bluetooth Low Energy** 标准的无线 MIDI 设备。
-* **常见设备**：蓝牙 MIDI 键盘等。
-* **连接方式**：蓝牙无线连接。
+## 约束
 
-## 相关仓<a name="section_related"></a>
+* **硬件与内核要求**
+* **USB MIDI**：基于当前 MIDI HDI 标准驱动的实现，当前仅支持符合 **USB Audio Class (UAC)** 规范的通用免驱（Class Compliant）设备（如 USB MIDI 键盘、电子鼓）。
+* **BLE MIDI**：OpenHarmony开发设备必须支持 BLE（Bluetooth Low Energy）协议。
 
+* **驱动开发状态**
+* 当前版本的 **MIDI HDI** 主要对接标准 ALSA 接口以支持 USB 设备。
+* MIDI HDI 驱动接口尚在标准化过程中。
+
+* **协议与数据格式**
+* **UMP Native**：midi_framework 采用全链路 UMP 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
+
+* **权限说明**
+* 应用访问 MIDI 设备可能需要申请相应的系统权限（具体权限定义请参考系统权限列表），并确保设备通过 USB 或蓝牙完成了系统的连接认证。
+
+## 相关仓
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)
-
+[drivers_interface](https://gitcode.com/openharmony/drivers_interface)
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
