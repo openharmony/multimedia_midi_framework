@@ -89,7 +89,7 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 | **OH_MidiGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
 | **OH_MidiGetDevicePorts** | 获取指定设备的端口信息。                                             |
 | **OH_MidiOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
-| **OH_MidiOpenBleDevice**  | 打开指定的BLE MIDI设备，建立链接会话。                               |
+| **OH_MidiOpenBleDevice**  | 打开指定的BLE MIDI设备，建立连接会话。                               |
 | **OH_MidiCloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
 | **OH_MidiOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
 | **OH_MidiOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
@@ -279,4 +279,5 @@ OH_MidiStatusCode ret = OH_MidiOpenBleDevice(client, deviceAddr, &device, &midiD
 ## 相关仓
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)
 [drivers_interface](https://gitcode.com/openharmony/drivers_interface)
+[audio_framework](https://gitcode.com/openharmony/multimedia_audio_framework)
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
