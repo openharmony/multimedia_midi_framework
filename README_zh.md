@@ -16,7 +16,7 @@ midi_framework 包含以下常用功能：
 ![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)
 **图 1** OpenHarmony MIDI 服务架构图
 
-* **MIDI 服务 (midi_server)**: 系统核心服务，提供设备全生命周期管理与数据交互能力。包含**设备管理**（维护设备列表）、**客户端连接管理**（管理应用会话与权限）、**数据传输**（基于共享内存的高性能通道）、**协议转换**（UMP 与 Byte Stream 互转）以及 **USB 适配**和 **蓝牙适配**模块。 midi_server 采用按需启动（On-Demand） 的独立进程模式运行。当应用调用客户端创建接口（OH_MidiClientCreate）时，系统通过 SA（System Ability）机制自动拉起 MIDI 服务进程；当所有客户端销毁且一段时间内无活跃会话时，服务进程将自动退出，以优化系统资源占用。
+* **MIDI 服务 (midi_server)**: 系统核心服务，提供设备全生命周期管理与数据交互能力。包含**设备管理**（维护设备列表）、**客户端连接管理**（管理应用会话与权限）、**数据传输**（基于共享内存的高性能通道）、**协议转换**（UMP 与 Byte Stream 互转）以及 **USB 适配**和 **蓝牙适配**模块。 midi_server 采用按需启动（On-Demand） 的独立进程模式运行。当应用调用客户端创建接口（OH_MidiClientCreate）时，系统通过 samgr 服务（System Ability Manager）自动拉起 MIDI 服务进程，物理设备的插入不会触发服务启动；当所有客户端销毁且一段时间内无活跃会话时，服务进程将自动退出，以优化系统资源占用。
 * **Audio Kit (OHMIDI)**: 音频开发套件中负责 MIDI 能力的接口集合。OHMIDI 为应用层（如 DAW 或 Demo）提供标准 Native API，实现设备列表获取、连接建立及 MIDI 消息收发功能。（注：Audio Kit 还包含 OHAudio 等其他音频接口，与本部件无直接联系且不属于本部件范围）。
 * **MIDI Demo / DAW 应用**: 使用 MIDI 能力的应用。**DAW 应用**指待接入的第三方数字音频工作站；**MIDI Demo** 为参考示例（位于test/demo目录下），用于演示和验证 MIDI 设备的连接与指令交互流程。
 * **蓝牙服务和 USB 服务**: MIDI 服务依赖的关键系统能力。**USB 服务**负责监听 USB 设备的热插拔状态，并及时通知 MIDI 服务有设备上线或下线；**蓝牙服务**与 MIDI 服务进行交互，负责 BLE MIDI 设备的连接建立及数据 I/O 传输。
