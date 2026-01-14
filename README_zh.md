@@ -109,6 +109,11 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 * **发送**：构建 UMP 数据包并通过 Output 端口发送。
 6. **释放资源**：使用完毕后关闭端口、设备并销毁客户端。
 
+下图展示了使用 USB MIDI 能力的完整调用流程与组件交互逻辑：
+
+![USB MIDI 能力使用流程图](figures/zh-cn_image_midi_usb_device.png)
+**图 2** USB MIDI 能力使用流程图
+
 #### 代码示例
 
 ```cpp
@@ -259,6 +264,11 @@ OH_MidiStatusCode ret = OH_MidiOpenBleDevice(client, deviceAddr, &device, &midiD
 连接成功后，MIDI 服务会将该 BLE 设备视为已连接的 MIDI 设备：
 * 该设备会被自动添加至 `OH_MidiGetDevices` 能够获取的设备列表中。
 * 返回的 `OH_MidiDevice` 句柄与 USB 设备获取的句柄功能一致，均可使用 **OH_MidiGetDevicePorts**、**OH_MidiOpenInputPort**、**OH_MidiSend** 等接口进行端口操作与数据收发。
+
+下图展示了 BLE MIDI 设备的扫描、连接及交互流程：
+
+![BLE MIDI 能力使用流程图](figures/zh-cn_image_midi_ble_device.png)
+**图 3** BLE MIDI 能力使用流程图
 
 ## 约束
 
