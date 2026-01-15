@@ -27,7 +27,7 @@
  * @brief Declare underlying data structure for Midi module.
  *
  * @library libohmidi.so
- * @syscap SystemCapability.Multimedia.Audio.Core
+ * @syscap SystemCapability.Multimedia.Audio.MIDI
  * @kit AudioKit
  * @since 24
  * @version 1.0
@@ -35,9 +35,10 @@
 #ifndef NATIVE_MIDI_BASE_H
 #define NATIVE_MIDI_BASE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -349,8 +350,8 @@ typedef struct OH_MidiDeviceStruct OH_MidiDevice;
  * @param deviceInfo Information of the changed device.
  * @since 24
  */
-typedef void (*OH_OnMidiDeviceChange)(
-    void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation deviceInfo);
+typedef void (*OH_OnMidiDeviceChange)(void *userData, OH_MidiDeviceChangeAction action,
+                                      OH_MidiDeviceInformation deviceInfo);
 
 /**
  * @brief Callback for receiving Midi data (Batch Processing)
@@ -397,4 +398,4 @@ typedef struct {
 }
 #endif
 /** @} */
-#endif  // NATIVE_MIDI_BASE_H
+#endif // NATIVE_MIDI_BASE_H

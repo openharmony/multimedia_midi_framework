@@ -30,7 +30,7 @@
  * Midi message sending and receiving, and device status monitoring.
  *
  * @library libohmidi.so
- * @syscap SystemCapability.Multimedia.Audio.Midi
+ * @syscap SystemCapability.Multimedia.Audio.MIDI
  * @kit AudioKit
  * @since 24
  * @version 1.0
@@ -118,8 +118,8 @@ OH_MidiStatusCode OH_MidiOpenDevice(OH_MidiClient *client, int64_t deviceId, OH_
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenBleDevice(
-    OH_MidiClient *client, const char *deviceAddr, OH_MidiDevice **device, int64_t *deviceId);
+OH_MidiStatusCode OH_MidiOpenBleDevice(OH_MidiClient *client, const char *deviceAddr, OH_MidiDevice **device,
+                                       int64_t *deviceId);
 
 /**
  * @brief Close Midi device
@@ -145,8 +145,8 @@ OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiGetDevicePorts(
-    OH_MidiClient *client, int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts);
+OH_MidiStatusCode OH_MidiGetDevicePorts(OH_MidiClient *client, int64_t deviceId, OH_MidiPortInformation *infos,
+                                        size_t *numPorts);
 
 /**
  * @brief Open Midi input port (Receive Data)
@@ -166,8 +166,8 @@ OH_MidiStatusCode OH_MidiGetDevicePorts(
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenInputPort(
-    OH_MidiDevice *device, OH_MidiPortDescriptor portIndex, OH_OnMidiReceived callback, void *userData);
+OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device, OH_MidiPortDescriptor portIndex,
+                                       OH_OnMidiReceived callback, void *userData);
 
 /**
  * @brief Open Midi output port (Send Data)
@@ -221,8 +221,8 @@ OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiSend(
-    OH_MidiDevice *device, uint32_t portIndex, OH_MidiEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
+OH_MidiStatusCode OH_MidiSend(OH_MidiDevice *device, uint32_t portIndex, OH_MidiEvent *events, uint32_t eventCount,
+                              uint32_t *eventsWritten);
 
 /**
  * @brief Send a large SysEx message (Byte-Stream to UMP Helper)
@@ -274,4 +274,4 @@ OH_MidiStatusCode OH_MidiFlushOutputPort(OH_MidiDevice *device, uint32_t portInd
 }
 #endif
 /** @} */
-#endif  // NATIVE_MIDI_H
+#endif // NATIVE_MIDI_H

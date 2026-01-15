@@ -1,66 +1,120 @@
-# midi_framework部件<a name="ZH-CN_TOPIC_MIDI_001"></a>
+# midi_framework
 
-* [简介](#section_intro)
-* [基本概念](#section_concepts)
+## 简介
+MIDI（Musical Instrument Digital Interface）设备是指符合 MIDI 标准协议的电子乐器、控制器及周边音频设备（如电子琴、电子鼓、打击垫、合成器等）。
+
+`midi_framework` 是 OpenHarmony 操作系统中用于管理和控制 MIDI 设备的模块。它提供统一的 MIDI 设备管理和 MIDI 数据传输接口，屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
+
+midi_framework 包含以下常用功能：
+
+* **设备发现与管理**：支持查询已连接 USB 及 BLE MIDI 设备的列表、热插拔监听及连接 BLE MIDI 设备。
+* **高性能数据传输**：支持基于 UMP（Universal MIDI Packet）协议的指令收发。
+
+midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapability.Multimedia.Audio.MIDI 判断OpenHarmony设备是否支持MIDI。
+
+## 系统架构
+
+![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
+**图 1** OpenHarmony MIDI 服务架构图
+
+### 系统架构与模块交互
+
+#### 模块功能说明
+
+整体架构划分为应用层、框架层（提供API）、系统服务层、驱动层及外设。
+
+* **应用层**
+  * **MIDI APP**: 终端用户应用（如 DAW、教学软件）。负责调用 MIDI 客户端接口，执行业务逻辑，如设备扫描（BLE）、设备选择及MIDI数据的处理与展示。
+
+* **框架层**
+  * **MIDI 客户端实例管理**: 负责对外提供 `OH_MIDIClientCreate/Destroy` 等接口，维护客户端上下文，并负责向系统申请或释放 MIDI 服务资源。
+  * **MIDI 设备连接管理**: 负责 `OH_MIDIOpen/CloseDevice` 及 `OH_MIDIGetDevices` 等接口，处理设备的逻辑连接与状态查询。
+  * **MIDI 端口管理与数据传输**: 负责 `OH_MIDIOpenInput/OutputPort` 等接口，建立应用与服务间的数据传输通道。
+
+* **系统服务层 (Midi Server)**
+  * **MIDI 客户端会话管理**: 负责响应客户端的 IPC 请求，管理跨进程会话资源。并在无活跃会话时触发服务退出机制。
+  * **MIDI 设备管理**: 维护全局已连接设备列表，统一分发设备热插拔状态（`OH_OnMidiDeviceChange`）等。
+  * **USB MIDI 适配**: 对接 USB 服务与 MIDI 驱动，处理标准 USB MIDI 设备的连接与数据透传。
+  * **蓝牙 MIDI 适配**: 对接蓝牙服务，处理 BLE MIDI 设备的连接维护与数据读写。
+  * **MIDI 协议转换**: 负责在 UMP（通用 MIDI 包）与传统 MIDI 1.0 字节流之间进行转换（主要用于 BLE 设备）。
+  * **samgr 服务 (System Ability Manager)**: 系统能力管理服务，负责 MIDI 服务的按需拉起。
+  * **USB 服务 / 蓝牙服务**: OpenHarmony 基础系统服务。USB 服务负责上报硬件插拔事件；蓝牙服务负责 BLE 扫描与 GATT 连接。
+
+* **驱动层**
+  * **MIDI 驱动**: 实现硬件抽象，提供对底层 USB MIDI 设备节点的访问能力。
+  * **USB 驱动**: 负责识别 USB 设备，与USB服务交互。
+  * **蓝牙 驱动**: 负责与蓝牙服务交互，提供与BLE外设的连接、数据传输的能力。
+
+* **外设**
+  * **USB MIDI 外设**: 如 USB MIDI 键盘、合成器。
+  * **BLE MIDI 外设**: 如蓝牙 MIDI 键盘。
+
+---
+
+#### 关键交互流程
+
+为了更清晰地展示各模块如何协同工作，以下详解三大核心流程：
+
+##### 服务按需启动与生命周期管理
+
+MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系统资源消耗。
+
+1. **拉起服务**:
+   * 当 **MIDI APP** 调用 `OH_MIDIClientCreate` 时，**MIDI 客户端实例管理** 模块会向 **samgr 服务** 查询 MIDI 服务代理。
+   * 若服务未启动，**samgr 服务** 会自动拉起 MIDI 服务进程，并完成服务的初始化。
+2. **建立会话**:
+   * 服务启动后，客户端通过 IPC 与服务端的 **MIDI 客户端会话管理** 模块建立连接，分配对应的服务资源。
+3. **自动释放**:
+   * 当 **MIDI APP** 调用 `OH_MIDIClientDestroy` 或发生进程异常退出时，服务端的 **会话管理** 模块会清理对应资源。
+   * **退出判定**: 当活跃客户端数量降为 0，且在 **15秒** 内无新的连接建立时，MIDI 服务执行资源释放逻辑并自动退出进程。
+
+![服务按需启动与生命周期管理流程图](figures/zh-cn_image_midi_framework_life_cycle.png)<br>
+**图 2** 服务按需启动与生命周期管理流程图
+
+##### 设备发现与连接管理
+
+设备连接流程根据物理链路（USB/BLE）的不同，涉及不同的外部模块交互。
+
+* **USB MIDI 设备流程**:
+  1. **物理接入**: USB MIDI 键盘/合成器插入，**USB 驱动** 识别硬件并上报给 **USB 服务**。
+  2. **被动发现**: **USB 服务** 通知 MIDI 服务的 **USB MIDI 适配** 模块。适配模块解析设备信息后，将其注册到 **MIDI 设备管理** 模块。
+  3. **通知应用**: 若 **MIDI APP** 注册了回调，会收到设备上线事件。此时 APP 可调用 `OH_MIDIGetDevices` 获取最新列表。
+  4. **建立连接**: APP 调用 `OH_MIDIOpenDevice` -> 客户端通过 IPC 请求服务端 -> 服务端 **MIDI 设备管理** 识别为 USB 设备 -> 调度 **USB MIDI 适配** 模块 -> 通过 **MIDI 驱动** 打开底层设备节点。
 
 
-* [目录](#section_dir)
-* [编译构建](#section_build)
-* [使用说明](#section_usage)
-* [接口说明](#section_api)
-* [开发步骤](#section_steps)
-* [支持设备](#section_devices)
+* **BLE MIDI 设备流程**:
+  1. **主动发现**: **MIDI APP** 调用系统蓝牙接口（`@ohos.bluetooth.ble`的`startBLEScan`）启动扫描，根据 UUID 过滤出 BLE MIDI 外设。
+     * **MIDI Service UUID**: `03B80E5A-EDE8-4B33-A751-6CE34EC4C700` (参照 [Bluetooth Low Energy MIDI Specification](https://midi.org/midi-over-bluetooth-low-energy-ble-midi))
+  2. **接入服务**: APP 获取 MAC 地址后，调用 `OH_MIDIOpenBleDevice`。
+  3. **建立连接**: 客户端请求服务端 -> 服务端 **MIDI 设备管理** 识别为 BLE 请求 -> 调度 **蓝牙 MIDI 适配** 模块 -> 调用 **蓝牙服务** 建立 GATT 连接。
+  4. **统一管理**: 连接成功后，该 BLE 设备被纳入 **MIDI 设备管理** 模块的通用列表，APP 可像操作 USB 设备一样对其进行端口操作。
 
+![设备发现与连接管理流程图](figures/zh-cn_image_midi_framework_device_manage.png)<br>
+**图 3** 设备发现与连接管理流程图
 
-* [相关仓](#section_related)
+##### 端口管理与数据传输
 
-## 简介<a name="section_intro"></a>
+数据传输链路涉及跨进程通信与协议适配。
 
-midi_framework部件为OpenHarmony系统提供了统一的MIDI设备访问、数据传输及协议处理能力，使得应用能够直接调用系统提供的接口实现外部MIDI设备的发现、连接以及高性能的指令收发功能。
+1. **建立通路**:
+   * **MIDI APP** 调用 `OH_MIDIOpenInputPort/OutputPort`。
+   * **MIDI 端口管理** 模块与服务端协商，在客户端与服务端之间建立 **共享内存** 通道。
+2. **数据收发**:
+   * **发送 (APP -> 外设)**: APP 调用 `OH_MIDISend` -> 数据写入共享内存 -> 服务端读取。
+   * **分发**:
+   * 若为 **USB 设备**: 数据经由 **USB MIDI 适配** 模块 -> **MIDI 驱动** -> **USB 驱动** -> 硬件。
+   * 若为 **BLE 设备**: 数据经由 **蓝牙 MIDI 适配** 模块 -> **MIDI 协议转换** (UMP转字节流) -> **蓝牙服务** -> **蓝牙驱动** -> 硬件。
+3. **接收 (外设 -> APP)**:
+   * 硬件数据经驱动上报，服务端适配模块处理后（BLE 需进行协议转换），写入共享内存。
+   * 客户端 **MIDI 端口管理** 读取数据，并通过 `OH_OnMIDIReceived` 回调通知 **MIDI APP**。
 
-midi_framework部件主要具备以下常见功能：
+![端口管理与数据传输流程图](figures/zh-cn_image_midi_framework_data_transfer.png)<br>
+**图 4** 端口管理与数据传输流程图
 
-* **设备发现与连接**：支持MIDI设备的枚举、信息查询、热插拔监听（USB MIDI设备）以及设备连接。
-* **数据传输**：支持基于UMP（Universal MIDI Packet）协议的高性能数据发送与接收。
-
-**图 1** MIDI部件架构图<a name="fig_midi_arch"></a>
-![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)
-
-### 基本概念<a name="section_concepts"></a>
-
-* **MIDI (Musical Instrument Digital Interface)**
-乐器数字接口，是电子乐器、终端设备之间交换音乐信息（如音符、控制参数等）的标准协议。
-* **UMP (Universal MIDI Packet)**
-通用 MIDI 数据包。这是 MIDI 2.0 规范引入的一种基于 32 位字（Word）构建的数据格式。
-> **注意**：本部件采用 **UMP Native** 设计。无论底层硬件是 MIDI 1.0 还是 MIDI 2.0 设备，也无论应用层选择何种协议语义，**应用层收到的所有 MIDI 数据均为 UMP 格式**。对于 MIDI 1.0 设备，系统会自动将其数据封装为 UMP 数据包（Message Type 0x2 或 0x3）。
-
-* **协议语义 (Midi Protocol)**
-指 MIDI 连接在交互行为上的规则，而非数据格式。
-* **MIDI 1.0 语义**：限制数据传输仅使用 MIDI 1.0 兼容的消息类型（如 Note On/Off, Control Change），适用于需要与传统软件或硬件互通的场景。
-* **MIDI 2.0 语义**：允许使用高精度的 MIDI 2.0 消息（如 32-bit Velocity, Attribute Controller），适用于高性能音乐创作场景。
-
-* **MIDI 端口 (MIDI Port)**
-MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可以拥有多个输入端口和输出端口，每个端口独立传输 MIDI 数据流。
-
-架构中主要模块的功能说明如下：
-
-**表 1** 模块功能介绍
-
-| 模块名称            | 功能                                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **MIDI客户端**      | 提供MIDI客户端创建、销毁及回调注册的接口，是应用与服务交互的入口。                                                 |
-| **设备发现与管理**  | 提供当前系统连接的MIDI设备枚举、设备信息查询、设备上下线事件监听接口以及通过MAC地址链接蓝牙设备的接口。            |
-| **连接会话管理**    | 管理应用端与服务端的连接会话，处理端口（Port）的打开、关闭及多客户端路由分发逻辑。                                 |
-| **数据传输**        | 基于共享内存与无锁环形队列（Shared Ring Buffer）实现跨进程的高性能MIDI数据传输。                                   |
-| **协议处理器**      | 用于处理MIDI 2.0（UMP）与MIDI 1.0（Byte Stream）之间的协议解析与自动转换。                                         |
-| **USB设备适配**     | 负责与MIDI HDI交互，间接访问ALSA驱动，实现标准USB MIDI设备的指令读写与控制。                                       |
-| **BLE设备适配**     | 负责对接系统蓝牙服务，实现BLE MIDI设备的指令读写与控制。                                                           |
-| **IPC通信模块**     | 定义并实现客户端与服务端之间的跨进程通信接口，处理请求调度。                                                       |
-| **MIDI硬件驱动HDI** | 提供MIDI硬件驱动的抽象接口，通过该接口对服务层屏蔽底层硬件差异（如声卡设备节点），向服务层提供统一的数据读写能力。 |
-
-## 目录<a name="section_dir"></a>
+## 目录
 
 仓目录结构如下：
+
 
 ```
 /foundation/multimedia/midi_framework      # MIDI部件业务代码
@@ -77,7 +131,7 @@ MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可
 │   └── kits                               # 对外接口
 ├── sa_profile                             # 系统服务配置文件
 ├── services                               # MIDI服务层实现
-│   ├── common                             # 服务端通用组件 (Futex同步, 共享内存, 无锁队列, UMP协议处理)
+│   ├── common                             # 服务端通用组件 (共享内存, UMP协议处理)
 │   ├── etc                                # 进程启动配置 (midi_server.cfg)
 │   ├── idl                                # IPC通信接口定义
 │   └── server                             # 服务端核心逻辑 (设备管理, 驱动适配, 客户端连接管理)
@@ -87,7 +141,7 @@ MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可
 
 ```
 
-## 编译构建<a name="section_build"></a>
+## 编译构建
 
 根据不同的目标平台，使用以下命令进行编译：
 
@@ -108,30 +162,31 @@ MIDI 设备上用于输入或输出数据的逻辑接口。一个 MIDI 设备可
 > **说明：**
 > `{product_name}` 为当前支持的平台名称，例如 `rk3568`。
 
-## 使用说明<a name="section_usage"></a>
+## 使用说明
 
-### 接口说明<a name="section_api"></a>
+### 接口说明
 
-midi_framework部件向开发者提供了C语言原生接口（Native API），主要涵盖客户端管理、设备管理及端口操作。主要接口及其功能如下：
+midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端管理、设备管理及端口操作。主要接口及其功能如下：
 
-**表 2** 接口说明
+**表 1** 接口说明
 
 | 接口名称                  | 功能描述                                                             |
 | ------------------------- | -------------------------------------------------------------------- |
-| **OH_MidiClientCreate**   | 创建MIDI客户端实例，初始化上下文环境，并可注册设备热插拔及错误回调。 |
-| **OH_MidiClientDestroy**  | 销毁MIDI客户端实例，释放相关资源。                                   |
-| **OH_MidiGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
-| **OH_MidiGetDevicePorts** | 获取指定设备的端口信息。                                             |
-| **OH_MidiOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
-| **OH_MidiCloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
-| **OH_MidiOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
-| **OH_MidiOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
-| **OH_MidiSend**           | 向指定输出端口发送MIDI数据。                                         |
-| **OH_MidiClosePort**      | 关闭指定的输入或输出端口，停止数据传输。                             |
+| **OH_MIDIClientCreate**   | 创建MIDI客户端实例，初始化上下文环境，并可注册设备热插拔及错误回调。 |
+| **OH_MIDIClientDestroy**  | 销毁MIDI客户端实例，释放相关资源。                                   |
+| **OH_MIDIGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
+| **OH_MIDIGetDevicePorts** | 获取指定设备的端口信息。                                             |
+| **OH_MIDIOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
+| **OH_MIDIOpenBleDevice**  | 打开指定的BLE MIDI设备，建立连接会话。                               |
+| **OH_MIDICloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
+| **OH_MIDIOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
+| **OH_MIDIOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
+| **OH_MIDISend**           | 向指定输出端口发送MIDI数据。                                         |
+| **OH_MIDIClosePort**      | 关闭指定的输入或输出端口，停止数据传输。                             |
 
-### 开发步骤<a name="section_steps"></a>
+### 开发步骤
 
-以下演示使用 Native API 开发 MIDI 应用的完整流程，包含客户端创建、热插拔监听、设备发现、数据收发及资源释放。
+以下演示使用 Native API 开发 MIDI 应用的完整流程，包含客户端创建、热插拔监听、设备发现、数据收发及资源释放(简单起见，只展示已连接设备的示例代码)。
 
 1. **创建客户端**：初始化 MIDI 客户端上下文，并注册设备热插拔回调及服务异常回调。
 2. **发现设备与端口**：获取当前连接的设备列表，并查询设备的端口能力。
@@ -153,7 +208,7 @@ midi_framework部件向开发者提供了C语言原生接口（Native API），�
 #include <iomanip>
 
 // 1. 定义设备热插拔回调
-void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation info) {
+void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation info) {
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         std::cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId
                   << ", Name=" << info.productName << std::endl;
@@ -163,13 +218,13 @@ void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDev
 }
 
 // 2. 定义服务错误回调
-void OnError(void *userData, OH_MidiStatusCode code) {
+void OnError(void *userData, OH_MIDIStatusCode code) {
     std::cout << "[Error] Critical Service Error occurred! Code=" << code
               << ". Client may need recreation." << std::endl;
 }
 
 // 3. 定义数据接收回调
-void OnMidiReceived(void *userData, const OH_MidiEvent *events, size_t eventCount) {
+void OnMIDIReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount) {
     for (size_t i = 0; i < eventCount; ++i) {
         if (events[i].data != nullptr) {
             // 使用 hex, setw, setfill 格式化 32 位十六进制输出，并在结束后用 dec 恢复十进制
@@ -180,14 +235,14 @@ void OnMidiReceived(void *userData, const OH_MidiEvent *events, size_t eventCoun
     }
 }
 
-void MidiDemo() {
+void MIDIDemo() {
     // 1. 创建 MIDI 客户端并注册回调
-    OH_MidiClient *client = nullptr;
-    OH_MidiCallbacks callbacks;
+    OH_MIDIClient *client = nullptr;
+    OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange = OnDeviceChange;
     callbacks.onError = OnError;
 
-    OH_MidiStatusCode ret = OH_MidiClientCreate(&client, callbacks, nullptr);
+    OH_MIDIStatusCode ret = OH_MIDIClientCreate(&client, callbacks, nullptr);
     if (ret != MIDI_STATUS_OK) {
         std::cout << "Failed to create client." << std::endl;
         return;
@@ -195,11 +250,11 @@ void MidiDemo() {
 
     // 2. 获取设备列表 (两次调用模式)
     size_t devCount = 0;
-    OH_MidiGetDevices(client, nullptr, &devCount);
+    OH_MIDIGetDevices(client, nullptr, &devCount);
 
     if (devCount > 0) {
-        std::vector<OH_MidiDeviceInformation> devices(devCount);
-        OH_MidiGetDevices(client, devices.data(), &devCount);
+        std::vector<OH_MIDIDeviceInformation> devices(devCount);
+        OH_MIDIGetDevices(client, devices.data(), &devCount);
 
         // 示例：操作列表中的第一个设备
         int64_t targetDeviceId = devices[0].midiDeviceId;
@@ -207,42 +262,42 @@ void MidiDemo() {
 
         // 3. 获取端口信息 (无需 OpenDevice 即可查询)
         size_t portCount = 0;
-        OH_MidiGetDevicePorts(client, targetDeviceId, nullptr, &portCount);
+        OH_MIDIGetDevicePorts(client, targetDeviceId, nullptr, &portCount);
 
         if (portCount > 0) {
-            std::vector<OH_MidiPortInformation> ports(portCount);
-            OH_MidiGetDevicePorts(client, targetDeviceId, ports.data(), &portCount);
+            std::vector<OH_MIDIPortInformation> ports(portCount);
+            OH_MIDIGetDevicePorts(client, targetDeviceId, ports.data(), &portCount);
 
             // 4. 打开设备
-            OH_MidiDevice *device = nullptr;
-            ret = OH_MidiOpenDevice(client, targetDeviceId, &device);
+            OH_MIDIDevice *device = nullptr;
+            ret = OH_MIDIOpenDevice(client, targetDeviceId, &device);
 
             if (ret == MIDI_STATUS_OK && device != nullptr) {
                 // 5. 遍历并打开端口
                 for (const auto& port : ports) {
                     // --- 场景 A: 输入端口 (接收) ---
                     if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
-                        OH_MidiPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
-                        if (OH_MidiOpenInputPort(device, desc, OnMidiReceived, nullptr) == MIDI_STATUS_OK) {
+                        OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
+                        if (OH_MIDIOpenInputPort(device, desc, OnMIDIReceived, nullptr) == MIDI_STATUS_OK) {
                             std::cout << "Input port " << port.portIndex << " opened." << std::endl;
                         }
                     }
                     // --- 场景 B: 输出端口 (发送) ---
                     else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
-                        OH_MidiPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
-                        if (OH_MidiOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
+                        OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
+                        if (OH_MIDIOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
                             std::cout << "Output port " << port.portIndex << " opened. Sending data..." << std::endl;
 
                             // 构建 UMP 数据包: MIDI 1.0 Note On -> Channel 0, Note 60, Vel 100
                             uint32_t umpMsg[1] = { 0x20903C64 };
 
-                            OH_MidiEvent event;
+                            OH_MIDIEvent event;
                             event.timestamp = 0; // 0 表示立即发送
                             event.length = 1;    // 数据长度 (1 word)
                             event.data = umpMsg; // 指向 32位 数组
 
                             uint32_t written = 0;
-                            OH_MidiSend(device, port.portIndex, &event, 1, &written);
+                            OH_MIDISend(device, port.portIndex, &event, 1, &written);
                         }
                     }
                 }
@@ -252,15 +307,15 @@ void MidiDemo() {
 
                 // 6. 资源释放：关闭端口
                 for (const auto& port : ports) {
-                    OH_MidiClosePort(device, port.portIndex);
+                    OH_MIDIClosePort(device, port.portIndex);
                 }
-                OH_MidiCloseDevice(device);
+                OH_MIDICloseDevice(device);
             }
         }
     }
 
     // 7. 销毁客户端
-    OH_MidiClientDestroy(client);
+    OH_MIDIClientDestroy(client);
     client = nullptr;
 }
 
@@ -268,27 +323,29 @@ void MidiDemo() {
 
 #### 注意事项
 
-* **数据格式**：`OH_MidiEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
-* **内存获取模式**：`OH_MidiGetDevices` 和 `OH_MidiGetDevicePorts` 均采用“两次调用”模式。第一次传入 `nullptr` 获取数量，第二次传入分配好的缓冲区获取实际数据。
-* **非阻塞发送**：`OH_MidiSend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
-* **回调限制**：`OnMidiReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
+* **数据格式**：`OH_MIDIEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
+* **内存获取模式**：`OH_MIDIGetDevices` 和 `OH_MIDIGetDevicePorts` 均采用“两次调用”模式。第一次传入 `nullptr` 获取数量，第二次传入分配好的缓冲区获取实际数据。
+* **非阻塞发送**：`OH_MIDISend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
+* **回调限制**：`OnMIDIReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
 
-## 支持设备<a name="section_devices"></a>
+## 约束
 
-midi_framework 部件目前主要支持以下类型的 MIDI 设备连接：
+* **硬件与内核要求**
+  * **USB MIDI**：OpenHarmony开发设备必须支持 USB Host 主机模式，基于当前 MIDI HDI 标准驱动依赖 alsa-libs 的实现，当前仅支持符合 **USB Audio Class (UAC)** 规范的通用免驱（Class Compliant）设备（如 USB MIDI 键盘、电子鼓）。
+  * **BLE MIDI**：OpenHarmony开发设备必须支持 BLE（Bluetooth Low Energy）协议。
 
-1. **USB MIDI 设备**
-支持符合 **USB Audio Class (UAC)** 规范的通用设备。此类设备接入系统后，由内核自动识别并生成 ALSA 设备节点，midi_framework 通过访问这些节点实现数据交互。
-* **常见设备**：USB MIDI 键盘、电子鼓、打击垫、合成器等。
-* **连接方式**：USB Type-C 有线连接。
+* **驱动开发状态**
+  * 当前版本的 **MIDI HAL** 主要对接标准 ALSA 接口以支持 USB 设备，代码位于[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)。
+  * MIDI HDI 驱动接口尚在标准化过程中。
 
-2. **BLE MIDI 设备**
-支持符合 **MIDI over Bluetooth Low Energy** 标准的无线 MIDI 设备。
-* **常见设备**：蓝牙 MIDI 键盘等。
-* **连接方式**：蓝牙无线连接。
+* **协议与数据格式**
+  * **UMP Native**：midi_framework 采用全链路 UMP 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
 
-## 相关仓<a name="section_related"></a>
+* **权限说明**
+  * 应用访问 BLE MIDI 设备需要申请相应的系统权限(@ohos.permission.ACCESS_BLUETOOTH)。
 
-[媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)
-
+## 相关仓
+[媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)<br>
+[drivers_interface](https://gitcode.com/openharmony/drivers_interface)<br>
+[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)<br>
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
