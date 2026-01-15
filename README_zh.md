@@ -13,10 +13,10 @@ midi_framework 包含以下常用功能：
 
 ## 系统架构
 
-![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)
+![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
 **图 1** OpenHarmony MIDI 服务架构图
 
-* **MIDI 服务 (midi_server)**: 系统核心服务，提供设备全生命周期管理与数据交互能力。包含**设备管理**（维护设备列表）、**客户端连接管理**（管理应用会话与权限）、**数据传输**（基于共享内存的高性能通道）、**协议转换**（UMP 与 Byte Stream 互转）以及 **USB 适配**和 **蓝牙适配**模块。 midi_server 采用按需启动（On-Demand） 的独立进程模式运行。当应用调用客户端创建接口（OH_MidiClientCreate）时，系统通过 samgr 服务（System Ability Manager）自动拉起 MIDI 服务进程，物理设备的插入不会触发服务启动；当所有客户端销毁且一段时间内无活跃会话时，服务进程将自动退出，以优化系统资源占用。
+* **MIDI 服务 (midi_server)**: 系统核心服务，提供设备全生命周期管理与数据交互能力。包含**设备管理**（维护设备列表）、**客户端连接管理**（管理应用会话与权限）、**数据传输**（基于共享内存的高性能通道）、**协议转换**（UMP 与 Byte Stream 互转）以及 **USB 适配**和 **蓝牙适配**模块。 midi_server 采用按需启动（On-Demand） 的独立进程模式运行。当应用调用客户端创建接口（OH_MIDIClientCreate）时，系统通过 samgr 服务（System Ability Manager）自动拉起 MIDI 服务进程，物理设备的插入不会触发服务启动；当所有客户端销毁且一段时间内无活跃会话时，服务进程将自动退出，以优化系统资源占用。
 * **Audio Kit (OHMIDI)**: 音频开发套件中负责 MIDI 能力的接口集合。OHMIDI 为应用层（如 DAW 或 Demo）提供标准 Native API，实现设备列表获取、连接建立及 MIDI 消息收发功能。（注：Audio Kit 还包含 OHAudio 等其他音频接口，与本部件无直接联系且不属于本部件范围）。
 * **MIDI Demo / DAW 应用**: 使用 MIDI 能力的应用。**DAW 应用**指待接入的第三方数字音频工作站；**MIDI Demo** 为参考示例（位于test/demo目录下），用于演示和验证 MIDI 设备的连接与指令交互流程。
 * **蓝牙服务和 USB 服务**: MIDI 服务依赖的关键系统能力。**USB 服务**负责监听 USB 设备的热插拔状态，并及时通知 MIDI 服务有设备上线或下线；**蓝牙服务**与 MIDI 服务进行交互，负责 BLE MIDI 设备的连接建立及数据 I/O 传输。
@@ -84,17 +84,17 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 
 | 接口名称                  | 功能描述                                                             |
 | ------------------------- | -------------------------------------------------------------------- |
-| **OH_MidiClientCreate**   | 创建MIDI客户端实例，初始化上下文环境，并可注册设备热插拔及错误回调。 |
-| **OH_MidiClientDestroy**  | 销毁MIDI客户端实例，释放相关资源。                                   |
-| **OH_MidiGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
-| **OH_MidiGetDevicePorts** | 获取指定设备的端口信息。                                             |
-| **OH_MidiOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
-| **OH_MidiOpenBleDevice**  | 打开指定的BLE MIDI设备，建立连接会话。                               |
-| **OH_MidiCloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
-| **OH_MidiOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
-| **OH_MidiOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
-| **OH_MidiSend**           | 向指定输出端口发送MIDI数据。                                         |
-| **OH_MidiClosePort**      | 关闭指定的输入或输出端口，停止数据传输。                             |
+| **OH_MIDIClientCreate**   | 创建MIDI客户端实例，初始化上下文环境，并可注册设备热插拔及错误回调。 |
+| **OH_MIDIClientDestroy**  | 销毁MIDI客户端实例，释放相关资源。                                   |
+| **OH_MIDIGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
+| **OH_MIDIGetDevicePorts** | 获取指定设备的端口信息。                                             |
+| **OH_MIDIOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
+| **OH_MIDIOpenBleDevice**  | 打开指定的BLE MIDI设备，建立连接会话。                               |
+| **OH_MIDICloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
+| **OH_MIDIOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
+| **OH_MIDIOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
+| **OH_MIDISend**           | 向指定输出端口发送MIDI数据。                                         |
+| **OH_MIDIClosePort**      | 关闭指定的输入或输出端口，停止数据传输。                             |
 
 ### 开发步骤
 
@@ -111,7 +111,7 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 
 下图展示了使用 USB MIDI 能力的完整调用流程与组件交互逻辑：
 
-![USB MIDI 能力使用流程图](figures/zh-cn_image_midi_usb_device.png)
+![USB MIDI 能力使用流程图](figures/zh-cn_image_midi_usb_device.png)<br>
 **图 2** USB MIDI 能力使用流程图
 
 #### 代码示例
@@ -125,7 +125,7 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 #include <iomanip>
 
 // 1. 定义设备热插拔回调
-void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation info) {
+void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation info) {
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         std::cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId
                   << ", Name=" << info.productName << std::endl;
@@ -135,13 +135,13 @@ void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDev
 }
 
 // 2. 定义服务错误回调
-void OnError(void *userData, OH_MidiStatusCode code) {
+void OnError(void *userData, OH_MIDIStatusCode code) {
     std::cout << "[Error] Critical Service Error occurred! Code=" << code
               << ". Client may need recreation." << std::endl;
 }
 
 // 3. 定义数据接收回调
-void OnMidiReceived(void *userData, const OH_MidiEvent *events, size_t eventCount) {
+void OnMIDIReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount) {
     for (size_t i = 0; i < eventCount; ++i) {
         if (events[i].data != nullptr) {
             // 使用 hex, setw, setfill 格式化 32 位十六进制输出，并在结束后用 dec 恢复十进制
@@ -152,14 +152,14 @@ void OnMidiReceived(void *userData, const OH_MidiEvent *events, size_t eventCoun
     }
 }
 
-void MidiDemo() {
+void MIDIDemo() {
     // 1. 创建 MIDI 客户端并注册回调
-    OH_MidiClient *client = nullptr;
-    OH_MidiCallbacks callbacks;
+    OH_MIDIClient *client = nullptr;
+    OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange = OnDeviceChange;
     callbacks.onError = OnError;
 
-    OH_MidiStatusCode ret = OH_MidiClientCreate(&client, callbacks, nullptr);
+    OH_MIDIStatusCode ret = OH_MIDIClientCreate(&client, callbacks, nullptr);
     if (ret != MIDI_STATUS_OK) {
         std::cout << "Failed to create client." << std::endl;
         return;
@@ -167,11 +167,11 @@ void MidiDemo() {
 
     // 2. 获取设备列表 (两次调用模式)
     size_t devCount = 0;
-    OH_MidiGetDevices(client, nullptr, &devCount);
+    OH_MIDIGetDevices(client, nullptr, &devCount);
 
     if (devCount > 0) {
-        std::vector<OH_MidiDeviceInformation> devices(devCount);
-        OH_MidiGetDevices(client, devices.data(), &devCount);
+        std::vector<OH_MIDIDeviceInformation> devices(devCount);
+        OH_MIDIGetDevices(client, devices.data(), &devCount);
 
         // 示例：操作列表中的第一个设备
         int64_t targetDeviceId = devices[0].midiDeviceId;
@@ -179,42 +179,42 @@ void MidiDemo() {
 
         // 3. 获取端口信息 (无需 OpenDevice 即可查询)
         size_t portCount = 0;
-        OH_MidiGetDevicePorts(client, targetDeviceId, nullptr, &portCount);
+        OH_MIDIGetDevicePorts(client, targetDeviceId, nullptr, &portCount);
 
         if (portCount > 0) {
-            std::vector<OH_MidiPortInformation> ports(portCount);
-            OH_MidiGetDevicePorts(client, targetDeviceId, ports.data(), &portCount);
+            std::vector<OH_MIDIPortInformation> ports(portCount);
+            OH_MIDIGetDevicePorts(client, targetDeviceId, ports.data(), &portCount);
 
             // 4. 打开设备
-            OH_MidiDevice *device = nullptr;
-            ret = OH_MidiOpenDevice(client, targetDeviceId, &device);
+            OH_MIDIDevice *device = nullptr;
+            ret = OH_MIDIOpenDevice(client, targetDeviceId, &device);
 
             if (ret == MIDI_STATUS_OK && device != nullptr) {
                 // 5. 遍历并打开端口
                 for (const auto& port : ports) {
                     // --- 场景 A: 输入端口 (接收) ---
                     if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
-                        OH_MidiPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
-                        if (OH_MidiOpenInputPort(device, desc, OnMidiReceived, nullptr) == MIDI_STATUS_OK) {
+                        OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
+                        if (OH_MIDIOpenInputPort(device, desc, OnMIDIReceived, nullptr) == MIDI_STATUS_OK) {
                             std::cout << "Input port " << port.portIndex << " opened." << std::endl;
                         }
                     }
                     // --- 场景 B: 输出端口 (发送) ---
                     else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
-                        OH_MidiPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
-                        if (OH_MidiOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
+                        OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
+                        if (OH_MIDIOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
                             std::cout << "Output port " << port.portIndex << " opened. Sending data..." << std::endl;
 
                             // 构建 UMP 数据包: MIDI 1.0 Note On -> Channel 0, Note 60, Vel 100
                             uint32_t umpMsg[1] = { 0x20903C64 };
 
-                            OH_MidiEvent event;
+                            OH_MIDIEvent event;
                             event.timestamp = 0; // 0 表示立即发送
                             event.length = 1;    // 数据长度 (1 word)
                             event.data = umpMsg; // 指向 32位 数组
 
                             uint32_t written = 0;
-                            OH_MidiSend(device, port.portIndex, &event, 1, &written);
+                            OH_MIDISend(device, port.portIndex, &event, 1, &written);
                         }
                     }
                 }
@@ -224,15 +224,15 @@ void MidiDemo() {
 
                 // 6. 资源释放：关闭端口
                 for (const auto& port : ports) {
-                    OH_MidiClosePort(device, port.portIndex);
+                    OH_MIDIClosePort(device, port.portIndex);
                 }
-                OH_MidiCloseDevice(device);
+                OH_MIDICloseDevice(device);
             }
         }
     }
 
     // 7. 销毁客户端
-    OH_MidiClientDestroy(client);
+    OH_MIDIClientDestroy(client);
     client = nullptr;
 }
 
@@ -240,34 +240,34 @@ void MidiDemo() {
 
 #### 注意事项
 
-* **数据格式**：`OH_MidiEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
-* **内存获取模式**：`OH_MidiGetDevices` 和 `OH_MidiGetDevicePorts` 均采用“两次调用”模式。第一次传入 `nullptr` 获取数量，第二次传入分配好的缓冲区获取实际数据。
-* **非阻塞发送**：`OH_MidiSend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
-* **回调限制**：`OnMidiReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
+* **数据格式**：`OH_MIDIEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
+* **内存获取模式**：`OH_MIDIGetDevices` 和 `OH_MIDIGetDevicePorts` 均采用“两次调用”模式。第一次传入 `nullptr` 获取数量，第二次传入分配好的缓冲区获取实际数据。
+* **非阻塞发送**：`OH_MIDISend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
+* **回调限制**：`OnMIDIReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
 
 ### BLE MIDI 设备接入说明
 
 对于需要使用蓝牙 MIDI 设备的场景，应用需自行负责设备的扫描与发现，通过特定接口将设备接入 MIDI 服务。具体流程如下：
 
 1. **扫描设备**：
-应用需调用系统蓝牙接口（如 `@ohos.bluetooth.ble`）启动 BLE 扫描。为了过滤出支持 MIDI 协议的设备，需设置 `ScanFilter` 的 `serviceUuid` 为蓝牙 SIG 定义的 MIDI 服务 UUID。
+应用需调用系统蓝牙接口（`@ohos.bluetooth.ble`）启动 BLE 扫描。为了过滤出支持 MIDI 协议的设备，需设置 `ScanFilter` 的 `serviceUuid` 为蓝牙标准定义的 MIDI 服务 UUID。
 * **MIDI Service UUID**: `03B80E5A-EDE8-4B33-A751-6CE34EC4C700` (参照 [Bluetooth Low Energy MIDI Specification](https://midi.org/midi-over-bluetooth-low-energy-ble-midi))
 2. **建立连接**：
-扫描获取到目标设备的 MAC 地址（`deviceId`）后，调用 **OH_MidiOpenBleDevice** 接口进行连接。
+扫描获取到目标设备的 MAC 地址（`deviceId`）后，调用 **OH_MIDIOpenBleDevice** 接口进行连接。
 ```cpp
-OH_MidiDevice *device = nullptr;
+OH_MIDIDevice *device = nullptr;
 int64_t midiDeviceId = 0;
 // deviceAddr: 从蓝牙扫描结果中获取的 MAC 地址字符串 (如 "XX:XX:XX:XX:XX:XX")
-OH_MidiStatusCode ret = OH_MidiOpenBleDevice(client, deviceAddr, &device, &midiDeviceId);
+OH_MIDIStatusCode ret = OH_MIDIOpenBleDevice(client, deviceAddr, &device, &midiDeviceId);
 ```
 3. **统一管理**：
 连接成功后，MIDI 服务会将该 BLE 设备视为已连接的 MIDI 设备：
-* 该设备会被自动添加至 `OH_MidiGetDevices` 能够获取的设备列表中。
-* 返回的 `OH_MidiDevice` 句柄与 USB 设备获取的句柄功能一致，均可使用 **OH_MidiGetDevicePorts**、**OH_MidiOpenInputPort**、**OH_MidiSend** 等接口进行端口操作与数据收发。
+* 该设备会被自动添加至 `OH_MIDIGetDevices` 能够获取的设备列表中。
+* 返回的 `OH_MIDIDevice` 句柄与 USB 设备获取的句柄功能一致，均可使用 **OH_MIDIGetDevicePorts**、**OH_MIDIOpenInputPort**、**OH_MIDISend** 等接口进行端口操作与数据收发。
 
 下图展示了 BLE MIDI 设备的扫描、连接及交互流程：
 
-![BLE MIDI 能力使用流程图](figures/zh-cn_image_midi_ble_device.png)
+![BLE MIDI 能力使用流程图](figures/zh-cn_image_midi_ble_device.png)<br>
 **图 3** BLE MIDI 能力使用流程图
 
 ## 约束
@@ -290,4 +290,5 @@ OH_MidiStatusCode ret = OH_MidiOpenBleDevice(client, deviceAddr, &device, &midiD
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)
 [drivers_interface](https://gitcode.com/openharmony/drivers_interface)
 [audio_framework](https://gitcode.com/openharmony/multimedia_audio_framework)
+[communication_bluetooth_service](https://gitcode.com/openharmony/communication_bluetooth_service)
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
