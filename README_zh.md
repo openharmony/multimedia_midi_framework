@@ -277,7 +277,7 @@ OH_MIDIStatusCode ret = OH_MIDIOpenBleDevice(client, deviceAddr, &device, &midiD
 * **BLE MIDI**：OpenHarmony开发设备必须支持 BLE（Bluetooth Low Energy）协议。
 
 * **驱动开发状态**
-* 当前版本的 **MIDI HDI** 主要对接标准 ALSA 接口以支持 USB 设备。
+* 当前版本的 **MIDI HAL** 主要对接标准 ALSA 接口以支持 USB 设备，代码位于[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)。
 * MIDI HDI 驱动接口尚在标准化过程中。
 
 * **协议与数据格式**
@@ -288,7 +288,9 @@ OH_MIDIStatusCode ret = OH_MIDIOpenBleDevice(client, deviceAddr, &device, &midiD
 
 ## 相关仓
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)
-[drivers_interface](https://gitcode.com/openharmony/drivers_interface)
-[audio_framework](https://gitcode.com/openharmony/multimedia_audio_framework)
 [communication_bluetooth](https://gitcode.com/openharmony/communication_bluetooth)
+[usb_usb_manager](https://gitcode.com/openharmony/usb_usb_manager)
+[drivers_interface](https://gitcode.com/openharmony/drivers_interface)
+[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)
+[audio_framework](https://gitcode.com/openharmony/multimedia_audio_framework)
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
