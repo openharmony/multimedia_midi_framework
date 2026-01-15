@@ -4,7 +4,7 @@
 
 MIDI（Musical Instrument Digital Interface）设备是指符合 MIDI 标准协议的电子乐器、控制器及周边音频设备（如电子琴、电子鼓、打击垫、合成器等）。
 
-`midi_framework` 是 OpenHarmony 操作系统中用于管理和控制 MIDI 设备的模块。它提供统一的 MIDI 设备发现、数据传输及协议解析接口，屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
+`midi_framework` 是 OpenHarmony 操作系统中用于管理和控制 MIDI 设备的模块。它提供统一的 MIDI 设备管理、数据传输及协议解析接口，屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
 
 midi_framework 包含以下常用功能：
 
@@ -16,7 +16,7 @@ midi_framework 包含以下常用功能：
 ![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
 **图 1** OpenHarmony MIDI 服务架构图
 
-* **MIDI 服务 (midi_server)**: 系统核心服务，提供设备全生命周期管理与数据交互能力。包含**设备管理**（维护设备列表）、**客户端连接管理**（管理应用会话与权限）、**数据传输**（基于共享内存的高性能通道）、**协议转换**（UMP 与 Byte Stream 互转）以及 **USB 适配**和 **蓝牙适配**模块。 midi_server 采用按需启动（On-Demand） 的独立进程模式运行。当应用调用客户端创建接口（OH_MIDIClientCreate）时，系统通过 samgr 服务（System Ability Manager）自动拉起 MIDI 服务进程，物理设备的插入不会触发服务启动；当所有客户端销毁且一段时间内无活跃会话时，服务进程将自动退出，以优化系统资源占用。
+* **MIDI 服务 (midi_server)**: 系统核心服务，提供设备统一路由管理与数据交互能力。包含**设备管理**（维护设备列表、监听设备插拔）、**客户端连接管理**（管理应用会话与权限）、**数据传输**（基于共享内存的高性能通道）、**协议转换**（UMP 与 Byte Stream 互转）以及 **USB 适配**和 **蓝牙适配**模块。 midi_server 采用按需启动（On-Demand） 的独立进程模式运行。当应用调用客户端创建接口（OH_MIDIClientCreate）时，系统通过 samgr 服务（System Ability Manager）自动拉起 MIDI 服务进程，物理设备的插入不会触发服务启动；当所有客户端销毁且15s内无活跃会话时，服务进程将自动退出，以优化系统资源占用。
 * **Audio Kit (OHMIDI)**: 音频开发套件中负责 MIDI 能力的接口集合。OHMIDI 为应用层（如 DAW 或 Demo）提供标准 Native API，实现设备列表获取、连接建立及 MIDI 消息收发功能。（注：Audio Kit 还包含 OHAudio 等其它音频接口，与本部件无直接联系且不属于本部件范围）。
 * **MIDI Demo / DAW 应用**: 使用 MIDI 能力的应用。**DAW 应用**指待接入的第三方数字音频工作站；**MIDI Demo** 为参考示例（位于test/demo目录下），用于演示和验证 MIDI 设备的连接与指令交互流程。
 * **蓝牙服务和 USB 服务**: MIDI 服务依赖的关键系统能力。**USB 服务**负责监听 USB 设备的热插拔状态，并及时通知 MIDI 服务有设备上线或下线；**蓝牙服务**与 MIDI 服务进行交互，负责 BLE MIDI 设备的连接建立及数据 I/O 传输。
@@ -273,7 +273,7 @@ OH_MIDIStatusCode ret = OH_MIDIOpenBleDevice(client, deviceAddr, &device, &midiD
 ## 约束
 
 * **硬件与内核要求**
-* **USB MIDI**：基于当前 MIDI HDI 标准驱动的实现，当前仅支持符合 **USB Audio Class (UAC)** 规范的通用免驱（Class Compliant）设备（如 USB MIDI 键盘、电子鼓）。
+* **USB MIDI**：OpenHarmony开发设备必须支持 USB Host 主机模式，基于当前 MIDI HDI 标准驱动依赖 alsa-libs 的实现，当前仅支持符合 **USB Audio Class (UAC)** 规范的通用免驱（Class Compliant）设备（如 USB MIDI 键盘、电子鼓）。
 * **BLE MIDI**：OpenHarmony开发设备必须支持 BLE（Bluetooth Low Energy）协议。
 
 * **驱动开发状态**
@@ -292,5 +292,6 @@ OH_MIDIStatusCode ret = OH_MIDIOpenBleDevice(client, deviceAddr, &device, &midiD
 [usb_usb_manager](https://gitcode.com/openharmony/usb_usb_manager)
 [drivers_interface](https://gitcode.com/openharmony/drivers_interface)
 [drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)
+[alsa-lib](https://gitcode.com/openharmony/third_party_alsa-libs)
 [audio_framework](https://gitcode.com/openharmony/multimedia_audio_framework)
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
