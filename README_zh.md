@@ -21,7 +21,7 @@ MIDI 部件是一个可选能力，应用需要通过 SystemCapability.Multimedi
 
 #### 1. 模块分层说明
 
-系统整体划分为应用层、框架层（提供API）、系统服务层、系统依赖层及驱动/硬件层。
+整体架构划分为应用层、框架层（提供API）、系统服务层、驱动层及外设。
 
 * **应用层**
   * **MIDI APP**: 终端用户应用（如 DAW、教学软件）。负责调用 MIDI 客户端接口，执行业务逻辑，如设备扫描（BLE）、设备选择及MIDI数据的处理与展示。
@@ -33,20 +33,21 @@ MIDI 部件是一个可选能力，应用需要通过 SystemCapability.Multimedi
 
 * **系统服务层 (Midi Server)**
   * **MIDI 客户端会话管理**: 负责响应客户端的 IPC 请求，管理跨进程会话资源。并在无活跃会话时触发服务退出机制。
-  * **MIDI 设备管理**: 维护全局已连接设备列表，统一分发设备热插拔状态（`OH_OnMidiDeviceChange`）。
+  * **MIDI 设备管理**: 维护全局已连接设备列表，统一分发设备热插拔状态（`OH_OnMidiDeviceChange`）等。
   * **USB MIDI 适配**: 对接 USB 服务与 MIDI 驱动，处理标准 USB MIDI 设备的枚举与数据透传。
   * **蓝牙 MIDI 适配**: 对接蓝牙服务，处理 BLE MIDI 设备的连接维护与数据读写。
   * **MIDI 协议转换**: 负责在 UMP（通用 MIDI 包）与传统 MIDI 1.0 字节流之间进行转换（主要用于 BLE 设备）。
-  * **samgr 服务 (System Ability Manager)**: 系统能力管理者，负责 MIDI 服务的按需拉起与注册。
+  * **samgr 服务 (System Ability Manager)**: 系统能力管理服务，负责 MIDI 服务的按需拉起。
   * **USB 服务 / 蓝牙服务**: OpenHarmony 基础系统服务。USB 服务负责上报硬件插拔事件；蓝牙服务负责 BLE 扫描与 GATT 连接。
 
 * **驱动层**
-* **USB 驱动 / 蓝牙驱动**: 负责物理链路的通信保障。
-* **MIDI 驱动**: 实现硬件抽象，提供对底层 USB 音频/MIDI 节点的访问能力。
+  * **MIDI 驱动**: 实现硬件抽象，提供对底层 USB MIDI 设备节点的访问能力。
+  * **USB 驱动**: 负责识别 USB 设备，与USB服务交互。
+  * **蓝牙 驱动**: 负责与蓝牙服务交互，提供与BLE外设的连接、数据传输的能力。
 
 * **外设**
-* **USB MIDI 外设**: 如 USB MIDI 键盘、合成器。
-* **BLE MIDI 外设**: 如蓝牙 MIDI 键盘。
+  * **USB MIDI 外设**: 如 USB MIDI 键盘、合成器。
+  * **BLE MIDI 外设**: 如蓝牙 MIDI 键盘。
 
 ---
 
