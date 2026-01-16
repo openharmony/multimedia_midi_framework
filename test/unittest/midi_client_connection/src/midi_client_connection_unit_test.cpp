@@ -15,28 +15,19 @@
 
 #include <chrono>
 #include <cstdint>
-#include <vector>
 #include <gtest/gtest.h>
+#include <vector>
 
-#include "midi_client_connection_unit_test.h"
-#include "native_midi_base.h"
 #include "midi_client_connection.h"
+#include "midi_client_connection_unit_test.h"
 #include "midi_shared_ring.h"
+#include "native_midi_base.h"
 
 using namespace testing::ext;
 using namespace std::chrono;
 
 namespace OHOS {
 namespace MIDI {
-
-void MidiClientConnectionUnitTest::SetUpTestCase(void) {}
-
-void MidiClientConnectionUnitTest::TearDownTestCase(void) {}
-
-void MidiClientConnectionUnitTest::SetUp(void) {}
-
-void MidiClientConnectionUnitTest::TearDown(void) {}
-
 static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t> &payloadWords)
 {
     MidiEventInner midiEventInner{};

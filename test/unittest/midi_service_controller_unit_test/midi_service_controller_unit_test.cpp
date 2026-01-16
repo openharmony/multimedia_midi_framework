@@ -12,13 +12,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "midi_service_controller.h"
-#include "midi_device_mananger.h"
 #include "midi_device_driver.h"
+#include "midi_device_mananger.h"
 #include "midi_info.h"
+#include "midi_service_controller.h"
 #include "midi_test_common.h"
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
 using namespace OHOS;
 using namespace MIDI;
 using namespace testing;
@@ -26,11 +27,6 @@ using namespace testing::ext;
 
 class MidiServiceControllerUnitTest : public testing::Test {
 public:
-    static void SetUpTestCase()
-    {}
-    static void TearDownTestCase()
-    {}
-
     void SetUp() override
     {
         controller_ = MidiServiceController::GetInstance();

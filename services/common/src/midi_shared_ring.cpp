@@ -46,10 +46,10 @@ static constexpr int MINFD = 2;
 
 class MidiSharedMemoryImpl : public MidiSharedMemory {
 public:
-    uint8_t *GetBase() override;
-    size_t GetSize() override;
+    uint8_t *GetBase() const override;
+    size_t GetSize() const override;
     int GetFd() const override;
-    std::string GetName() override;
+    std::string GetName() const override;
 
     MidiSharedMemoryImpl(size_t size, const std::string &name);
 

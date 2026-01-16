@@ -57,13 +57,6 @@ public:
 
 class MidiServiceClientUnitTest : public testing::Test {
 public:
-    static void SetUpTestCase() {}
-
-    static void TearDownTestCase() {}
-
-    void SetUp() override {}
-
-    void TearDown() override {}
 };
 
 static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiClientInServer> &ipc) { client.ipc_ = ipc; }

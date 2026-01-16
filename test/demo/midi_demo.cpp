@@ -48,6 +48,7 @@ void PrintUmpData(const uint32_t *data, size_t length)
 // 1. 设备热插拔回调
 static void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation info)
 {
+    (void)userData;
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId << ", Name=" << info.productName << endl;
     } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
