@@ -16,9 +16,9 @@
 #ifndef MIDI_SHARED_MEMORY_H
 #define MIDI_SHARED_MEMORY_H
 
-#include <string>
-#include <stdint.h>
 #include <parcel.h>
+#include <stdint.h>
+#include <string>
 
 namespace OHOS {
 namespace MIDI {
@@ -28,7 +28,7 @@ public:
 
     virtual uint8_t *GetBase() = 0;
     virtual size_t GetSize() = 0;
-    virtual int GetFd() = 0;
+    virtual int GetFd() const = 0;
     virtual std::string GetName() = 0;
 
     static std::shared_ptr<MidiSharedMemory> CreateFromLocal(size_t size, const std::string &name);

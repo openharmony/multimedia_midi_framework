@@ -58,12 +58,14 @@ static void OnDeviceChange(void *userData, OH_MidiDeviceChangeAction action, OH_
 // 2. 服务错误回调
 static void OnError(void *userData, OH_MidiStatusCode code)
 {
+    (void)userData;
     cout << "[Error] Critical Service Error! Code=" << code << endl;
 }
 
 // 3. 数据接收回调
 static void OnMidiReceived(void *userData, const OH_MidiEvent *events, size_t eventCount)
 {
+    (void)userData;
     for (size_t i = 0; i < eventCount; ++i) {
         cout << "[Rx] Timestamp=" << events[i].timestamp << " ";
         PrintUmpData(events[i].data, events[i].length);
