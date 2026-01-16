@@ -257,7 +257,8 @@ HWTEST_F(MidiSdkTest, MidiOpenBleDevice_Negative_001, Function | MediumTest | Le
     EXPECT_NE(ret, MIDI_STATUS_OK); // Should fail immediately
 }
 
-void TestOnMidiReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount) {
+void TestOnMidiReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount)
+{
     // No-op
     (void)userData;
     (void)events;
