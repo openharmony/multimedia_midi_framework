@@ -77,7 +77,7 @@ void OpenInputPort(FuzzedDataProvider &fdp)
     uint32_t portIndex = fdp.ConsumeIntegral<uint32_t>();
 
     // Create a dummy buffer pointer (or nullptr to test robustness)
-    std::shared_ptr<SharedMidiRing> buffer = std::make_shared<SharedMidiRing>(RING_BUFFER_DEFAULT_SIZE);
+    std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(RING_BUFFER_DEFAULT_SIZE);
     midiServiceController_->OpenInputPort(clientId, buffer, deviceId, portIndex);
 }
 

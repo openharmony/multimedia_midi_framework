@@ -16,7 +16,7 @@
  * @addtogroup OHMIDI
  * @{
  *
- * @brief Provide the definition of the C interface for the Midi module.
+ * @brief Provide the definition of the C interface for the MIDI module.
  *
  * @since 24
  * @version 1.0
@@ -24,7 +24,7 @@
 /**
  * @file native_midi_base.h
  *
- * @brief Declare underlying data structure for Midi module.
+ * @brief Declare underlying data structure for MIDI module.
  *
  * @library libohmidi.so
  * @syscap SystemCapability.Multimedia.Audio.MIDI
@@ -45,7 +45,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Midi status code enumeration
+ * @brief MIDI status code enumeration
  * @since 24
  */
 typedef enum {
@@ -121,7 +121,7 @@ typedef enum {
     MIDI_STATUS_PORT_ALREADY_OPEN,
 
     /**
-     * @error The Midi system service has died or disconnected.
+     * @error The MIDI system service has died or disconnected.
      * The client must be destroyed and recreated.
      */
     MIDI_STATUS_SERVICE_DIED,
@@ -130,7 +130,7 @@ typedef enum {
      * @error Unknown system error.
      */
     MIDI_STATUS_UNKNOWN_ERROR = -1
-} OH_MidiStatusCode;
+} OH_MIDIStatusCode;
 
 /**
  * @brief Port direction enumeration
@@ -146,12 +146,12 @@ typedef enum {
      * @brief Output port (Host -> Device).
      */
     MIDI_PORT_DIRECTION_OUTPUT = 1
-} OH_MidiPortDirection;
+} OH_MIDIPortDirection;
 
 /**
- * @brief Midi transport protocol semantics.
+ * @brief MIDI transport protocol semantics.
  *
- * @note **CRITICAL**: The SDK ALWAYS uses UMP (Universal Midi Packet) format for data transfer,
+ * @note **CRITICAL**: The SDK ALWAYS uses UMP (Universal MIDI Packet) format for data transfer,
  * regardless of the selected protocol. This enum defines the "Behavior" and "Semantics"
  * of the connection, not the data structure.
  *
@@ -159,44 +159,44 @@ typedef enum {
  */
 typedef enum {
     /**
-     * @brief Legacy Midi 1.0 Semantics.
+     * @brief Legacy MIDI 1.0 Semantics.
      *
      * Behavior:
-     * - The service expects UMP packets strictly compatible with Midi 1.0.
+     * - The service expects UMP packets strictly compatible with MIDI 1.0.
      * - **MT 0x0**: Utility Messages (e.g., JR Timestamps).
      * - **MT 0x1**: System Real Time and System Common Messages.
      * - **MT 0x2**: MIDI 1.0 Channel Voice Messages (32-bit).
      * - **MT 0x3**: Data Messages (64-bit) used for SysEx (7-bit payload).
      *
-     * - If the target hardware is Midi 1.0: The service converts UMP back to Byte Stream (F0...F7).
-     * - If the target hardware is Midi 2.0: The service sends these packets as-is (encapsulated Midi 1.0).
+     * - If the target hardware is MIDI 1.0: The service converts UMP back to Byte Stream (F0...F7).
+     * - If the target hardware is MIDI 2.0: The service sends these packets as-is (encapsulated MIDI 1.0).
      */
     MIDI_PROTOCOL_1_0 = 1,
 
     /**
-     * @brief Midi 2.0 Semantics.
+     * @brief MIDI 2.0 Semantics.
      *
      * Behavior:
-     * - The service expects UMP packets leveraging Midi 2.0 features.
+     * - The service expects UMP packets leveraging MIDI 2.0 features.
      * - **MT 0x4**: MIDI 2.0 Channel Voice Messages (64-bit, high resolution).
      * - **MT 0x0**: Utility Messages (JR Timestamps).
      * - **MT 0xD**: Flex Data Messages (128-bit, e.g., Text, Lyrics).
      * - **MT 0xF**: UMP Stream Messages (128-bit, Endpoint Discovery, Function Blocks).
      * - **MT 0x3 / MT 0x5**: Data Messages (64-bit or 128-bit).
      *
-     * @note Fallback Policy: If this protocol is requested but the hardware only supports Midi 1.0,
+     * @note Fallback Policy: If this protocol is requested but the hardware only supports MIDI 1.0,
      * the service will perform "Best-Effort" translation (e.g., downscaling 32-bit velocity
      * to 7-bit, converting Type 4 back to Type 2). Some data precision or message types (like Flex Data)
      * may be lost or ignored.
      */
     MIDI_PROTOCOL_2_0 = 2
-} OH_MidiProtocol;
+} OH_MIDIProtocol;
 
 /**
- * @brief Midi Device Type
+ * @brief MIDI Device Type
  * @since 24
  */
-typedef enum { MIDI_DEVICE_TYPE_USB = 0, MIDI_DEVICE_TYPE_BLE = 1 } OH_MidiDeviceType;
+typedef enum { MIDI_DEVICE_TYPE_USB = 0, MIDI_DEVICE_TYPE_BLE = 1 } OH_MIDIDeviceType;
 
 /**
  * @brief Device connection state change action
@@ -205,11 +205,11 @@ typedef enum { MIDI_DEVICE_TYPE_USB = 0, MIDI_DEVICE_TYPE_BLE = 1 } OH_MidiDevic
 typedef enum {
     MIDI_DEVICE_CHANGE_ACTION_CONNECTED = 0,
     MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED = 1
-} OH_MidiDeviceChangeAction;
+} OH_MIDIDeviceChangeAction;
 
 /**
- * @brief Midi Event Structure (Universal)
- * Designed to handle both raw Byte Stream (Midi 1.0) and UMP.
+ * @brief MIDI Event Structure (Universal)
+ * Designed to handle both raw Byte Stream (MIDI 1.0) and UMP.
  * @since 24
  */
 typedef struct {
@@ -231,7 +231,7 @@ typedef struct {
      * This contains the raw UMP words (uint32_t).
      */
     uint32_t *data;
-} OH_MidiEvent;
+} OH_MIDIEvent;
 
 /**
  * @brief Device Information
@@ -240,14 +240,14 @@ typedef struct {
  */
 typedef struct {
     /**
-     * @brief Unique identifier for the Midi device.
+     * @brief Unique identifier for the MIDI device.
      */
     int64_t midiDeviceId;
 
     /**
      * @brief Type of the device (USB, BLE, etc.).
      */
-    OH_MidiDeviceType deviceType;
+    OH_MIDIDeviceType deviceType;
 
     /**
      * @brief The native protocol supported by the hardware.
@@ -255,7 +255,7 @@ typedef struct {
      * - If MIDI_PROTOCOL_2_0: The device supports MIDI 2.0 features.
      * * @note Applications can use this to decide whether to enable high-resolution UI controls.
      */
-    OH_MidiProtocol nativeProtocol;
+    OH_MIDIProtocol nativeProtocol;
 
     /**
      * @brief Product name of the device.
@@ -271,7 +271,7 @@ typedef struct {
      * @brief Physical address or unique identifier.
      */
     char deviceAddress[64];
-} OH_MidiDeviceInformation;
+} OH_MIDIDeviceInformation;
 
 /**
  * @brief Port Descriptor
@@ -292,18 +292,18 @@ typedef struct {
      *
      * 1. **Request MIDI_PROTOCOL_1_0 on a 2.0 Device**: (Safe)
      * - The service creates a virtual 1.0 view.
-     * - App sends UMP Type 2 (Midi 1.0 Channel Voice).
+     * - App sends UMP Type 2 (MIDI 1.0 Channel Voice).
      * - Device receives UMP Type 2.
      * - Fully compatible.
      *
      * 2. **Request MIDI_PROTOCOL_2_0 on a 1.0 Device**: (Lossy)
      * - The service creates a virtual 2.0 view.
-     * - App sends UMP Type 4 (Midi 2.0 Voice).
+     * - App sends UMP Type 4 (MIDI 2.0 Voice).
      * - Service **Down-converts** Type 4 to Type 2 (e.g., clipping Velocity, dropping Per-Note data).
      * - **Warning**: Data precision will be lost. Advanced messages may be dropped.
      */
-    OH_MidiProtocol protocol;
-} OH_MidiPortDescriptor;
+    OH_MIDIProtocol protocol;
+} OH_MIDIPortDescriptor;
 
 /**
  * @brief Port Information (Detailed)
@@ -324,23 +324,23 @@ typedef struct {
     /**
      * @brief Direction of the port (Input/Output).
      */
-    OH_MidiPortDirection direction;
+    OH_MIDIPortDirection direction;
 
     /**
      * @brief Name of the port.
      */
     char name[64];
-} OH_MidiPortInformation;
+} OH_MIDIPortInformation;
 
 /**
  * @brief Declare the midi client
  */
-typedef struct OH_MidiClientStruct OH_MidiClient;
+typedef struct OH_MIDIClientStruct OH_MIDIClient;
 
 /**
  * @brief Declare the midi device
  */
-typedef struct OH_MidiDeviceStruct OH_MidiDevice;
+typedef struct OH_MIDIDeviceStruct OH_MIDIDevice;
 
 /**
  * @brief Callback for monitoring device connection/disconnection
@@ -350,33 +350,33 @@ typedef struct OH_MidiDeviceStruct OH_MidiDevice;
  * @param deviceInfo Information of the changed device.
  * @since 24
  */
-typedef void (*OH_OnMidiDeviceChange)(void *userData, OH_MidiDeviceChangeAction action,
-                                      OH_MidiDeviceInformation deviceInfo);
+typedef void (*OH_OnMIDIDeviceChange)(
+    void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo);
 
 /**
- * @brief Callback for receiving Midi data (Batch Processing)
+ * @brief Callback for receiving MIDI data (Batch Processing)
  *
  * @note The callback is invoked on a high-priority thread.
  * @note The 'events' array and its data pointers are transient and valid ONLY
  * for the duration of this callback. If you need to keep the data, copy it.
  *
  * @param userData User context provided during port opening.
- * @param events Pointer to the array of Midi events received.
+ * @param events Pointer to the array of MIDI events received.
  * @param eventCount The number of events in the array.
  * @since 24
  */
-typedef void (*OH_OnMidiReceived)(void *userData, const OH_MidiEvent *events, size_t eventCount);
+typedef void (*OH_OnMIDIReceived)(void *userData, const OH_MIDIEvent *events, size_t eventCount);
 
 /**
  * @brief Callback for handling client-level errors
- * * Invoked when a critical error occurs in the Midi service (e.g., service crash).
+ * * Invoked when a critical error occurs in the MIDI service (e.g., service crash).
  * Applications may need to recreate the client when this occurs.
  *
  * @param userData User context provided during client creation.
  * @param code The error code indicating the cause.
  * @since 24
  */
-typedef void (*OH_OnMidiError)(void *userData, OH_MidiStatusCode code);
+typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
 
 /**
  * @brief Client callbacks structure
@@ -386,13 +386,13 @@ typedef struct {
     /**
      * @brief Handler for device hotplug events.
      */
-    OH_OnMidiDeviceChange onDeviceChange;
+    OH_OnMIDIDeviceChange onDeviceChange;
 
     /**
      * @brief Handler for critical service errors.
      */
-    OH_OnMidiError onError;
-} OH_MidiCallbacks;
+    OH_OnMIDIError onError;
+} OH_MIDICallbacks;
 
 #ifdef __cplusplus
 }

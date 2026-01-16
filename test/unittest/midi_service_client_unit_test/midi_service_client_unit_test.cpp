@@ -38,7 +38,7 @@ public:
     MOCK_METHOD(int32_t, OpenDevice, (int64_t), (override));
     MOCK_METHOD(int32_t, CloseDevice, (int64_t), (override));
     MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, (std::vector<std::map<int32_t, std::string>> &)), (override));
-    MOCK_METHOD(int32_t, OpenInputPort, (std::shared_ptr<SharedMidiRing> &, int64_t, uint32_t), (override));
+    MOCK_METHOD(int32_t, OpenInputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, CloseInputPort, (int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, DestroyMidiClient, (), (override));
     MOCK_METHOD(sptr<IRemoteObject>, AsObject, (), (override));
@@ -221,7 +221,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     EXPECT_EQ(client.OpenInputPort(buffer, 1, 0), MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
@@ -237,14 +237,14 @@ HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_002, TestSize.Level0)
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     int64_t deviceId = 1003;
     uint32_t portIndex = 3;
 
     EXPECT_CALL(*mockIpc, OpenInputPort(_, deviceId, portIndex))
         .Times(1)
-        .WillOnce(Invoke([](std::shared_ptr<SharedMidiRing> &outBuffer, int64_t, uint32_t) {
-            outBuffer = SharedMidiRing::CreateFromLocal(256);
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &outBuffer, int64_t, uint32_t) {
+            outBuffer = MidiSharedRing::CreateFromLocal(256);
             return (outBuffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_UNKNOWN_ERROR;
         }));
 

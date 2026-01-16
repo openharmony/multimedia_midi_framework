@@ -54,7 +54,7 @@ public:
     uint32_t GetClientId() const { return clientId_; }
     int64_t GetPortIndex() const { return portIndex_; }
 
-    std::shared_ptr<SharedMidiRing> GetRingBuffer();
+    std::shared_ptr<MidiSharedRing> GetRingBuffer();
 
     int32_t TrySendToClient(const MidiEventInner& event);
 
@@ -72,7 +72,7 @@ private:
     int64_t deviceHandle_ = -1;
     uint32_t portIndex_ = -1;
 
-    std::shared_ptr<SharedMidiRing> sharedRingBuffer_ = nullptr;
+    std::shared_ptr<MidiSharedRing> sharedRingBuffer_ = nullptr;
 
     size_t maxPending_ = 1024;
     std::priority_queue<PendingEvent, std::vector<PendingEvent>, PendingGreater> pending_;

@@ -95,7 +95,7 @@ DeviceConnectionBase::DeviceConnectionBase(DeviceConnectionInfo info) : info_(in
 {}
 
 int32_t DeviceConnectionBase::AddClientConnection(
-    uint32_t clientId, int64_t deviceHandle, std::shared_ptr<SharedMidiRing> &buffer)
+    uint32_t clientId, int64_t deviceHandle, std::shared_ptr<MidiSharedRing> &buffer)
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
@@ -308,12 +308,12 @@ void DeviceConnectionForOutput::DrainAllClientsRings()
 
 void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &clientConnection)
 {
-    std::shared_ptr<SharedMidiRing> ringShared = clientConnection.GetRingBuffer();
+    std::shared_ptr<MidiSharedRing> ringShared = clientConnection.GetRingBuffer();
     if (!ringShared) {
         return;
     }
-    SharedMidiRing &clientRing = *ringShared;
-    SharedMidiRing::PeekedEvent ringEvent{};
+    MidiSharedRing &clientRing = *ringShared;
+    MidiSharedRing::PeekedEvent ringEvent{};
     MidiStatusCode status = MidiStatusCode::OK;
     while ((status = clientRing.PeekNext(ringEvent)) == MidiStatusCode::OK) {
         if (status == MidiStatusCode::WOULD_BLOCK) {  // todo: no need
@@ -336,7 +336,7 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
 }
 
 bool DeviceConnectionForOutput::ConsumeRealtimeEvent(
-    SharedMidiRing &clientRing, const SharedMidiRing::PeekedEvent &ringEvent)
+    MidiSharedRing &clientRing, const MidiSharedRing::PeekedEvent &ringEvent)
 {
     std::vector<uint8_t> payload;  // todo: do not create vector here
 
@@ -354,7 +354,7 @@ bool DeviceConnectionForOutput::ConsumeRealtimeEvent(
 }
 
 bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer &clientConnection,
-    SharedMidiRing &clientRing, const SharedMidiRing::PeekedEvent &ringEvent)
+    MidiSharedRing &clientRing, const MidiSharedRing::PeekedEvent &ringEvent)
 {
     if (clientConnection.IsPendingFull()) {
         return false;

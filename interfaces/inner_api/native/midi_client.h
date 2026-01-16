@@ -22,20 +22,20 @@ namespace MIDI {
 class MidiDevice {
 public:
     virtual ~MidiDevice() = default;
-    virtual OH_MidiStatusCode CloseDevice();
-    virtual OH_MidiStatusCode OpenInputPort(uint32_t portIndex, OH_OnMidiReceived callback, void *userData);
-    virtual OH_MidiStatusCode ClosePort(uint32_t portIndex);
+    virtual OH_MIDIStatusCode CloseDevice();
+    virtual OH_MIDIStatusCode OpenInputPort(uint32_t portIndex, OH_OnMIDIReceived callback, void *userData);
+    virtual OH_MIDIStatusCode ClosePort(uint32_t portIndex);
 };
 
 class MidiClient {
 public:
     virtual ~MidiClient() = default;
-    static OH_MidiStatusCode CreateMidiClient(MidiClient **client, OH_MidiCallbacks callbacks, void *userData);
-    virtual OH_MidiStatusCode Init(OH_MidiCallbacks callbacks, void *userData);
-    virtual OH_MidiStatusCode GetDevices(OH_MidiDeviceInformation *infos, size_t *numDevices);
-    virtual OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice);
-    virtual OH_MidiStatusCode GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts);
-    virtual OH_MidiStatusCode DestroyMidiClient();
+    static OH_MIDIStatusCode CreateMidiClient(MidiClient **client, OH_MIDICallbacks callbacks, void *userData);
+    virtual OH_MIDIStatusCode Init(OH_MIDICallbacks callbacks, void *userData);
+    virtual OH_MIDIStatusCode GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices);
+    virtual OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice);
+    virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts);
+    virtual OH_MIDIStatusCode DestroyMidiClient();
 };
 } // namespace MIDI
 } // namespace OHOS

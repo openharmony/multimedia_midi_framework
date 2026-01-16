@@ -352,7 +352,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort001, TestSize.Level0)
 
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
 
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     auto it = controller_->deviceClientContexts_.find(deviceId);
@@ -373,7 +373,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort002, TestSize.Level0)
     uint32_t portIndex = 0;
 
     // Device not opened via OpenDevice
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     EXPECT_NE(ret, MIDI_STATUS_OK);
 }
@@ -399,10 +399,10 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort003, TestSize.Level0)
 
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
 
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    std::shared_ptr<SharedMidiRing> buffer2;
+    std::shared_ptr<MidiSharedRing> buffer2;
     ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_UNKNOWN_ERROR);
 }
@@ -429,10 +429,10 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort004, TestSize.Level0)
 
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
 
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    std::shared_ptr<SharedMidiRing> buffer2;
+    std::shared_ptr<MidiSharedRing> buffer2;
     ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     auto it = controller_->deviceClientContexts_.find(deviceId);
@@ -458,7 +458,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort001, TestSize.Level0)
     controller_->OpenDevice(clientId_, deviceId);
 
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
 
     EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));
@@ -491,9 +491,9 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort002, TestSize.Level0)
     controller_->OpenDevice(clientId2, deviceId);
 
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
-    std::shared_ptr<SharedMidiRing> buffer2;
+    std::shared_ptr<MidiSharedRing> buffer2;
     int32_t ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     ret = controller_->CloseInputPort(clientId_, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
@@ -528,7 +528,7 @@ HWTEST_F(MidiServiceControllerUnitTest, DestroyClient001, TestSize.Level0)
     EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
 
     controller_->OpenDevice(clientId_, deviceId);
-    std::shared_ptr<SharedMidiRing> buffer = std::make_shared<SharedMidiRing>(2048);
+    std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(2048);
     controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
 
     EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));

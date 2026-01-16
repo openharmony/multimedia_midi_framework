@@ -50,23 +50,23 @@ struct ShmMidiEventHeader {
     uint32_t flags;
 };
 
-class SharedMidiRing : public Parcelable {
+class MidiSharedRing : public Parcelable {
 public:
-    explicit SharedMidiRing(uint32_t ringCapacityBytes);
+    explicit MidiSharedRing(uint32_t ringCapacityBytes);
 
-    // creat SharedMidiRing locally or remotely
-    static std::shared_ptr<SharedMidiRing> CreateFromLocal(
-        size_t ringCapacityBytes);  // todo 客户端持有，mididevice持有
-    static std::shared_ptr<SharedMidiRing> CreateFromRemote(size_t ringCapacityBytes, int dataFd);
+    // creat MidiSharedRing locally or remotely
+    static std::shared_ptr<MidiSharedRing> CreateFromLocal(
+        size_t ringCapacityBytes);
+    static std::shared_ptr<MidiSharedRing> CreateFromRemote(size_t ringCapacityBytes, int dataFd);
 
     // idl
     bool Marshalling(Parcel &parcel) const override;
-    static SharedMidiRing *Unmarshalling(Parcel &parcel);
+    static MidiSharedRing *Unmarshalling(Parcel &parcel);
 
     int32_t Init(int dataFd);
-    SharedMidiRing(const SharedMidiRing &) = delete;
-    SharedMidiRing &operator=(const SharedMidiRing &) = delete;
-    ~SharedMidiRing() = default;
+    MidiSharedRing(const MidiSharedRing &) = delete;
+    MidiSharedRing &operator=(const MidiSharedRing &) = delete;
+    ~MidiSharedRing() = default;
 
     uint32_t GetCapacity() const;
     uint32_t GetReadPosition() const;

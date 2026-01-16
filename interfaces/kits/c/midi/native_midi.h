@@ -16,7 +16,7 @@
  * @addtogroup OHMIDI
  * @{
  *
- * @brief Provide the definition of the C interface for the Midi module.
+ * @brief Provide the definition of the C interface for the MIDI module.
  *
  * @since 24
  * @version 1.0
@@ -24,10 +24,10 @@
 /**
  * @file native_midi.h
  *
- * @brief Declare Midi related interfaces.
+ * @brief Declare MIDI related interfaces.
  *
- * This file interfaces are used for Midi device management,
- * Midi message sending and receiving, and device status monitoring.
+ * This file interfaces are used for MIDI device management,
+ * MIDI message sending and receiving, and device status monitoring.
  *
  * @library libohmidi.so
  * @syscap SystemCapability.Multimedia.Audio.MIDI
@@ -45,7 +45,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Create Midi client instance
+ * @brief Create MIDI client instance
  *
  * @param client Pointer to receive the new client handle.
  * @param callbacks Callback structure for system events.
@@ -55,10 +55,10 @@ extern "C" {
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiClientCreate(OH_MidiClient **client, OH_MidiCallbacks callbacks, void *userData);
+OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData);
 
 /**
- * @brief Destroy Midi client and release resources
+ * @brief Destroy MIDI client and release resources
  *
  * @param client Target client handle.
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
@@ -66,10 +66,10 @@ OH_MidiStatusCode OH_MidiClientCreate(OH_MidiClient **client, OH_MidiCallbacks c
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiClientDestroy(OH_MidiClient *client);
+OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client);
 
 /**
- * @brief Enumerate all Midi devices (Double Call Pattern)
+ * @brief Enumerate all MIDI devices (Double Call Pattern)
  *
  * Pattern:
  * 1. Call with informations=nullptr to get the count in numDevices.
@@ -86,10 +86,10 @@ OH_MidiStatusCode OH_MidiClientDestroy(OH_MidiClient *client);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiGetDevices(OH_MidiClient *client, OH_MidiDeviceInformation *infos, size_t *numDevices);
+OH_MIDIStatusCode OH_MIDIGetDevices(OH_MIDIClient *client, OH_MIDIDeviceInformation *infos, size_t *numDevices);
 
 /**
- * @brief Open Midi device
+ * @brief Open MIDI device
  *
  * @param client Target client handle.
  * @param deviceId Device ID.
@@ -101,10 +101,10 @@ OH_MidiStatusCode OH_MidiGetDevices(OH_MidiClient *client, OH_MidiDeviceInformat
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenDevice(OH_MidiClient *client, int64_t deviceId, OH_MidiDevice **device);
+OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device);
 
 /**
- * @brief Open Midi BLE device
+ * @brief Open MIDI BLE device
  *
  * @permission ohos.permission.ACCESS_BLUETOOTH
  * @param client Target client handle.
@@ -118,18 +118,18 @@ OH_MidiStatusCode OH_MidiOpenDevice(OH_MidiClient *client, int64_t deviceId, OH_
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenBleDevice(OH_MidiClient *client, const char *deviceAddr, OH_MidiDevice **device,
-                                       int64_t *deviceId);
+OH_MIDIStatusCode OH_MIDIOpenBleDevice(
+    OH_MIDIClient *client, const char *deviceAddr, OH_MIDIDevice **device, int64_t *deviceId);
 
 /**
- * @brief Close Midi device
+ * @brief Close MIDI device
  *
  * @param device Target device handle.
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
  * or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device);
+OH_MIDIStatusCode OH_MIDICloseDevice(OH_MIDIDevice *device);
 
 /**
  * @brief Get port information (Double Call Pattern)
@@ -145,13 +145,13 @@ OH_MidiStatusCode OH_MidiCloseDevice(OH_MidiDevice *device);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiGetDevicePorts(OH_MidiClient *client, int64_t deviceId, OH_MidiPortInformation *infos,
-                                        size_t *numPorts);
+OH_MIDIStatusCode OH_MIDIGetDevicePorts(
+    OH_MIDIClient *client, int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts);
 
 /**
- * @brief Open Midi input port (Receive Data)
+ * @brief Open MIDI input port (Receive Data)
  *
- * Registers a callback to receive Midi data in batches.
+ * Registers a callback to receive MIDI data in batches.
  *
  * @param device Target device handle.
  * @param descriptor Port index and protocol configuration.
@@ -166,11 +166,11 @@ OH_MidiStatusCode OH_MidiGetDevicePorts(OH_MidiClient *client, int64_t deviceId,
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device, OH_MidiPortDescriptor portIndex,
-                                       OH_OnMidiReceived callback, void *userData);
+OH_MIDIStatusCode OH_MIDIOpenInputPort(
+    OH_MIDIDevice *device, OH_MIDIPortDescriptor portIndex, OH_OnMIDIReceived callback, void *userData);
 
 /**
- * @brief Open Midi output port (Send Data)
+ * @brief Open MIDI output port (Send Data)
  *
  * @param device Target device handle.
  * @param descriptor Port index and protocol configuration.
@@ -182,10 +182,10 @@ OH_MidiStatusCode OH_MidiOpenInputPort(OH_MidiDevice *device, OH_MidiPortDescrip
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiOpenOutputPort(OH_MidiDevice *device, OH_MidiPortDescriptor descriptor);
+OH_MIDIStatusCode OH_MIDIOpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor);
 
 /**
- * @brief Close Midi input port
+ * @brief Close MIDI input port
  *
  * @param device Target device handle.
  * @param portIndex Port index.
@@ -195,10 +195,10 @@ OH_MidiStatusCode OH_MidiOpenOutputPort(OH_MidiDevice *device, OH_MidiPortDescri
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex);
+OH_MIDIStatusCode OH_MIDIClosePort(OH_MIDIDevice *device, uint32_t portIndex);
 
 /**
- * @brief Send Midi messages (Batch, Non-blocking & Atomic)
+ * @brief Send MIDI messages (Batch, Non-blocking & Atomic)
  *
  * Attempts to write an array of events to the shared memory buffer.
  *
@@ -221,19 +221,19 @@ OH_MidiStatusCode OH_MidiClosePort(OH_MidiDevice *device, uint32_t portIndex);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiSend(OH_MidiDevice *device, uint32_t portIndex, OH_MidiEvent *events, uint32_t eventCount,
-                              uint32_t *eventsWritten);
+OH_MIDIStatusCode OH_MIDISend(
+    OH_MIDIDevice *device, uint32_t portIndex, OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
 
 /**
  * @brief Send a large SysEx message (Byte-Stream to UMP Helper)
  *
- * This is a UTILITY function for applications that handle SysEx as raw byte streams(Midi 1.0 style, F0...F7).
+ * This is a UTILITY function for applications that handle SysEx as raw byte streams(MIDI 1.0 style, F0...F7).
  * This works for BOTH MIDI_PROTOCOL_1_0 and MIDI_PROTOCOL_2_0 sessions.
  * The underlying service handles the final conversion based on the device's actual capabilities.
  *
  * How it works:
  * 1. It automatically fragments the raw bytes into a sequence of UMP Type 3(64-bit Data Message) packets.
- * 2. It sends these packets sequentially using OH_MidiSend.
+ * 2. It sends these packets sequentially using OH_MIDISend.
  *
  * @warning **BLOCKING CALL**: This function executes a loop and may block if the buffer fills up.
  *
@@ -249,7 +249,7 @@ OH_MidiStatusCode OH_MidiSend(OH_MidiDevice *device, uint32_t portIndex, OH_Midi
  * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiSendSysEx(OH_MidiDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
+OH_MIDIStatusCode OH_MIDISendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
 
 /**
  * @brief Flush pending messages in output buffer
@@ -268,7 +268,7 @@ OH_MidiStatusCode OH_MidiSendSysEx(OH_MidiDevice *device, uint32_t portIndex, ui
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiFlushOutputPort(OH_MidiDevice *device, uint32_t portIndex);
+OH_MIDIStatusCode OH_MIDIFlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex);
 
 #ifdef __cplusplus
 }

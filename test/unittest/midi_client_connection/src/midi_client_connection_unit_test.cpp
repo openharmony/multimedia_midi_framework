@@ -67,7 +67,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerCreateRingBuffer_
 
     EXPECT_EQ(MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
 
-    std::shared_ptr<SharedMidiRing> sharedRing = clientConnection.GetRingBuffer();
+    std::shared_ptr<MidiSharedRing> sharedRing = clientConnection.GetRingBuffer();
     ASSERT_NE(nullptr, sharedRing);
 
     // Sanity: ring should be initialized and empty.
@@ -100,10 +100,10 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     EXPECT_EQ(MIDI_STATUS_OK, clientConnection.TrySendToClient(midiEventInner));
 
     // Verify data is really in ring (PeekNext should succeed).
-    std::shared_ptr<SharedMidiRing> sharedRing = clientConnection.GetRingBuffer();
+    std::shared_ptr<MidiSharedRing> sharedRing = clientConnection.GetRingBuffer();
     ASSERT_NE(nullptr, sharedRing);
 
-    SharedMidiRing::PeekedEvent peekedEvent{};
+    MidiSharedRing::PeekedEvent peekedEvent{};
     EXPECT_EQ(MidiStatusCode::OK, sharedRing->PeekNext(peekedEvent));
     EXPECT_EQ(12345u, peekedEvent.timestamp);
     EXPECT_EQ(payloadWords.size(), peekedEvent.length);

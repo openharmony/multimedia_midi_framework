@@ -26,16 +26,16 @@ namespace MIDI {
 class MidiServiceInterface {
 public:
     virtual ~MidiServiceInterface() = default;
-    virtual OH_MidiStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) = 0;
-    virtual OH_MidiStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) = 0;
-    virtual OH_MidiStatusCode OpenDevice(int64_t deviceId) = 0;
-    virtual OH_MidiStatusCode CloseDevice(int64_t deviceId) = 0;
-    virtual OH_MidiStatusCode GetDevicePorts(int64_t deviceId,
+    virtual OH_MIDIStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) = 0;
+    virtual OH_MIDIStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) = 0;
+    virtual OH_MIDIStatusCode OpenDevice(int64_t deviceId) = 0;
+    virtual OH_MIDIStatusCode CloseDevice(int64_t deviceId) = 0;
+    virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId,
                                              std::vector<std::map<int32_t, std::string>> &portInfos) = 0;
-    virtual OH_MidiStatusCode OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId,
+    virtual OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                             uint32_t portIndex) = 0;
-    virtual OH_MidiStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) = 0;
-    virtual OH_MidiStatusCode DestroyMidiClient() = 0;
+    virtual OH_MIDIStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) = 0;
+    virtual OH_MIDIStatusCode DestroyMidiClient() = 0;
 };
 } // namespace MIDI
 } // namespace OHOS

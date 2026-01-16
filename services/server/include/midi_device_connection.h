@@ -69,7 +69,7 @@ public:
     const DeviceConnectionInfo &GetInfo() const { return info_; }
 
     virtual int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle,
-                                        std::shared_ptr<SharedMidiRing> &buffer);
+                                        std::shared_ptr<MidiSharedRing> &buffer);
 
     virtual void RemoveClientConnection(uint32_t clientId);
 
@@ -117,9 +117,9 @@ private:
 
     void DrainAllClientsRings();
     void DrainSingleClientRing(ClientConnectionInServer &clientConnection);
-    bool ConsumeRealtimeEvent(SharedMidiRing &clientRing, const SharedMidiRing::PeekedEvent &ringEvent);
-    bool ConsumeNonRealtimeEvent(ClientConnectionInServer &clientConnection, SharedMidiRing &clientRing,
-                                 const SharedMidiRing::PeekedEvent &ringEvent);
+    bool ConsumeRealtimeEvent(MidiSharedRing &clientRing, const MidiSharedRing::PeekedEvent &ringEvent);
+    bool ConsumeNonRealtimeEvent(ClientConnectionInServer &clientConnection, MidiSharedRing &clientRing,
+                                 const MidiSharedRing::PeekedEvent &ringEvent);
 
     // todo: due + (1 or 2)ms <= now
     void CollectDueEventsFromClientHeaps();

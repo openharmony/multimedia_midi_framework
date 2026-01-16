@@ -40,7 +40,7 @@ static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<u
 
 class CallbackCapture {
 public:
-    void OnReceived(const OH_MidiEvent *events, uint32_t eventCount)
+    void OnReceived(const OH_MIDIEvent *events, uint32_t eventCount)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         receivedCount_ += eventCount;
@@ -71,7 +71,7 @@ public:
         return lastEventCount_;
     }
 
-    std::vector<OH_MidiEvent> GetLastEvents() const
+    std::vector<OH_MIDIEvent> GetLastEvents() const
     {
         std::lock_guard<std::mutex> lock(mutex_);
         return lastEvents_;
@@ -82,10 +82,10 @@ private:
     std::condition_variable condition_;
     uint32_t receivedCount_ = 0;
     uint32_t lastEventCount_ = 0;
-    std::vector<OH_MidiEvent> lastEvents_;
+    std::vector<OH_MIDIEvent> lastEvents_;
 };
 
-static void MidiReceivedTrampoline(void *userData, const OH_MidiEvent *events, size_t eventCount)
+static void MidiReceivedTrampoline(void *userData, const OH_MIDIEvent *events, size_t eventCount)
 {
     auto *capture = reinterpret_cast<CallbackCapture *>(userData);
     if (capture != nullptr) {
@@ -97,16 +97,16 @@ static void MidiReceivedTrampoline(void *userData, const OH_MidiEvent *events, s
 
 class MidiServiceMock : public MidiServiceInterface {
 public:
-    MOCK_METHOD(OH_MidiStatusCode, Init, (sptr<MidiCallbackStub> callback, uint32_t &clientId), (override));
-    MOCK_METHOD(OH_MidiStatusCode, GetDevices, ((std::vector<std::map<int32_t, std::string>>)&deviceInfos), (override));
-    MOCK_METHOD(OH_MidiStatusCode, OpenDevice, (int64_t deviceId), (override));
-    MOCK_METHOD(OH_MidiStatusCode, CloseDevice, (int64_t deviceId), (override));
-    MOCK_METHOD(OH_MidiStatusCode, GetDevicePorts,
+    MOCK_METHOD(OH_MIDIStatusCode, Init, (sptr<MidiCallbackStub> callback, uint32_t &clientId), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, GetDevices, ((std::vector<std::map<int32_t, std::string>>)&deviceInfos), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, OpenDevice, (int64_t deviceId), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, CloseDevice, (int64_t deviceId), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, GetDevicePorts,
         (int64_t deviceId, (std::vector<std::map<int32_t, std::string>>)&portInfos), (override));
-    MOCK_METHOD(OH_MidiStatusCode, OpenInputPort,
-        ((std::shared_ptr<SharedMidiRing>)&buffer, int64_t deviceId, uint32_t portIndex), (override));
-    MOCK_METHOD(OH_MidiStatusCode, CloseInputPort, (int64_t deviceId, uint32_t portIndex), (override));
-    MOCK_METHOD(OH_MidiStatusCode, DestroyMidiClient, (), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, OpenInputPort,
+        ((std::shared_ptr<MidiSharedRing>)&buffer, int64_t deviceId, uint32_t portIndex), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, CloseInputPort, (int64_t deviceId, uint32_t portIndex), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, DestroyMidiClient, (), (override));
 };
 
 class MidiClientUnitTest : public testing::Test {
@@ -165,17 +165,17 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
             {VENDOR_NAME, "MockVendor_2"}});
         return MIDI_STATUS_OK;
     }));
-    OH_MidiCallbacks callbacks;
+    OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange =
-        [](void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation deviceInfo) {};
-    callbacks.onError = [](void *userData, OH_MidiStatusCode code) {
+        [](void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo) {};
+    callbacks.onError = [](void *userData, OH_MIDIStatusCode code) {
 
     };
     void *userData = nullptr;
     client->Init(callbacks, userData);
-    OH_MidiDeviceInformation infoArray[2];
+    OH_MIDIDeviceInformation infoArray[2];
     size_t numDevices = 2;
-    OH_MidiStatusCode status = client->GetDevices(infoArray, &numDevices);
+    OH_MIDIStatusCode status = client->GetDevices(infoArray, &numDevices);
 
     // 3. Verify
     EXPECT_EQ(status, MIDI_STATUS_OK);
@@ -212,23 +212,23 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
             {VENDOR_NAME, "MockVendor_2"}});
         return MIDI_STATUS_OK;
     }));
-    OH_MidiCallbacks callbacks;
+    OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange =
-        [](void *userData, OH_MidiDeviceChangeAction action, OH_MidiDeviceInformation deviceInfo) {};
-    callbacks.onError = [](void *userData, OH_MidiStatusCode code) {
+        [](void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo) {};
+    callbacks.onError = [](void *userData, OH_MIDIStatusCode code) {
 
     };
     void *userData = nullptr;
     client->Init(callbacks, userData);
-    OH_MidiDeviceInformation infoArrayTest[1];  // Only 1 slot
+    OH_MIDIDeviceInformation infoArrayTest[1];  // Only 1 slot
     size_t numDevices = 1;
-    OH_MidiStatusCode status = client->GetDevices(infoArrayTest, &numDevices);
+    OH_MIDIStatusCode status = client->GetDevices(infoArrayTest, &numDevices);
 
     // Should return insufficient space and update numDevices to required size
     EXPECT_EQ(status, MIDI_STATUS_INSUFFICIENT_RESULT_SPACE);
     EXPECT_EQ(numDevices, 2);
 
-    OH_MidiDeviceInformation infoArray[2];
+    OH_MIDIDeviceInformation infoArray[2];
     status = client->GetDevices(infoArray, &numDevices);
 
     // 3. Verify
@@ -265,9 +265,9 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
                 {PORT_NAME, "Midi_Out_Port"}});
             return MIDI_STATUS_OK;
         }));
-    OH_MidiPortInformation portArray[2];
+    OH_MIDIPortInformation portArray[2];
     size_t numPorts = 2;
-    OH_MidiStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
+    OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
 
     EXPECT_EQ(status, MIDI_STATUS_OK);
     EXPECT_EQ(numPorts, 2);
@@ -293,9 +293,9 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
     // Simulate IPC returning error for invalid device
     EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _)).WillOnce(Return(MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
 
-    OH_MidiPortInformation portArray[1];
+    OH_MIDIPortInformation portArray[1];
     size_t numPorts = 1;
-    OH_MidiStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
+    OH_MIDIStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
 
     EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
@@ -344,19 +344,19 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
 
     EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
         .Times(1)
-        .WillOnce(Invoke([](std::shared_ptr<SharedMidiRing> &buffer, int64_t, uint32_t) {
-            buffer = SharedMidiRing::CreateFromLocal(256);
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
             return (buffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_UNKNOWN_ERROR;
         }));
 
     EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
 
     // Open input port -> should start receiver thread internally
-    OH_MidiStatusCode openStatus = device->OpenInputPort(portIndex, MidiReceivedTrampoline, &callbackCapture);
+    OH_MIDIStatusCode openStatus = device->OpenInputPort(portIndex, MidiReceivedTrampoline, &callbackCapture);
     EXPECT_EQ(openStatus, MIDI_STATUS_OK);
 
     // Close port -> should stop thread (via MidiInputPort destructor) and call IPC CloseInputPort
-    OH_MidiStatusCode closeStatus = device->ClosePort(portIndex);
+    OH_MIDIStatusCode closeStatus = device->ClosePort(portIndex);
     EXPECT_EQ(closeStatus, MIDI_STATUS_OK);
 
     EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
@@ -377,8 +377,8 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level
 
     EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
         .Times(1)
-        .WillOnce(Invoke([](std::shared_ptr<SharedMidiRing> &buffer, int64_t, uint32_t) {
-            buffer = SharedMidiRing::CreateFromLocal(256);
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
             return MIDI_STATUS_OK;
         }));
 
@@ -408,7 +408,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_003, TestSize.Level
         .Times(1)
         .WillOnce(Return(MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
 
-    OH_MidiStatusCode status = device->OpenInputPort(portIndex, MidiReceivedTrampoline, &callbackCapture);
+    OH_MIDIStatusCode status = device->OpenInputPort(portIndex, MidiReceivedTrampoline, &callbackCapture);
     EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
     EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
@@ -450,7 +450,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_ReceiverDispatch_001, TestSize.Level0
     CallbackCapture callbackCapture;
 
     MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture);
-    std::shared_ptr<SharedMidiRing> localRing = SharedMidiRing::CreateFromLocal(512);
+    std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(512);
     ASSERT_NE(localRing, nullptr);
 
     // Assign ring buffer (public ref getter)
@@ -489,7 +489,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartReceiverThread_002, TestSize.Lev
     CallbackCapture callbackCapture;
 
     MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture);
-    std::shared_ptr<SharedMidiRing> localRing = SharedMidiRing::CreateFromLocal(256);
+    std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
     inputPort.GetRingBuffer() = localRing;

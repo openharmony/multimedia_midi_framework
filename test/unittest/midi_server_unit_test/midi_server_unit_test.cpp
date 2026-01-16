@@ -118,7 +118,7 @@ HWTEST_F(MidiServerUnitTest, MidiClientInServer_OpenInputPort001, TestSize.Level
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
-    std::shared_ptr<SharedMidiRing> buffer;
+    std::shared_ptr<MidiSharedRing> buffer;
     int64_t deviceId = 12345;
     uint32_t portIndex = 1;
 

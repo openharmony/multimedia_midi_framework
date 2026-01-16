@@ -26,14 +26,14 @@
 namespace OHOS {
 namespace MIDI {
 
-std::shared_ptr<SharedMidiRing> ClientConnectionInServer::GetRingBuffer()
+std::shared_ptr<MidiSharedRing> ClientConnectionInServer::GetRingBuffer()
 {
     return sharedRingBuffer_;
 }
 
 int32_t ClientConnectionInServer::CreateRingBuffer()
 {
-    sharedRingBuffer_ = SharedMidiRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE);
+    sharedRingBuffer_ = MidiSharedRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE);
     CHECK_AND_RETURN_RET_LOG(sharedRingBuffer_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "create fail");
 
     memset_s(sharedRingBuffer_->GetDataBase(), sharedRingBuffer_->GetCapacity(), 0,

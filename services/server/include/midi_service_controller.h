@@ -54,7 +54,7 @@ public:
     int32_t OpenDevice(uint32_t clientId, int64_t deviceId);
     int32_t CloseDevice(uint32_t clientId, int64_t deviceId);
     int32_t OpenInputPort(
-        uint32_t clientId, std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId, uint32_t portIndex);
+        uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
     int32_t CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t DestroyMidiClient(uint32_t clientId);
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation devices);

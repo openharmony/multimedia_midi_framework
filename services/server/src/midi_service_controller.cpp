@@ -137,7 +137,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 }
 
 int32_t MidiServiceController::OpenInputPort(
-    uint32_t clientId, std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId, uint32_t portIndex)
+    uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
 {
     MIDI_INFO_LOG(
         "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);

@@ -30,15 +30,15 @@ class MidiServiceClient : public MidiServiceInterface {
 public:
     MidiServiceClient() = default;
     virtual ~MidiServiceClient();
-    OH_MidiStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) override;
-    OH_MidiStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) override;
-    OH_MidiStatusCode OpenDevice(int64_t deviceId) override;
-    OH_MidiStatusCode CloseDevice(int64_t deviceId) override;
-    OH_MidiStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos) override;
-    OH_MidiStatusCode OpenInputPort(std::shared_ptr<SharedMidiRing> &buffer, int64_t deviceId,
+    OH_MIDIStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) override;
+    OH_MIDIStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) override;
+    OH_MIDIStatusCode OpenDevice(int64_t deviceId) override;
+    OH_MIDIStatusCode CloseDevice(int64_t deviceId) override;
+    OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos) override;
+    OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                     uint32_t portIndex) override;
-    OH_MidiStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
-    OH_MidiStatusCode DestroyMidiClient() override;
+    OH_MIDIStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
+    OH_MIDIStatusCode DestroyMidiClient() override;
 
 private:
     sptr<IIpcMidiClientInServer> ipc_;

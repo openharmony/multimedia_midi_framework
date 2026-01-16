@@ -34,9 +34,9 @@ class MidiClientCallback;
 
 class MidiInputPort {
 public:
-    MidiInputPort(OH_OnMidiReceived callback, void *userData);
+    MidiInputPort(OH_OnMIDIReceived callback, void *userData);
     ~MidiInputPort();
-    std::shared_ptr<SharedMidiRing> &GetRingBuffer();
+    std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 
     bool StartReceiverThread();
     bool StopReceiverThread();
@@ -49,8 +49,8 @@ private:
     bool ShouldWakeForReadOrExit() const;
 
     std::atomic<bool> running_ = false;
-    OH_OnMidiReceived callback_ = nullptr;
-    std::shared_ptr<SharedMidiRing> ringBuffer_ = nullptr;
+    OH_OnMIDIReceived callback_ = nullptr;
+    std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
     std::thread receiverThread_;
     void *userData_ = nullptr;
 };
@@ -59,9 +59,9 @@ class MidiDevicePrivate : public MidiDevice {
 public:
     MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, int64_t deviceId);
     virtual ~MidiDevicePrivate();
-    OH_MidiStatusCode CloseDevice() override;
-    OH_MidiStatusCode OpenInputPort(uint32_t portIndex, OH_OnMidiReceived callback, void *userData) override;
-    OH_MidiStatusCode ClosePort(uint32_t portIndex) override;
+    OH_MIDIStatusCode CloseDevice() override;
+    OH_MIDIStatusCode OpenInputPort(uint32_t portIndex, OH_OnMIDIReceived callback, void *userData) override;
+    OH_MIDIStatusCode ClosePort(uint32_t portIndex) override;
 
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
@@ -74,16 +74,16 @@ class MidiClientPrivate : public MidiClient {
 public:
     MidiClientPrivate();
     virtual ~MidiClientPrivate();
-    OH_MidiStatusCode Init(OH_MidiCallbacks callbacks, void *userData) override;
-    OH_MidiStatusCode GetDevices(OH_MidiDeviceInformation *infos, size_t *numDevices) override;
-    OH_MidiStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
-    OH_MidiStatusCode GetDevicePorts(int64_t deviceId, OH_MidiPortInformation *infos, size_t *numPorts) override;
-    OH_MidiStatusCode DestroyMidiClient() override;
-    void DeviceChange(OH_MidiDeviceChangeAction change, OH_MidiDeviceInformation info);
+    OH_MIDIStatusCode Init(OH_MIDICallbacks callbacks, void *userData) override;
+    OH_MIDIStatusCode GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices) override;
+    OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
+    OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
+    OH_MIDIStatusCode DestroyMidiClient() override;
+    void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
 private:
     std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;
-    std::vector<OH_MidiDeviceInformation> deviceInfos_;
+    std::vector<OH_MIDIDeviceInformation> deviceInfos_;
     sptr<MidiClientCallback> callback_;
     std::mutex mutex_;
 };

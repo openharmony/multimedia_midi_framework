@@ -131,13 +131,13 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseClients_001, TestSize
 
     EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConections());
 
-    std::shared_ptr<SharedMidiRing> clientRingBuffer;
+    std::shared_ptr<MidiSharedRing> clientRingBuffer;
     EXPECT_EQ(MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(100, 999, clientRingBuffer));
     ASSERT_NE(nullptr, clientRingBuffer);
     EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConections());
 
     // Add another client
-    std::shared_ptr<SharedMidiRing> anotherClientRingBuffer;
+    std::shared_ptr<MidiSharedRing> anotherClientRingBuffer;
     EXPECT_EQ(MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(200, 888, anotherClientRingBuffer));
     ASSERT_NE(nullptr, anotherClientRingBuffer);
     EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConections());
@@ -177,8 +177,8 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
 
     DeviceConnectionForInput inputConnection(deviceConnectionInfo);
 
-    std::shared_ptr<SharedMidiRing> clientRingBuffer1;
-    std::shared_ptr<SharedMidiRing> clientRingBuffer2;
+    std::shared_ptr<MidiSharedRing> clientRingBuffer1;
+    std::shared_ptr<MidiSharedRing> clientRingBuffer2;
     ASSERT_EQ(MIDI_STATUS_OK, inputConnection.AddClientConnection(1, 1000, clientRingBuffer1));
     ASSERT_EQ(MIDI_STATUS_OK, inputConnection.AddClientConnection(2, 1001, clientRingBuffer2));
     ASSERT_NE(nullptr, clientRingBuffer1);
@@ -195,20 +195,20 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
 
     // Verify both client rings received 2 events in order.
     for (auto *ringPointer : {clientRingBuffer1.get(), clientRingBuffer2.get()}) {
-        SharedMidiRing::PeekedEvent peekedEvent1{};
+        MidiSharedRing::PeekedEvent peekedEvent1{};
         ASSERT_EQ(MidiStatusCode::OK, ringPointer->PeekNext(peekedEvent1));
         EXPECT_EQ(10u, peekedEvent1.timestamp);
-        // SharedMidiRing stores payload length in bytes
+        // MidiSharedRing stores payload length in bytes
         EXPECT_EQ(payloadWords1.size(), static_cast<size_t>(peekedEvent1.length));
         ringPointer->CommitRead(peekedEvent1);
 
-        SharedMidiRing::PeekedEvent peekedEvent2{};
+        MidiSharedRing::PeekedEvent peekedEvent2{};
         ASSERT_EQ(MidiStatusCode::OK, ringPointer->PeekNext(peekedEvent2));
         EXPECT_EQ(20u, peekedEvent2.timestamp);
         EXPECT_EQ(payloadWords2.size(), static_cast<size_t>(peekedEvent2.length));
         ringPointer->CommitRead(peekedEvent2);
 
-        SharedMidiRing::PeekedEvent peekedEvent3{};
+        MidiSharedRing::PeekedEvent peekedEvent3{};
         EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ringPointer->PeekNext(peekedEvent3));
     }
 
@@ -221,7 +221,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
     inputConnection.HandleDeviceUmpInput(deviceEvents2);
 
     // client 1 ring should have no new data
-    SharedMidiRing::PeekedEvent peekedEventAfterRemove{};
+    MidiSharedRing::PeekedEvent peekedEventAfterRemove{};
     EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, clientRingBuffer1->PeekNext(peekedEventAfterRemove));
 
     // client 2 ring should have the new event
@@ -284,7 +284,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
 
     ASSERT_EQ(MIDI_STATUS_OK, outputConnection.Start());
 
-    std::shared_ptr<SharedMidiRing> clientRingBuffer;
+    std::shared_ptr<MidiSharedRing> clientRingBuffer;
     ASSERT_EQ(MIDI_STATUS_OK, outputConnection.AddClientConnection(10, 1234, clientRingBuffer));
     ASSERT_NE(nullptr, clientRingBuffer);
 
@@ -326,7 +326,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
 
     // Ring should have been drained (best-effort check; if pending was full it might stop early,
     // but in current implementation pending limit is not wired, so it should drain).
-    SharedMidiRing::PeekedEvent peekedEvent{};
+    MidiSharedRing::PeekedEvent peekedEvent{};
     EXPECT_TRUE(clientRingBuffer->PeekNext(peekedEvent) == MidiStatusCode::WOULD_BLOCK ||
                 clientRingBuffer->PeekNext(peekedEvent) == MidiStatusCode::OK);
 }
