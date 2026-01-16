@@ -22,7 +22,6 @@
 #include <thread>
 #include <vector>
 
-
 using namespace std;
 using namespace testing::ext;
 
