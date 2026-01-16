@@ -1,9 +1,9 @@
 # midi_framework
 
 ## 简介
-MIDI（Musical Instrument Digital Interface）设备是指符合 MIDI 标准协议的电子乐器、控制器及周边音频设备（如电子琴、电子鼓、打击垫、合成器等）。
+MIDI设备是指、打击垫、合成器等）。
 
-`midi_framework` 是 OpenHarmony 操作系统中用于管理和控制 MIDI 设备的模块。它提供统一的 MIDI 设备管理和 MIDI 数据传输接口，屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
+`midi_framework` 是 OpenHarmony 系统中用于管理和控制 MIDI（Musical Instrument Digital Interface）设备的模块。它提供统一的接口来管理符合 MIDI 标准的电子乐器、控制器及周边音频设备（如电子琴、电子鼓等），屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
 
 midi_framework 包含以下常用功能：
 
@@ -17,9 +17,7 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 ![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
 **图 1** OpenHarmony MIDI 服务架构图
 
-### 系统架构与模块交互
-
-#### 模块功能说明
+### 模块功能说明
 
 整体架构划分为应用层、框架层（提供API）、系统服务层、驱动层及外设。
 
@@ -51,11 +49,11 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
   * **USB MIDI 外设**: 如 USB MIDI 键盘、合成器。
   * **BLE MIDI 外设**: 如 蓝牙 MIDI 键盘、无线MIDI接收器。
 
-#### 关键交互流程
+### 关键交互流程
 
 为了更清晰地展示各模块如何协同工作，以下详解三大核心流程：
 
-##### 服务按需启动与生命周期管理
+#### 服务按需启动与生命周期管理
 
 MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系统资源消耗。
 
@@ -70,9 +68,9 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 3. **资源回收**:
    * **主动销毁**: 当 **MIDI APP** 调用 `OH_MIDIClientDestroy` 时，服务端释放对应资源。
    * **异常监测**: 建立连接时，客户端会将回调对象（Stub）注册至服务端。服务端的 **MIDI 客户端会话管理** 模块通过 IPC 机制订阅该对象的[**死亡通知（Death Recipient）**](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/ipc/subscribe-remote-state.md)，服务端感知后，立即清理该客户端占用的会话与共享内存资源。
-   * **退出判定**: **MIDI 服务生命周期管理** 模块持续监控会话状态。当活跃客户端数量降为 0，且在 **15秒** 内无新的连接建立时，该模块执行服务资源释放逻辑并自动退出进程。
+   * **退出判定**: **MIDI 服务生命周期管理** 模块持续监控会话状态。当活跃客户端数量降为0，且在15秒内无新的连接建立时，该模块执行服务资源释放逻辑并自动退出进程。
 
-##### 设备发现与连接管理
+#### 设备发现与连接管理
 
 设备连接流程根据物理链路（USB/BLE）的不同，涉及不同的外部模块交互。
 
@@ -93,7 +91,7 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
   3. **建立连接**: 客户端请求服务端 -> 服务端 **MIDI 设备管理** 识别为 BLE 请求 -> 调度 **蓝牙 MIDI 适配** 模块 -> 调用 **蓝牙服务** 建立 GATT 连接。
   4. **统一管理**: 连接成功后，该 BLE 设备被纳入 **MIDI 设备管理** 模块的通用列表，APP 可像操作 USB 设备一样对其进行端口操作。
 
-##### 端口管理与数据传输
+#### 端口管理与数据传输
 
 数据传输链路涉及跨进程通信与协议适配。
 
@@ -339,11 +337,9 @@ void MIDIDemo() {
   * 当前版本的 **MIDI HAL** 主要对接标准 ALSA 接口以支持 USB 设备，代码位于[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)。
   * MIDI HDI 驱动接口尚在标准化过程中。
 
-* **协议与数据格式**
-  * **UMP Native**：midi_framework 采用全链路 UMP 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
+* **协议与数据格式**：midi_framework 采用全链路 **UMP Native** 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
 
-* **权限说明**
-  * 应用访问 BLE MIDI 设备需要申请相应的系统权限(@ohos.permission.ACCESS_BLUETOOTH)。
+* **权限说明**：应用访问 BLE MIDI 设备需要申请相应的系统权限 (`@ohos.permission.ACCESS_BLUETOOTH`)。
 
 ## 相关仓
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)<br>
