@@ -71,13 +71,13 @@ public:
     uint32_t GetCapacity() const;
     uint32_t GetReadPosition() const;
     uint32_t GetWritePosition() const;
-    uint8_t *GetDataBase();
-    std::atomic<uint32_t> *GetFutex();
+    uint8_t *GetDataBase() const;
+    std::atomic<uint32_t> *GetFutex() const;
 
     FutexCode WaitFor(int64_t timeoutInNs, const std::function<bool(void)> &pred);
     void NotifyConsumer(uint32_t wakeVal = IS_READY);
     bool IsEmpty() const;
-    ControlHeader *GetControlHeader();
+    ControlHeader *GetControlHeader() const;
     MidiStatusCode TryWriteEvents(
         const MidiEventInner *events, uint32_t eventCount, uint32_t *eventsWritten, bool notify = true);
     MidiStatusCode TryWriteEvent(const MidiEventInner &event, bool notify = true);

@@ -1,9 +1,7 @@
 # midi_framework
 
 ## 简介
-MIDI（Musical Instrument Digital Interface）设备是指符合 MIDI 标准协议的电子乐器、控制器及周边音频设备（如电子琴、电子鼓、打击垫、合成器等）。
-
-`midi_framework` 是 OpenHarmony 操作系统中用于管理和控制 MIDI 设备的模块。它提供统一的 MIDI 设备管理和 MIDI 数据传输接口，屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
+`midi_framework` 是 OpenHarmony 系统中用于管理和控制 MIDI（Musical Instrument Digital Interface）设备的模块。它提供统一的接口来管理符合 MIDI 标准的电子乐器、控制器及周边音频设备（如电子琴、电子鼓等），屏蔽底层硬件差异，使得应用能够方便地通过 Native API 与外部 MIDI 设备进行高性能交互。
 
 midi_framework 包含以下常用功能：
 
@@ -17,9 +15,7 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 ![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
 **图 1** OpenHarmony MIDI 服务架构图
 
-### 系统架构与模块交互
-
-#### 模块功能说明
+### 模块功能说明
 
 整体架构划分为应用层、框架层（提供API）、系统服务层、驱动层及外设。
 
@@ -32,12 +28,14 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
   * **MIDI 端口管理与数据传输**: 负责 `OH_MIDIOpenInput/OutputPort` 等接口，建立应用与服务间的数据传输通道。
 
 * **系统服务层 (Midi Server)**
+  * **MIDI 服务生命周期管理**: 负责服务进程的启动与退出控制。它响应 SAMgr 的拉起请求完成初始化，并持续监控系统内的活跃会话；当无活跃客户端且超时（如15秒）后，触发资源释放与进程自动退出。
   * **MIDI 客户端会话管理**: 负责响应客户端的 IPC 请求，管理跨进程会话资源。并在无活跃会话时触发服务退出机制。
   * **MIDI 设备管理**: 维护全局已连接设备列表，统一分发设备热插拔状态（`OH_OnMidiDeviceChange`）等。
+  * **共享内存管理**: 负责高性能数据通道的建立与维护。它在服务端分配共享内存区块及无锁队列（Ring Buffer），并将其映射到客户端进程，确保 MIDI 数据在跨进程传输时实现低延迟、零拷贝。
   * **USB MIDI 适配**: 对接 USB 服务与 MIDI 驱动，处理标准 USB MIDI 设备的连接与数据透传。
   * **蓝牙 MIDI 适配**: 对接蓝牙服务，处理 BLE MIDI 设备的连接维护与数据读写。
   * **MIDI 协议转换**: 负责在 UMP（通用 MIDI 包）与传统 MIDI 1.0 字节流之间进行转换（主要用于 BLE 设备）。
-  * **samgr 服务 (System Ability Manager)**: 系统能力管理服务，负责 MIDI 服务的按需拉起。
+  * **SAMgr 服务 (System Ability Manager)**: 系统能力管理服务，负责 MIDI 服务的按需拉起。
   * **USB 服务 / 蓝牙服务**: OpenHarmony 基础系统服务。USB 服务负责上报硬件插拔事件；蓝牙服务负责 BLE 扫描与 GATT 连接。
 
 * **驱动层**
@@ -47,33 +45,35 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 
 * **外设**
   * **USB MIDI 外设**: 如 USB MIDI 键盘、合成器。
-  * **BLE MIDI 外设**: 如蓝牙 MIDI 键盘。
+  * **BLE MIDI 外设**: 如 蓝牙 MIDI 键盘、无线MIDI接收器。
 
----
-
-#### 关键交互流程
+### 关键交互流程
 
 为了更清晰地展示各模块如何协同工作，以下详解三大核心流程：
 
-##### 服务按需启动与生命周期管理
+#### 服务按需启动与生命周期管理
 
 MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系统资源消耗。
-
-1. **拉起服务**:
-   * 当 **MIDI APP** 调用 `OH_MIDIClientCreate` 时，**MIDI 客户端实例管理** 模块会向 **samgr 服务** 查询 MIDI 服务代理。
-   * 若服务未启动，**samgr 服务** 会自动拉起 MIDI 服务进程，并完成服务的初始化。
-2. **建立会话**:
-   * 服务启动后，客户端通过 IPC 与服务端的 **MIDI 客户端会话管理** 模块建立连接，分配对应的服务资源。
-3. **自动释放**:
-   * 当 **MIDI APP** 调用 `OH_MIDIClientDestroy` 或发生进程异常退出时，服务端的 **会话管理** 模块会清理对应资源。
-   * **退出判定**: 当活跃客户端数量降为 0，且在 **15秒** 内无新的连接建立时，MIDI 服务执行资源释放逻辑并自动退出进程。
 
 ![服务按需启动与生命周期管理流程图](figures/zh-cn_image_midi_framework_life_cycle.png)<br>
 **图 2** 服务按需启动与生命周期管理流程图
 
-##### 设备发现与连接管理
+1. **拉起服务**:
+   * 当 **MIDI APP** 调用 `OH_MIDIClientCreate` 时，**MIDI 客户端实例管理** 模块会向 **SAMgr 服务** 查询 MIDI 服务代理。
+   * 若服务未启动，**SAMgr 服务** 会自动拉起 MIDI 服务进程，并完成服务的初始化。
+2. **建立会话**:
+   * 服务启动后，客户端通过 IPC 与服务端的 **MIDI 客户端会话管理** 模块建立连接，分配对应的服务资源。
+3. **资源回收**:
+   * **主动销毁**: 当 **MIDI APP** 调用 `OH_MIDIClientDestroy` 时，服务端释放对应资源。
+   * **异常监测**: 建立连接时，客户端会将回调对象（Stub）注册至服务端。服务端的 **MIDI 客户端会话管理** 模块通过 IPC 机制订阅该对象的[**死亡通知（Death Recipient）**](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/ipc/subscribe-remote-state.md)，服务端感知后，立即清理该客户端占用的会话与共享内存资源。
+   * **退出判定**: **MIDI 服务生命周期管理** 模块持续监控会话状态。当活跃客户端数量降为0，且在15秒内无新的连接建立时，该模块执行服务资源释放逻辑并自动退出进程。
+
+#### 设备发现与连接管理
 
 设备连接流程根据物理链路（USB/BLE）的不同，涉及不同的外部模块交互。
+
+![设备发现与连接管理流程图](figures/zh-cn_image_midi_framework_device_manage.png)<br>
+**图 3** 设备发现与连接管理流程图
 
 * **USB MIDI 设备流程**:
   1. **物理接入**: USB MIDI 键盘/合成器插入，**USB 驱动** 识别硬件并上报给 **USB 服务**。
@@ -83,18 +83,18 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 
 
 * **BLE MIDI 设备流程**:
-  1. **主动发现**: **MIDI APP** 调用系统蓝牙接口（`@ohos.bluetooth.ble`的`startBLEScan`）启动扫描，根据 UUID 过滤出 BLE MIDI 外设。
+  1. **主动发现**: **MIDI APP** 调用[系统蓝牙接口](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/connectivity/bluetooth/ble-development-guide.md)（`@ohos.bluetooth.ble`的`startBLEScan`）启动扫描，根据 UUID 过滤出 BLE MIDI 外设。
      * **MIDI Service UUID**: `03B80E5A-EDE8-4B33-A751-6CE34EC4C700` (参照 [Bluetooth Low Energy MIDI Specification](https://midi.org/midi-over-bluetooth-low-energy-ble-midi))
   2. **接入服务**: APP 获取 MAC 地址后，调用 `OH_MIDIOpenBleDevice`。
   3. **建立连接**: 客户端请求服务端 -> 服务端 **MIDI 设备管理** 识别为 BLE 请求 -> 调度 **蓝牙 MIDI 适配** 模块 -> 调用 **蓝牙服务** 建立 GATT 连接。
   4. **统一管理**: 连接成功后，该 BLE 设备被纳入 **MIDI 设备管理** 模块的通用列表，APP 可像操作 USB 设备一样对其进行端口操作。
 
-![设备发现与连接管理流程图](figures/zh-cn_image_midi_framework_device_manage.png)<br>
-**图 3** 设备发现与连接管理流程图
-
-##### 端口管理与数据传输
+#### 端口管理与数据传输
 
 数据传输链路涉及跨进程通信与协议适配。
+
+![端口管理与数据传输流程图](figures/zh-cn_image_midi_framework_data_transfer.png)<br>
+**图 4** 端口管理与数据传输流程图
 
 1. **建立通路**:
    * **MIDI APP** 调用 `OH_MIDIOpenInputPort/OutputPort`。
@@ -102,14 +102,11 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 2. **数据收发**:
    * **发送 (APP -> 外设)**: APP 调用 `OH_MIDISend` -> 数据写入共享内存 -> 服务端读取。
    * **分发**:
-   * 若为 **USB 设备**: 数据经由 **USB MIDI 适配** 模块 -> **MIDI 驱动** -> **USB 驱动** -> 硬件。
-   * 若为 **BLE 设备**: 数据经由 **蓝牙 MIDI 适配** 模块 -> **MIDI 协议转换** (UMP转字节流) -> **蓝牙服务** -> **蓝牙驱动** -> 硬件。
+   * 若为 **USB 设备**: 数据经由 **USB MIDI 适配** 模块 -> **MIDI 驱动** -> **USB 驱动** -> 外设。
+   * 若为 **BLE 设备**: 数据经由 **蓝牙 MIDI 适配** 模块 -> **MIDI 协议转换** (UMP转字节流) -> **蓝牙服务** -> **蓝牙驱动** -> 外设。
 3. **接收 (外设 -> APP)**:
-   * 硬件数据经驱动上报，服务端适配模块处理后（BLE 需进行协议转换），写入共享内存。
+   * 外设数据经驱动上报，服务端适配模块处理后（BLE 需进行协议转换），写入共享内存。
    * 客户端 **MIDI 端口管理** 读取数据，并通过 `OH_OnMIDIReceived` 回调通知 **MIDI APP**。
-
-![端口管理与数据传输流程图](figures/zh-cn_image_midi_framework_data_transfer.png)<br>
-**图 4** 端口管理与数据传输流程图
 
 ## 目录
 
@@ -338,11 +335,9 @@ void MIDIDemo() {
   * 当前版本的 **MIDI HAL** 主要对接标准 ALSA 接口以支持 USB 设备，代码位于[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)。
   * MIDI HDI 驱动接口尚在标准化过程中。
 
-* **协议与数据格式**
-  * **UMP Native**：midi_framework 采用全链路 UMP 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
+* **协议与数据格式**：midi_framework 采用全链路 **UMP Native** 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
 
-* **权限说明**
-  * 应用访问 BLE MIDI 设备需要申请相应的系统权限(@ohos.permission.ACCESS_BLUETOOTH)。
+* **权限说明**：应用访问 BLE MIDI 设备需要申请相应的系统权限 (`@ohos.permission.ACCESS_BLUETOOTH`)。
 
 ## 相关仓
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)<br>

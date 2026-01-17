@@ -13,15 +13,15 @@
  * limitations under the License.
  */
 
-#include <securec.h>
 #include <fuzzer/FuzzedDataProvider.h>
-#include <vector>
 #include <map>
+#include <securec.h>
 #include <string>
+#include <vector>
 
-#include "midi_service_controller.h"
-#include "midi_info.h"
 #include "accesstoken_kit.h"
+#include "midi_info.h"
+#include "midi_service_controller.h"
 #include "nativetoken_kit.h"
 #include "token_setproc.h"
 
@@ -30,16 +30,14 @@ namespace MIDI {
 using namespace std;
 namespace {
 constexpr int32_t RING_BUFFER_DEFAULT_SIZE = 2048;
-}  // namespace
+} // namespace
 MidiServiceController *midiServiceController_ = nullptr;
 
 // Mock Callback for CreateClientInServer
 class MidiServiceCallbackFuzzer : public MidiServiceCallback {
 public:
-    void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) override
-    {}
-    void NotifyError(int32_t code) override
-    {}
+    void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) override {}
+    void NotifyError(int32_t code) override {}
 };
 
 void CreateClientInServer(FuzzedDataProvider &fdp)
@@ -50,10 +48,7 @@ void CreateClientInServer(FuzzedDataProvider &fdp)
     midiServiceController_->CreateClientInServer(callback, client, clientId);
 }
 
-void GetDevices(FuzzedDataProvider &fdp)
-{
-    midiServiceController_->GetDevices();
-}
+void GetDevices(FuzzedDataProvider &fdp) { midiServiceController_->GetDevices(); }
 
 void GetDevicePorts(FuzzedDataProvider &fdp)
 {
@@ -111,20 +106,14 @@ void MidiServiceControllerTest(FuzzedDataProvider &fdp)
 {
     CHECK_AND_RETURN_LOG(midiServiceController_ != nullptr, "midiServiceController_ is nullptr");
 
-    auto func = fdp.PickValueInArray({CreateClientInServer,
-        GetDevices,
-        GetDevicePorts,
-        OpenDevice,
-        CloseDevice,
-        OpenInputPort,
-        CloseInputPort,
-        DestroyMidiClient});
+    auto func = fdp.PickValueInArray({CreateClientInServer, GetDevices, GetDevicePorts, OpenDevice, CloseDevice,
+                                      OpenInputPort, CloseInputPort, DestroyMidiClient});
 
     func(fdp);
 }
 
-}  // namespace MIDI
-}  // namespace OHOS
+} // namespace MIDI
+} // namespace OHOS
 
 /* Fuzzer entry point */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
@@ -136,6 +125,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
 extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
 {
+    (void)argc;
+    (void)argv;
     if (SetSelfTokenID(718336240uLL | (1uLL << NUM_32)) < 0) {
         return -1;
     }

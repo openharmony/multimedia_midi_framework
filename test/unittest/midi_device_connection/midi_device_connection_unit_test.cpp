@@ -26,9 +26,9 @@
 
 #include "gtest/gtest.h"
 
-#include "native_midi_base.h"
 #include "midi_device_connection.h"
 #include "midi_shared_ring.h"
+#include "native_midi_base.h"
 
 using namespace std::chrono;
 using namespace testing::ext;
@@ -38,10 +38,6 @@ namespace MIDI {
 
 class MidiDeviceConnectionUnitTest : public testing::Test {
 public:
-    static void SetUpTestCase() {}
-    static void TearDownTestCase() {}
-    void SetUp() override {}
-    void TearDown() override {}
 };
 
 static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t> &payloadWords)

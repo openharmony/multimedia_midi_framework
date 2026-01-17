@@ -48,6 +48,7 @@ void PrintUmpData(const uint32_t *data, size_t length)
 // 1. 设备热插拔回调
 static void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation info)
 {
+    (void)userData;
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId << ", Name=" << info.productName << endl;
     } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
@@ -58,12 +59,14 @@ static void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_
 // 2. 服务错误回调
 static void OnError(void *userData, OH_MIDIStatusCode code)
 {
+    (void)userData;
     cout << "[Error] Critical Service Error! Code=" << code << endl;
 }
 
 // 3. 数据接收回调
 static void OnMidiReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount)
 {
+    (void)userData;
     for (size_t i = 0; i < eventCount; ++i) {
         cout << "[Rx] Timestamp=" << events[i].timestamp << " ";
         PrintUmpData(events[i].data, events[i].length);

@@ -12,15 +12,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <iostream>
-#include <vector>
+#include "native_midi.h"
+#include "gtest/gtest.h"
 #include <atomic>
 #include <fsteam>
+#include <iostream>
 #include <queue>
 #include <string>
 #include <thread>
-#include "gtest/gtest.h"
-#include "native_midi.h"
+#include <vector>
 
 using namespace std;
 using namespace testing::ext;
@@ -45,7 +45,8 @@ protected:
         }
     }
 
-    int64_t GetFirstDeviceId() {
+    int64_t GetFirstDeviceId()
+    {
         size_t count = 0;
         if (OH_MIDIGetDevices(client, nullptr, &count) != MIDI_STATUS_OK) {
             return -1;
@@ -66,9 +67,7 @@ protected:
  * @tc.name      : Test OH_MIDIClientCreate with valid parameters
  * @tc.desc      : Verify that a client can be created successfully.
  */
-HWTEST_F(MidiSdkTest, MidiClient_Create_001, Function | MediumTest | Level1) {
-    EXPECT_NE(client, nullptr);
-}
+HWTEST_F(MidiSdkTest, MidiClient_Create_001, Function | MediumTest | Level1) { EXPECT_NE(client, nullptr); }
 
 /**
  * @tc.number    : SUB_MULTIMEDIA_MIDI_CLIENT_0200
@@ -86,7 +85,8 @@ HWTEST_F(MidiSdkTest, MidiClient_Create_002, Function | MediumTest | Level1) {
  * @tc.name      : Test OH_MIDIGetDevices double call pattern
  * @tc.desc      : Verify device enumeration logic.
  */
-HWTEST_F(MidiSdkTest, MidiGetDevices_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiGetDevices_001, Function | MediumTest | Level1)
+{
     size_t count = 0;
     OH_MIDIStatusCode ret = OH_MIDIGetDevices(client, nullptr, &count);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
@@ -106,7 +106,8 @@ HWTEST_F(MidiSdkTest, MidiGetDevices_001, Function | MediumTest | Level1) {
  * @tc.name      : Test Device Open/Close Lifecycle
  * @tc.desc      : Verify opening and closing a device works (Hardware Dependent).
  */
-HWTEST_F(MidiSdkTest, MidiOpenDevice_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiOpenDevice_001, Function | MediumTest | Level1)
+{
     int64_t devId = GetFirstDeviceId();
     if (devId < 0) {
         printf("[MidiSdkTest] Skip: No hardware connected.\n");
@@ -146,7 +147,8 @@ HWTEST_F(MidiSdkTest, MidiOpenDevice_002, Function | MediumTest | Level1) {
  * @tc.name      : Test GetPorts and Open Output Port
  * @tc.desc      : Verify port enumeration and output port opening.
  */
-HWTEST_F(MidiSdkTest, MidiOpenOutputPort_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiOpenOutputPort_001, Function | MediumTest | Level1)
+{
     int64_t devId = GetFirstDeviceId();
     if (devId < 0) {
         printf("[MidiSdkTest] Skip: No hardware connected.\n");
@@ -167,7 +169,7 @@ HWTEST_F(MidiSdkTest, MidiOpenOutputPort_001, Function | MediumTest | Level1) {
 
         // 2. Find an Output Port
         int targetPortIndex = -1;
-        for (const auto& port : ports) {
+        for (const auto &port : ports) {
             if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
                 targetPortIndex = port.portIndex;
                 break;
@@ -182,7 +184,7 @@ HWTEST_F(MidiSdkTest, MidiOpenOutputPort_001, Function | MediumTest | Level1) {
 
             OH_MIDIStatusCode ret = OH_MIDIOpenOutputPort(device, desc);
             EXPECT_EQ(ret, MIDI_STATUS_OK);
-            
+
             // 4. Close Port
             ret = OH_MIDIClosePort(device, targetPortIndex);
             EXPECT_EQ(ret, MIDI_STATUS_OK);
@@ -199,7 +201,8 @@ HWTEST_F(MidiSdkTest, MidiOpenOutputPort_001, Function | MediumTest | Level1) {
  * @tc.name      : Test OH_MIDISend (Smoke Test)
  * @tc.desc      : Verify Send does not crash and returns OK.
  */
-HWTEST_F(MidiSdkTest, MidiSend_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiSend_001, Function | MediumTest | Level1)
+{
     int64_t devId = GetFirstDeviceId();
     if (devId < 0) {
         printf("[MidiSdkTest] Skip: No hardware connected.\n");
@@ -254,8 +257,12 @@ HWTEST_F(MidiSdkTest, MidiOpenBleDevice_Negative_001, Function | MediumTest | Le
     EXPECT_NE(ret, MIDI_STATUS_OK); // Should fail immediately
 }
 
-void TestOnMidiReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount) {
+void TestOnMidiReceived(void *userData, const OH_MIDIEvent *events, size_t eventCount)
+{
     // No-op
+    (void)userData;
+    (void)events;
+    (void)eventCount;
 }
 
 /**
@@ -263,7 +270,8 @@ void TestOnMidiReceived(void *userData, const OH_MIDIEvent *events, size_t event
  * @tc.name      : Test OH_MIDIOpenInputPort parameter validation
  * @tc.desc      : Verify callback registration and direction checks.
  */
-HWTEST_F(MidiSdkTest, MidiOpenInputPort_Validation_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiOpenInputPort_Validation_001, Function | MediumTest | Level1)
+{
     int64_t devId = GetFirstDeviceId();
     if (devId < 0) {
         return; // Skip
@@ -309,7 +317,8 @@ HWTEST_F(MidiSdkTest, MidiOpenInputPort_Validation_001, Function | MediumTest | 
  * @tc.name      : Test OH_MIDISendSysEx helper function
  * @tc.desc      : Verify the byte-stream to UMP helper logic.
  */
-HWTEST_F(MidiSdkTest, MidiSendSysEx_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiSendSysEx_001, Function | MediumTest | Level1)
+{
     int64_t devId = GetFirstDeviceId();
     if (devId < 0) {
         return;
@@ -358,7 +367,8 @@ HWTEST_F(MidiSdkTest, MidiSendSysEx_001, Function | MediumTest | Level1) {
  * @tc.name      : Test OH_MIDIFlushOutputPort
  * @tc.desc      : Verify flush operation on output ports.
  */
-HWTEST_F(MidiSdkTest, MidiFlush_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiFlush_001, Function | MediumTest | Level1)
+{
     int64_t devId = GetFirstDeviceId();
     if (devId < 0) {
         return;
@@ -379,7 +389,7 @@ HWTEST_F(MidiSdkTest, MidiFlush_001, Function | MediumTest | Level1) {
 
             OH_MIDIClosePort(device, 0);
         }
-        
+
         // Case 2: Flush Closed Port (Negative)
         OH_MIDIStatusCode ret = OH_MIDIFlushOutputPort(device, 0);
 
@@ -394,7 +404,8 @@ HWTEST_F(MidiSdkTest, MidiFlush_001, Function | MediumTest | Level1) {
  * @tc.name      : Test OH_MIDIClientDestroy robustness
  * @tc.desc      : Verify destroying null or invalid clients.
  */
-HWTEST_F(MidiSdkTest, MidiClient_Destroy_Negative_001, Function | MediumTest | Level1) {
+HWTEST_F(MidiSdkTest, MidiClient_Destroy_Negative_001, Function | MediumTest | Level1)
+{
     // Case 1: Destroy Nullptr
     OH_MIDIStatusCode ret = OH_MIDIClientDestroy(nullptr);
     EXPECT_EQ(ret, MIDI_STATUS_INVALID_CLIENT);
