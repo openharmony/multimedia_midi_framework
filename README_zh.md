@@ -343,9 +343,9 @@ void MIDIDemo() {
   * **USB MIDI**：OpenHarmony 开发设备必须支持 **USB Host 主机模式**。
     * **ALSA 依赖**：当前 MIDI HDI 驱动依赖 `alsa-libs` 实现，未开启 ALSA 内核选项的设备将无法枚举和使用 USB MIDI 设备。
     * **RK3568 适配注意事项**（以 RK3568 为例）：
-      * **内核配置**：默认配置通常未开启 ALSA。需参考 [alsa-libs 使用指南](https://gitcode.com/openharmony/third_party_alsa-lib#5-如何使用) 修改内核配置文件（`arch/arm64_defconfig`），开启 ALSA 支持并重新编译烧录内核。
+      * **内核配置**：默认配置通常未开启 ALSA。需参考 [alsa-libs 使用指南](https://gitcode.com/openharmony/third_party_alsa-lib#5-如何使用) 修改内核配置文件（`arch/arm64_defconfig`），开启 ALSA 支持并重新编译烧录内核。此外，为支持 USB MIDI 功能，**必须开启** `CONFIG_SND_USB_AUDIO`（USB 驱动）及 `CONFIG_SND_RAWMIDI`（MIDI 核心），建议同时开启 `CONFIG_SND_SEQUENCER`。
       * **系统构建连带影响（重要）**：
-        * 开启 ALSA 内核选项后，系统 Audio HDF 驱动会切换至 ALSA 实现模式。受限于最新的**部件独立构建规范**，Audio HDF 可能会因无法引用板级（Board）目录下的代码而导致**内核编译失败**。
+        * 开启 ALSA 内核选项后，系统 Audio HDF 驱动会切换至 ALSA 实现模式。受限于最新的部件独立构建编译规范，Audio HDF 可能会因无法引用板级（Board）目录下的代码而导致**内核编译失败**。
         * **注意**：此修改与 MIDI 业务无关，仅为了**保证系统内核及镜像能顺利编译通过**。若遇到 Audio HDF 报错，可将缺少的相关依赖代码（位于 `device/board/...`）手动拷贝至驱动目录以临时规避。
       * **组件配置**：需在 `vendor/hihope/rk3568/config.json` 中确保 `midi_framework`、`drivers_peripheral_midi`、`drivers_interface_midi` 等部件已加入编译。
       * **权限配置**：需检查 `/system/etc/ueventd.config`，确保 `midi_server` 对 `/dev/snd/controlC*` 及 `/dev/snd/midiC*D*` 拥有访问权限（通常需配置为 `0660 system audio`），否则会导致**设备列表为空**。
