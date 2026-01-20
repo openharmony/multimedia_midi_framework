@@ -12,8 +12,11 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 
 ## 系统架构
 
-![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
-**图 1** OpenHarmony MIDI 服务架构图
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework.png" alt="服务按需启动与生命周期管理流程图" />
+  <br>
+  <b>图 1</b> 服务按需启动与生命周期管理流程图
+</div>
 
 ### 模块功能说明
 
@@ -55,8 +58,11 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 
 MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系统资源消耗。
 
-![服务按需启动与生命周期管理流程图](figures/zh-cn_image_midi_framework_life_cycle.png)<br>
-**图 2** 服务按需启动与生命周期管理流程图
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework_life_cycle.png" alt="服务按需启动与生命周期管理流程图" />
+  <br>
+  <b>图 2</b> 服务按需启动与生命周期管理流程图
+</div>
 
 1. **拉起服务**:
    * 当 **MIDI APP** 调用 `OH_MIDIClientCreate` 时，**MIDI 客户端实例管理** 模块会向 **SAMgr 服务** 查询 MIDI 服务代理。
@@ -72,8 +78,11 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 
 设备连接流程根据物理链路（USB/BLE）的不同，涉及不同的外部模块交互。
 
-![设备发现与连接管理流程图](figures/zh-cn_image_midi_framework_device_manage.png)<br>
-**图 3** 设备发现与连接管理流程图
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework_device_manage.png" alt="设备发现与连接管理流程图" />
+  <br>
+  <b>图 3</b> 设备发现与连接管理流程图
+</div>
 
 * **USB MIDI 设备流程**:
   1. **物理接入**: USB MIDI 键盘/合成器插入，**USB 驱动** 识别硬件并上报给 **USB 服务**。
@@ -93,8 +102,11 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 
 数据传输链路涉及跨进程通信与协议适配。
 
-![端口管理与数据传输流程图](figures/zh-cn_image_midi_framework_data_transfer.png)<br>
-**图 4** 端口管理与数据传输流程图
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework_data_transfer.png" alt="端口管理与数据传输流程图" />
+  <br>
+  <b>图 4</b> 端口管理与数据传输流程图
+</div>
 
 1. **建立通路**:
    * **MIDI APP** 调用 `OH_MIDIOpenInputPort/OutputPort`。
@@ -328,19 +340,30 @@ void MIDIDemo() {
 ## 约束
 
 * **硬件与内核要求**
-  * **USB MIDI**：OpenHarmony开发设备必须支持 USB Host 主机模式，基于当前 MIDI HDI 标准驱动依赖 alsa-libs 的实现，当前仅支持符合 **USB Audio Class (UAC)** 规范的通用免驱（Class Compliant）设备（如 USB MIDI 键盘、电子鼓）。
-  * **BLE MIDI**：OpenHarmony开发设备必须支持 BLE（Bluetooth Low Energy）协议。
+  * **USB MIDI**：OpenHarmony 开发设备必须支持 **USB Host 主机模式**。
+    * **ALSA 依赖**：当前 MIDI HDI 驱动依赖 `alsa-libs` 实现，未开启 ALSA 内核选项的开发设备将无法使用 USB MIDI 相关能力。
+    * **RK3568 适配注意事项**（以 RK3568 为例）：
+      * **内核配置**：默认配置通常 **未开启 ALSA**。需参考 [alsa-libs 使用指南](https://gitcode.com/openharmony/third_party_alsa-lib#5-如何使用) 修改内核配置文件（`arch/arm64_defconfig`），**开启 ALSA 支持** 并重新编译烧录内核。此外，为支持 USB MIDI 功能，**必须开启** `CONFIG_SND_USB_AUDIO`（USB 驱动）及 `CONFIG_SND_RAWMIDI`（MIDI 核心），建议同时开启 `CONFIG_SND_SEQUENCER`。
+      * **系统构建连带影响**：
+        * 开启 ALSA 内核选项后，系统 Audio HDF 驱动会切换至 ALSA 实现模式。受限于最新的部件独立构建编译规范，Audio HDF 可能会因无法引用板级（Board）目录下的代码而导致**内核编译失败**。
+        * **注意**：此修改与 MIDI 业务无关，仅为了**保证系统内核及镜像能顺利编译通过**。若遇到 Audio HDF 报错，可将缺少的相关依赖代码（位于 `device/board/...`）手动拷贝至驱动目录以临时规避。
+      * **组件配置**：需在 `vendor/hihope/rk3568/config.json` 中确保 `midi_framework`、`drivers_peripheral_midi`、`drivers_interface_midi` 等部件已加入编译。
+      * **权限配置**：需检查 `/system/etc/ueventd.config`，确保 `midi_server` 对 `/dev/snd/controlC*` 及 `/dev/snd/midiC*D*` 拥有访问权限（通常需配置为 `0660 system audio`），否则会导致**设备列表为空**。
+  * **BLE MIDI**：OpenHarmony 开发设备必须支持 BLE（Bluetooth Low Energy）协议。
 
 * **驱动开发状态**
-  * 当前版本的 **MIDI HAL** 主要对接标准 ALSA 接口以支持 USB 设备，代码位于[drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)。
+  * 当前版本的 **MIDI HAL** 主要对接标准 ALSA 接口以支持 USB 设备，代码位于 [drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)。
   * MIDI HDI 驱动接口尚在标准化过程中。
 
-* **协议与数据格式**：midi_framework 采用全链路 **UMP Native** 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
+* **协议与数据格式**
+  * `midi_framework` 采用全链路 **UMP (Universal MIDI Packet) Native** 设计。无论物理设备是 MIDI 1.0 还是 MIDI 2.0，Native API 接口收发的数据**始终为 UMP 格式**。
 
-* **权限说明**：应用访问 BLE MIDI 设备需要申请相应的系统权限 (`@ohos.permission.ACCESS_BLUETOOTH`)。
+* **权限说明**
+  * 应用访问 BLE MIDI 设备需要申请相应的系统权限 (`@ohos.permission.ACCESS_BLUETOOTH`)。
 
 ## 相关仓
 [媒体子系统](https://gitcode.com/openharmony/docs/blob/master/zh-cn/readme/媒体子系统.md)<br>
 [drivers_interface](https://gitcode.com/openharmony/drivers_interface)<br>
 [drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)<br>
+[alsa-libs](https://gitcode.com/openharmony/third_party_alsa-lib)<br>
 **[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
