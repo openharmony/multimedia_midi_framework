@@ -12,10 +12,11 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 
 ## 系统架构
 
-:----:
-![midi_framework部件架构图](figures/zh-cn_image_midi_framework.png)<br>
-**图 1** OpenHarmony MIDI 服务架构图
-:----:
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework.png" alt="服务按需启动与生命周期管理流程图" />
+  <br>
+  <b>图 1</b> 服务按需启动与生命周期管理流程图
+</div>
 
 ### 模块功能说明
 
@@ -57,10 +58,11 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 
 MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系统资源消耗。
 
-:----:
-![服务按需启动与生命周期管理流程图](figures/zh-cn_image_midi_framework_life_cycle.png)<br>
-**图 2** 服务按需启动与生命周期管理流程图
-:----:
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework_life_cycle.png" alt="服务按需启动与生命周期管理流程图" />
+  <br>
+  <b>图 2</b> 服务按需启动与生命周期管理流程图
+</div>
 
 1. **拉起服务**:
    * 当 **MIDI APP** 调用 `OH_MIDIClientCreate` 时，**MIDI 客户端实例管理** 模块会向 **SAMgr 服务** 查询 MIDI 服务代理。
@@ -76,10 +78,11 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 
 设备连接流程根据物理链路（USB/BLE）的不同，涉及不同的外部模块交互。
 
-:----:
-![设备发现与连接管理流程图](figures/zh-cn_image_midi_framework_device_manage.png)<br>
-**图 3** 设备发现与连接管理流程图
-:----:
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework_device_manage.png" alt="设备发现与连接管理流程图" />
+  <br>
+  <b>图 3</b> 设备发现与连接管理流程图
+</div>
 
 * **USB MIDI 设备流程**:
   1. **物理接入**: USB MIDI 键盘/合成器插入，**USB 驱动** 识别硬件并上报给 **USB 服务**。
@@ -99,10 +102,11 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 
 数据传输链路涉及跨进程通信与协议适配。
 
-:----:
-![端口管理与数据传输流程图](figures/zh-cn_image_midi_framework_data_transfer.png)<br>
-**图 4** 端口管理与数据传输流程图
-:----:
+<div align="center">
+  <img src="figures/zh-cn_image_midi_framework_data_transfer.png" alt="端口管理与数据传输流程图" />
+  <br>
+  <b>图 4</b> 端口管理与数据传输流程图
+</div>
 
 1. **建立通路**:
    * **MIDI APP** 调用 `OH_MIDIOpenInputPort/OutputPort`。
