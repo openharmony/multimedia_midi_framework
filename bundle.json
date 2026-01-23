@@ -1,7 +1,7 @@
 {
     "name": "@ohos/midi_framework",
-    "description": "Midi framework",
-    "version": "1.0",
+    "description": "MIDI framework",
+    "version": "6.1",
     "license": "Apache License 2.0",
     "publishAs": "code-segment",
     "segment": {
@@ -12,9 +12,7 @@
     "component": {
         "name": "midi_framework",
         "subsystem": "multimedia",
-        "syscap": [
-            "SystemCapability.Multimedia.Audio.Midi"
-        ],
+        "syscap": [],
         "features": [],
         "adapted_system_type": [
             "standard"
