@@ -54,6 +54,26 @@ public:
         BASESIZE = 2
     };
 };
+
+class UniqueFd {
+public:
+    UniqueFd() = default;
+    explicit UniqueFd(int fd) : fd_(fd) {}
+    ~UniqueFd();
+
+    UniqueFd(const UniqueFd &) = delete;
+    UniqueFd &operator=(const UniqueFd &) = delete;
+
+    UniqueFd(UniqueFd &&other) noexcept;
+    UniqueFd &operator=(UniqueFd &&other) noexcept;
+
+    int Get() const { return fd_; }
+    bool Valid() const { return fd_ >= 0; }
+    void Reset(int fd = -1);
+
+private:
+    int fd_ = -1;
+};
 } // namespace MIDI
 } // namespace OHOS
 #endif

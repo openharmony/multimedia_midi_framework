@@ -240,6 +240,12 @@ MidiSharedRing::MidiSharedRing(uint32_t ringCapacityBytes) : capacity_(ringCapac
     totalMemorySize_ = sizeof(ControlHeader) + ringCapacityBytes;
 }
 
+MidiSharedRing::MidiSharedRing(uint32_t ringCapacityBytes, std::shared_ptr<UniqueFd> fd): capacity_(ringCapacityBytes)
+{
+    totalMemorySize_ = sizeof(ControlHeader) + ringCapacityBytes;
+    notifyFd_ = fd;
+}
+
 int32_t MidiSharedRing::Init(int dataFd)
 {
     CHECK_AND_RETURN_RET_LOG(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
@@ -261,11 +267,25 @@ int32_t MidiSharedRing::Init(int dataFd)
     return MIDI_STATUS_OK;
 }
 
+int MidiSharedRing::GetEventFd() const
+{
+    CHECK_AND_RETURN_RET_LOG(notifyFd_, -123, "notifyFd_ is nullptr");
+    return notifyFd_->Get();
+}
+
 std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromLocal(size_t ringCapacityBytes)
 {
     MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
 
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes);
+    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == MIDI_STATUS_OK, nullptr, "failed to init.");
+    return buffer;
+}
+
+std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromLocal(size_t ringCapacityBytes, std::shared_ptr<UniqueFd> fd)
+{
+    MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
+    std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes, fd);
     CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == MIDI_STATUS_OK, nullptr, "failed to init.");
     return buffer;
 }
@@ -289,7 +309,8 @@ bool MidiSharedRing::Marshalling(Parcel &parcel) const
 {
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, false, "dataMem_ is nullptr.");
-    return messageParcel.WriteUint32(capacity_) && messageParcel.WriteFileDescriptor(dataMem_->GetFd());
+    return messageParcel.WriteUint32(capacity_) &&
+        messageParcel.WriteFileDescriptor(dataMem_->GetFd()) && messageParcel.WriteFileDescriptor(notifyFd_->Get());
 }
 
 MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
@@ -298,11 +319,14 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     uint32_t ringSize = messageParcel.ReadUint32();
     int dataFd = messageParcel.ReadFileDescriptor();
+    int eventFd = messageParcel.ReadFileDescriptor();
 
     int minfd = 2; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
-
-    auto buffer = new (std::nothrow) MidiSharedRing(ringSize);
+    // CHECK_AND_RETURN_RET_LOG(eventFd > minfd, nullptr, "invalid dataFd: %{public}d", eventFd);
+    
+    auto notifyFd = std::make_shared<UniqueFd>(eventFd);
+    auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);
     if (buffer == nullptr || buffer->Init(dataFd) != MIDI_STATUS_OK) {
         MIDI_ERR_LOG("failed to init.");
         if (buffer != nullptr)
@@ -422,6 +446,11 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
 
     if (notify) {
         NotifyConsumer();
+        if (notifyFd_ && notifyFd_->Valid()) {
+            MIDI_DEBUG_LOG("notify server to consume midi events");
+            uint64_t writed = 1;
+            (void)::write(notifyFd_->Get(), &writed, sizeof(writed));
+        }
     }
     return (localWritten == eventCount) ? MidiStatusCode::OK : MidiStatusCode::WOULD_BLOCK;
 }
@@ -433,8 +462,6 @@ MidiStatusCode MidiSharedRing::PeekNext(PeekedEvent &outEvent)
     outEvent = PeekedEvent{};
 
     CHECK_AND_RETURN_RET(capacity_ >= (sizeof(ShmMidiEventHeader) + 1u), MidiStatusCode::SHM_BROKEN);
-
-    // 用 loop 而非递归：吞掉 WRAP 记录并继续
     for (;;) {
         uint32_t readIndex = GetReadPosition();
         uint32_t writeIndex = GetWritePosition();

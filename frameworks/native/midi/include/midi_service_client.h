@@ -37,7 +37,10 @@ public:
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos) override;
     OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                     uint32_t portIndex) override;
+    OH_MIDIStatusCode OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
+                                    uint32_t portIndex) override;
     OH_MIDIStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
+    OH_MIDIStatusCode CloseOutputPort(int64_t deviceId, uint32_t portIndex) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
 
 private:

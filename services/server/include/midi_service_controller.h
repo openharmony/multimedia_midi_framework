@@ -40,6 +40,7 @@ public:
     int64_t deviceId;
     std::unordered_set<int32_t> clients;
     std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForInput>> inputDeviceconnections_;
+    std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForOutput>> outputDeviceconnections_;
 };
 class MidiServiceController {
 public:
@@ -55,7 +56,10 @@ public:
     int32_t CloseDevice(uint32_t clientId, int64_t deviceId);
     int32_t OpenInputPort(
         uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
+    int32_t OpenOutputPort(
+        uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
     int32_t CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
+    int32_t CloseOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t DestroyMidiClient(uint32_t clientId);
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation devices);
     void NotifyError(int32_t code);
@@ -64,6 +68,7 @@ private:
     void ClosePortforDevice(
         uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
+    int32_t CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     std::unordered_map<int64_t, std::shared_ptr<DeviceClientContext>> deviceClientContexts_;
     std::unordered_map<int32_t, sptr<MidiClientInServer>> clients_;
     MidiDeviceManager deviceManager_{};

@@ -47,12 +47,17 @@ public:
     // register input callback while opening inputport
     int32_t OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb) override;
 
+    int32_t OpenOutputPort(int64_t deviceId, uint32_t portIndex) override;
+
     int32_t CloseInputPort(int64_t deviceId, size_t portIndex) override;
 
-    int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list) override;
+    int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) override;
+
+    int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, std::vector<MidiEventInner> &list) override;
 
 private:
     sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;
+    std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> messages_;
 };
 } // namespace MIDI
 } // namespace OHOS

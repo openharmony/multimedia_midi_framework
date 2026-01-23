@@ -53,10 +53,13 @@ struct ShmMidiEventHeader {
 class MidiSharedRing : public Parcelable {
 public:
     explicit MidiSharedRing(uint32_t ringCapacityBytes);
+    explicit MidiSharedRing(uint32_t ringCapacityBytes, std::shared_ptr<UniqueFd> fd);
 
     // creat MidiSharedRing locally or remotely
     static std::shared_ptr<MidiSharedRing> CreateFromLocal(
         size_t ringCapacityBytes);
+    static std::shared_ptr<MidiSharedRing> CreateFromLocal(
+        size_t ringCapacityBytes, std::shared_ptr<UniqueFd> fd);
     static std::shared_ptr<MidiSharedRing> CreateFromRemote(size_t ringCapacityBytes, int dataFd);
 
     // idl
@@ -73,6 +76,7 @@ public:
     uint32_t GetWritePosition() const;
     uint8_t *GetDataBase() const;
     std::atomic<uint32_t> *GetFutex() const;
+    int GetEventFd() const;
 
     FutexCode WaitFor(int64_t timeoutInNs, const std::function<bool(void)> &pred);
     void NotifyConsumer(uint32_t wakeVal = IS_READY);
@@ -117,6 +121,7 @@ private:
     uint32_t capacity_{0};
     uint32_t totalMemorySize_{0};
     mutable std::shared_ptr<MidiSharedMemory> dataMem_ = nullptr;
+    std::shared_ptr<UniqueFd> notifyFd_;
 };
 }  // namespace MIDI
 }  // namespace OHOS
