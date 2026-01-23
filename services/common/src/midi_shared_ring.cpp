@@ -179,7 +179,7 @@ std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromRemote(int fd, siz
     CHECK_AND_RETURN_RET_LOG(fd > minfd, nullptr, "CreateFromRemote failed: invalid fd: %{public}d", fd);
     std::shared_ptr<MidiSharedMemoryImpl> sharedMemory = std::make_shared<MidiSharedMemoryImpl>(fd, size, name);
     if (sharedMemory->Init() != MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("CreateFromRemote failed"); // todo：替换成midi log
+        MIDI_ERR_LOG("CreateFromRemote failed");
         return nullptr;
     }
     return sharedMemory;
@@ -222,7 +222,6 @@ MidiSharedMemory *MidiSharedMemory::Unmarshalling(Parcel &parcel)
 }
 
 //==================== Ring Math ====================//
-// 保留 1 字节空槽（区分空/满）
 inline uint32_t RingUsed(uint32_t r, uint32_t w, uint32_t cap) { return (w >= r) ? (w - r) : (cap - (r - w)); }
 
 inline uint32_t RingFree(uint32_t r, uint32_t w, uint32_t cap)

@@ -198,7 +198,7 @@ OH_MIDIStatusCode MidiDevicePrivate::OpenOutputPort(OH_MIDIPortDescriptor descri
     auto outputPort = std::make_shared<MidiOutputPort>(descriptor.protocol);
     std::shared_ptr<MidiSharedRing> &buffer = outputPort->GetRingBuffer();
     auto ret = ipc->OpenOutputPort(buffer, deviceId_, descriptor.portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open inputport fail");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open outputport fail");
 
     outputPortsMap_.emplace(descriptor.portIndex, std::move(outputPort));
     MIDI_INFO_LOG("port[%{public}u] success", descriptor.portIndex);
@@ -396,7 +396,6 @@ MidiOutputPort::~MidiOutputPort()
 {
     MIDI_INFO_LOG("OutputPort destroy");
 }
-
 
 MidiClientPrivate::MidiClientPrivate() : ipc_(std::make_shared<MidiServiceClient>())
 {
