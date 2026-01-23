@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -34,7 +34,7 @@ public:
     virtual ~MidiServer() = default;
     void OnDump() override;
     void OnStart() override;
-    int32_t CreateClientInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
+    int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
                                  uint32_t &clientId) override;
 
 private:

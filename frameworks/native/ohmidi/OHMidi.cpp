@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -26,7 +26,7 @@ OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks c
     CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "client is nullptr");
     OHOS::MIDI::MidiClient *midiclient = nullptr;
     OH_MIDIStatusCode ret = OHOS::MIDI::MidiClient::CreateMidiClient(&midiclient, callbacks, userData);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CreateMidiClient falid");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CreateMidiClient failed");
     *client = (OH_MIDIClient *)midiclient;
     return MIDI_STATUS_OK;
 }
@@ -37,7 +37,7 @@ OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client)
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "convert builder failed");
     OH_MIDIStatusCode ret = midiclient->DestroyMidiClient();
     delete midiclient;
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "DestroyMidiClient falid");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "DestroyMidiClient failed");
     return MIDI_STATUS_OK;
 }
 
@@ -60,15 +60,20 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
 
     OH_MIDIStatusCode ret = midiclient->OpenDevice(deviceId, &midiDevice);
 
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenDevice falid");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenDevice failed");
     *device = (OH_MIDIDevice *)midiDevice;
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(
-    OH_MIDIClient *client, const char *deviceAddr, OH_MIDIDevice **device, int64_t *deviceId)
+OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback, void *userData)
 {
-    (void)deviceAddr;
+    OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient*) client;
+    CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT,"Invalid client");
+    CHECK_AND_RETURN_RET_LOG(deviceAddr != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,"Invalid parameter");
+    std::string deviceAddress(deviceAddr);
+    OH_MIDIStatusCode ret = midiclient->OpenBleDevice(deviceAddress, callback, userData);
+
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenDevice failed");
     return MIDI_STATUS_OK;
 }
 
@@ -78,7 +83,7 @@ OH_MIDIStatusCode OH_MIDICloseDevice(OH_MIDIDevice *device)
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid parameter");
     OH_MIDIStatusCode ret = midiDevice->CloseDevice();
     delete midiDevice;
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CloseDevice falid");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CloseDevice failed");
     return MIDI_STATUS_OK;
 }
 
@@ -98,7 +103,7 @@ OH_MIDIStatusCode OH_MIDIOpenInputPort(
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid parameter");
 
     OH_MIDIStatusCode ret = midiDevice->OpenInputPort(descriptor.portIndex, callback, userData);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort failed");
     return MIDI_STATUS_OK;
 }
 
@@ -114,7 +119,7 @@ OH_MIDIStatusCode OH_MIDIClosePort(OH_MIDIDevice *device, uint32_t portIndex)
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
 
     OH_MIDIStatusCode ret = midiDevice->ClosePort(portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "OpenInputPort falid");
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "ClosePort failed");
     return MIDI_STATUS_OK;
 }
 

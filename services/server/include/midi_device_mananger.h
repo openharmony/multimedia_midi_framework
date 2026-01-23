@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -25,6 +25,8 @@
 
 namespace OHOS {
 namespace MIDI {
+using BleOpenCallback = std::function<void(bool success, int64_t deviceId, const std::map<int32_t, std::string> &info)>;
+
 struct DevicePortContext {
     int64_t portId;
     std::vector<int32_t> clients;
@@ -52,16 +54,17 @@ public:
     std::vector<PortInformation> GetDevicePorts(int64_t deviceId);
     void UpdateDevices();
     int32_t OpenDevice(int64_t deviceId);
+    int32_t OpenBleDevice(const std::string &address, BleOpenCallback callback);
     int32_t CloseDevice(int64_t deviceId);
     int32_t OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection, int64_t deviceId,
                           uint32_t portIndex);
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex);
+    DeviceInformation GetDeviceForDeviceId(int64_t deviceId);
 
 private:
     int64_t GenerateDeviceId();
     int64_t GetOrCreateDeviceId(int64_t driverDeviceId, DeviceType type);
 
-    DeviceInformation GetDeviceForDeviceId(int64_t deviceId);
     MidiDeviceDriver *GetDriverForDeviceType(DeviceType type);
     void CompareDevices(const std::vector<DeviceInformation> &oldDevices,
                         const std::vector<DeviceInformation> &newDevices);
@@ -69,6 +72,7 @@ private:
     std::vector<DeviceInformation> devices_{};
     std::shared_ptr<EventSubscriber> eventSubscriber_{nullptr};
     std::unordered_map<int64_t, int64_t> driverIdToMidiId_;
+    std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device);
 
     std::atomic<int64_t> nextDeviceId_{1000};
     std::mutex devicesMutex_;

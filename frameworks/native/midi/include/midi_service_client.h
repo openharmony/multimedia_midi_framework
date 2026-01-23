@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,7 +21,7 @@
 #include "midi_info.h"
 #include "imidi_service.h"
 #include "midi_callback_stub.h"
-#include "iipc_midi_client_in_server.h"
+#include "iipc_midi_in_server.h"
 #include "midi_shared_ring.h"
 #include "midi_service_death_recipent.h"
 namespace OHOS {
@@ -33,6 +33,7 @@ public:
     OH_MIDIStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) override;
     OH_MIDIStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) override;
     OH_MIDIStatusCode OpenDevice(int64_t deviceId) override;
+    OH_MIDIStatusCode OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback) override;
     OH_MIDIStatusCode CloseDevice(int64_t deviceId) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &portInfos) override;
     OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
@@ -41,7 +42,7 @@ public:
     OH_MIDIStatusCode DestroyMidiClient() override;
 
 private:
-    sptr<IIpcMidiClientInServer> ipc_;
+    sptr<IIpcMidiInServer> ipc_;
     sptr<MidiCallbackStub> callback_;
     sptr<MidiServiceDeathRecipient> deathRecipient_;
     std::mutex lock_;

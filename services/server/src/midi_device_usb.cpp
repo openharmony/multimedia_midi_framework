@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -42,8 +42,9 @@ static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceI
 std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevices()
 {
     std::vector<MidiDeviceInfo> deviceList;
-    midiHdi_->GetDeviceList(deviceList);
     std::vector<DeviceInformation> deviceInfos;
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, deviceInfos, "midiHdi_ is nullptr");
+    midiHdi_->GetDeviceList(deviceList);
     for (auto device : deviceList) {
         DeviceInformation devInfo;
         devInfo.driverDeviceId = device.deviceId;
@@ -57,20 +58,45 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
     return deviceInfos;
 }
 
-int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId) { return midiHdi_->OpenDevice(deviceId); }
+int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
+{
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    return midiHdi_->OpenDevice(deviceId);
+}
 
-int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId) { return midiHdi_->CloseDevice(deviceId); }
+int32_t UsbMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriverCallback deviceCallback) { return -1; }
+
+int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
+{
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    return midiHdi_->CloseDevice(deviceId);
+}
 
 int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
 {
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
     auto usbCallback = sptr<UsbDriverCallback>::MakeSptr(cb);
     return midiHdi_->OpenInputPort(deviceId, portIndex, usbCallback);
 }
 
 int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t portIndex)
 {
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->CloseInputPort(deviceId, portIndex);
 }
+
+int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, size_t portIndex)
+{
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");   
+    return midiHdi_->OpenOutputPort(deviceId, portIndex);
+}
+
+int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, size_t portIndex)
+{
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");   
+    return midiHdi_->CloseOutputPort(deviceId, portIndex);
+}
+
 
 int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list)
 {

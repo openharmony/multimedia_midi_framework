@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -49,7 +49,7 @@ public:
 };
 
 class MockMidiServiceController : public MidiServiceController {
-    MOCK_METHOD(int32_t, CreateClientInServer,
+    MOCK_METHOD(int32_t, CreateMidiInServer,
                 (std::shared_ptr<MidiServiceCallback> callback, sptr<IRemoteObject> &client, uint32_t &clientId));
 };
 
@@ -241,12 +241,12 @@ HWTEST_F(MidiServerUnitTest, MidiServer_OnStart001, TestSize.Level0)
 }
 
 /**
- * @tc.name: MidiServer_CreateClientInServer001
- * @tc.desc: call callback's CreateClientInServer
+ * @tc.name: MidiServer_CreateMidiInServer001
+ * @tc.desc: call callback's CreateMidiInServer
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiServer_CreateClientInServer001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiServer_CreateMidiInServer001, TestSize.Level0)
 {
     int32_t systemAbilityId = 123;
     sptr<MidiServer> server = sptr<MidiServer>::MakeSptr(systemAbilityId, true);
@@ -259,6 +259,6 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateClientInServer001, TestSize.Level0
     ASSERT_NE(object, nullptr);
 
     EXPECT_NE(nullptr, server->controller_);
-    EXPECT_EQ(MIDI_STATUS_OK, server->CreateClientInServer(object, client, clientId));
+    EXPECT_EQ(MIDI_STATUS_OK, server->CreateMidiInServer(object, client, clientId));
     delete controler;
 }

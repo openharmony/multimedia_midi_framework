@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,16 +22,11 @@
 
 #include "midi_log.h"
 #include "midi_client_private.h"
-#include "midi_callback_stub.h"
 #include "midi_service_client.h"
 #include "securec.h"
 
 namespace OHOS {
 namespace MIDI {
-namespace {
-std::vector<std::unique_ptr<MidiClient>> clients;
-std::mutex clientsMutex;
-}  // namespace
 
 class MidiClientCallback : public MidiCallbackStub {
 public:
@@ -78,7 +73,35 @@ static bool ConvertToDeviceInformation(
             MIDI_STATUS_OK,
         false,
         "copy vendorName failed");
+    it = deviceInfo.find(ADDRESS);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
+    CHECK_AND_RETURN_RET_LOG(
+        strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress), it->second.c_str(), it->second.length()) ==
+            MIDI_STATUS_OK,
+        false,
+        "copy vendorName failed");
     return true;
+}
+MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
+        OH_MIDIOnDeviceOpened callback, void *userData)
+        : ipc_(midiServiceInterface), callback_(callback), userData_(userData)
+{
+
+}
+
+int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo)
+{
+    CHECK_AND_RETURN_RET_LOG(callback_ != nullptr && ipc_.lock(), MIDI_STATUS_UNKNOWN_ERROR, "callback_ is nullptr");
+    OH_MIDIDeviceInformation info;
+    if (!opened) {
+        callback_(userData_, opened, nullptr, info);
+        return 0;
+    }
+    bool ret = ConvertToDeviceInformation(deviceInfo, info);
+    CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_UNKNOWN_ERROR, "ConvertToDeviceInformation failed");
+    auto newDevice = new MidiDevicePrivate(ipc_.lock(), info.midiDeviceId);
+    callback_(userData_, opened, (OH_MIDIDevice *)newDevice, info);
+    return 0;
 }
 
 static bool ConvertToPortInformation(
@@ -380,6 +403,14 @@ OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **m
     *midiDevice = newDevice;
     MIDI_INFO_LOG("Device opened: %{public}" PRId64, deviceId);
     return MIDI_STATUS_OK;
+}
+
+OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address, OH_MIDIOnDeviceOpened callback, void *userData)
+{
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    auto deivceOpenCallback = sptr<MidiClientDeviceOpenCallback>::MakeSptr(ipc_, callback, userData);
+    auto ret = ipc_->OpenBleDevice(address, deivceOpenCallback);
+    return ret;
 }
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts)

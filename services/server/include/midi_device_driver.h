@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -24,6 +24,7 @@ namespace OHOS {
 namespace MIDI {
 
 using UmpInputCallback = std::function<void(std::vector<MidiEventInner> &events)>;
+using BleDriverCallback = std::function<void(bool connected, DeviceInformation devInfo)>;
 
 class MidiDeviceDriver {
 public:
@@ -33,11 +34,17 @@ public:
 
     virtual int32_t OpenDevice(int64_t deviceId) = 0;
 
+    virtual int32_t OpenDevice(std::string deviceAddr, BleDriverCallback deviceCallback) = 0;
+
     virtual int32_t CloseDevice(int64_t deviceId) = 0;
 
     virtual int32_t OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb) = 0;
 
     virtual int32_t CloseInputPort(int64_t deviceId, size_t portIndex) = 0;
+
+    virtual int32_t OpenOutputPort(int64_t deviceId, size_t portIndex) = 0;
+
+    virtual int32_t CloseOutputPort(int64_t deviceId, size_t portIndex) = 0;
 
     virtual int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list) = 0;
 };

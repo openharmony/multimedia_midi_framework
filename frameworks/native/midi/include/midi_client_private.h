@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -27,11 +27,24 @@
 #include "midi_client.h"
 #include "midi_service_interface.h"
 #include "midi_shared_ring.h"
+#include "midi_callback_stub.h"
+#include "midi_device_open_callback_stub.h"
 namespace OHOS {
 namespace MIDI {
 
 class MidiClientCallback;
-
+class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
+public:
+    MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
+        OH_MIDIOnDeviceOpened callback, void *userData);
+    ~MidiClientDeviceOpenCallback() = default;
+    int32_t NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo) override;
+private:
+    std::weak_ptr<MidiServiceInterface> ipc_;
+    OH_MIDIOnDeviceOpened callback_;
+    void *userData_;
+};
+    
 class MidiInputPort {
 public:
     MidiInputPort(OH_OnMIDIReceived callback, void *userData);
@@ -77,10 +90,11 @@ public:
     OH_MIDIStatusCode Init(OH_MIDICallbacks callbacks, void *userData) override;
     OH_MIDIStatusCode GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices) override;
     OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
+    OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIOnDeviceOpened callback, void *userData) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
-    void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
 private:
+    void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
     std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;
     std::vector<OH_MIDIDeviceInformation> deviceInfos_;

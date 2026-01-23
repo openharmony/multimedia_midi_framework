@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -23,6 +23,9 @@
 #include "system_ability_definition.h"
 #include "midi_info.h"
 #include "midi_log.h"
+#include "imidi_device_open_callback.h"
+#include "midi_listener_callback.h"
+#include <chrono>
 
 namespace OHOS {
 namespace MIDI {
@@ -31,7 +34,6 @@ static constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
 DeviceClientContext::~DeviceClientContext()
 {
     MIDI_INFO_LOG("~DeviceClientContext");
-    clients.clear();
     inputDeviceconnections_.clear();
 }
 
@@ -40,6 +42,10 @@ MidiServiceController::MidiServiceController() : deviceManager_()
 
 MidiServiceController::~MidiServiceController()
 {
+    CancelUnloadTask();
+    if (unloadThread_.joinable()) {
+        unloadThread_.join();
+    }
     clients_.clear();
 }
 
@@ -54,23 +60,71 @@ void MidiServiceController::Init()
     deviceManager_.Init();
 }
 
-int32_t MidiServiceController::CreateClientInServer(
-    std::shared_ptr<MidiServiceCallback> callback, sptr<IRemoteObject> &client, uint32_t &clientId)
+void MidiServiceController::CancelUnloadTask()
+{
+    bool expected = true;
+    if (isUnloadPending_.compare_exchange_strong(expected, false)) {
+        {
+            std::lock_guard<std::mutex> lk(unloadMutex_);
+        }
+        unloadCv_.notify_all();
+        MIDI_INFO_LOG("Pending unload task cancelled.");
+    }
+}
+void MidiServiceController::ScheduleUnloadTask()
+{
+    if (isUnloadPending_) {
+        return;
+    }
+    isUnloadPending_ = true;
+    if (unloadThread_.joinable()) {
+        unloadThread_.join();
+    }
+
+    unloadThread_ = std::thread([this]() {
+        MIDI_INFO_LOG("Unload timer started. Waiting for 5 minutes...");
+        
+        std::unique_lock<std::mutex> lk(unloadMutex_);
+        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(UNLOAD_DELAY_TIME)) == std::cv_status::timeout) {
+
+            if (isUnloadPending_) {
+                MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
+                auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
+                if (samgr != nullptr) {
+                    samgr->UnloadSystemAbility(MIDI_SERVICE_ID);
+                } else {
+                    MIDI_ERR_LOG("Get samgr failed.");
+                }
+                isUnloadPending_ = false;
+            }
+        } else {
+            MIDI_INFO_LOG("Unload timer thread woke up early (Cancelled).");
+        }
+    });
+}
+
+int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &object,
+    sptr<IRemoteObject> &client, uint32_t &clientId)
 {
     std::lock_guard lock(lock_);
+    sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
+    CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_UNKNOWN_ERROR, "listener is nullptr");
+    std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
+    CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
+
+    CancelUnloadTask();
     if (currentClientId_ >= MAX_CLIENTID) {
         currentClientId_ = 0;
     }
-
     clientId = ++currentClientId_;  // todo 查看sessionId
-    sptr<MidiClientInServer> midiClient = new (std::nothrow) MidiClientInServer(clientId, callback);
+    sptr<MidiInServer> midiClient = new (std::nothrow) MidiInServer(clientId, callback);
     CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient nullptr");
     client = midiClient->AsObject();
     CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient->AsObject nullptr");
     sptr<MidiServiceDeathRecipient> deathRecipient_ = new (std::nothrow) MidiServiceDeathRecipient(clientId);
     CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "deathRecipient_ nullptr");
     deathRecipient_->SetNotifyCb([this](uint32_t clientId) { this->DestroyMidiClient(clientId); });
-    client->AddDeathRecipient(deathRecipient_);
+    object->AddDeathRecipient(deathRecipient_);
     clients_.emplace(clientId, std::move(midiClient));
     MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u", clientId);
     return MIDI_STATUS_OK;
@@ -87,6 +141,7 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevices()
         deviceInfo[MIDI_PROTOCOL] = std::to_string(d.transportProtocol);
         deviceInfo[PRODUCT_NAME] = d.productName;
         deviceInfo[VENDOR_NAME] = d.vendorName;
+        deviceInfo[ADDRESS] = d.address;
         ret.push_back(std::move(deviceInfo));
     }
     return ret;
@@ -134,6 +189,115 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     deviceClientContexts_.emplace(deviceId, std::move(context));
     MIDI_INFO_LOG("Device opened successfully: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
     return MIDI_STATUS_OK;
+}
+
+int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::string &address, const sptr<IRemoteObject> &object)
+{
+    MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, address=%{public}s", clientId, address.c_str());
+
+    sptr<IMidiDeviceOpenCallback> callback = iface_cast<IMidiDeviceOpenCallback>(object);
+    CHECK_AND_RETURN_RET_LOG(callback != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "callback cast failed");
+
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), MIDI_STATUS_INVALID_CLIENT,
+        "Client not found: %{public}u", clientId);
+
+    auto activeIt = activeBleDevices_.find(address);
+    if (activeIt != activeBleDevices_.end()) {
+        int64_t deviceId = activeIt->second;
+        auto ctxIt = deviceClientContexts_.find(deviceId);
+        if (ctxIt != deviceClientContexts_.end()) {
+            MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.", address.c_str(), deviceId);
+            ctxIt->second->clients.insert(clientId);
+            DeviceInformation device = deviceManager_.GetDeviceForDeviceId(deviceId);
+            std::map<int32_t, std::string> deviceInfo;
+            deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
+            deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
+            deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
+            deviceInfo[ADDRESS] = device.address;
+            deviceInfo[PRODUCT_NAME] = device.productName;
+            deviceInfo[VENDOR_NAME] = device.vendorName;
+            lock_.unlock(); 
+            callback->NotifyDeviceOpened(true, deviceInfo);
+            return MIDI_STATUS_OK;
+        }
+    }
+
+    // 2. Check if a connection is already PENDING for this address
+    bool isFirstRequest = (pendingBleConnections_.find(address) == pendingBleConnections_.end());
+    PendingBleConnection req = { clientId, callback };
+    pendingBleConnections_[address].push_back(req);
+
+    if (!isFirstRequest) {
+        MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.", address.c_str(), clientId);
+        return MIDI_STATUS_OK;
+    }
+
+    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", address.c_str());
+    
+    // We use a lambda that captures 'this' to callback into the controller
+    auto completeCallback = [this, address](bool success, int64_t deviceId, const std::map<int32_t, std::string> &info) {
+        this->HandleBleOpenComplete(address, success, deviceId, info);
+    };
+
+    int32_t ret = deviceManager_.OpenBleDevice(address, completeCallback);
+    if (ret != MIDI_STATUS_OK) {
+        MIDI_ERR_LOG("Manager OpenBleDevice failed immediately: %{public}d", ret);
+        // Clean up pending list immediately
+        pendingBleConnections_.erase(address);
+        return ret;
+    }
+
+    return MIDI_STATUS_OK;
+}
+
+void MidiServiceController::HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId, 
+                                                const std::map<int32_t, std::string> &deviceInfo)
+{
+    MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64, 
+                address.c_str(), success, deviceId);
+
+    std::list<PendingBleConnection> waitingClients;
+
+    {
+        std::lock_guard lock(lock_);
+        auto it = pendingBleConnections_.find(address);
+        if (it != pendingBleConnections_.end()) {
+            waitingClients = std::move(it->second);
+            pendingBleConnections_.erase(it);
+        } else {
+            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)", address.c_str());
+        }
+
+        if (success) {
+            // Register map for quick lookup
+            activeBleDevices_[address] = deviceId;
+
+            // Create Context ONLY now
+            std::unordered_set<int32_t> initialClients;
+            for (const auto &req : waitingClients) {
+                // Verify client still exists
+                if (clients_.find(req.clientId) != clients_.end()) {
+                    initialClients.insert(req.clientId);
+                }
+            }
+
+            if (!initialClients.empty()) {
+                auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(initialClients));
+                deviceClientContexts_.emplace(deviceId, std::move(context));
+            } else {
+                MIDI_WARNING_LOG("All waiting clients died before BLE connected.");
+                // Should we close the device immediately? For now, keep it or let Manager handle.
+                deviceManager_.CloseDevice(deviceId); // Optional strategy
+            }
+        }
+    }
+    // Notify clients outside the lock
+    for (const auto &req : waitingClients) {
+        if (req.callback) {
+            req.callback->NotifyDeviceOpened(success, deviceInfo);
+        }
+    }
 }
 
 int32_t MidiServiceController::OpenInputPort(
@@ -286,10 +450,8 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
     clients_.erase(it);
     MIDI_INFO_LOG("Client destroyed: %{public}u", clientId);
     CHECK_AND_RETURN_RET(clients_.empty(), MIDI_STATUS_OK);
-    auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-    CHECK_AND_RETURN_RET_LOG(samgr != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "Get samgr failed.");
-    MIDI_INFO_LOG("UnloadSystemAbility midi_server");
-    samgr->UnloadSystemAbility(MIDI_SERVICE_ID);
+    MIDI_INFO_LOG("No clients left. Scheduling unload.");
+    ScheduleUnloadTask();
     return MIDI_STATUS_OK;
 }
 
@@ -298,6 +460,13 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
     if (change == REMOVED) {
         std::lock_guard lock(lock_);
         MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
+        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); ) {
+            if (it->second == device.deviceId) {
+                activeBleDevices_.erase(it++);
+            } else {
+                ++it;
+            }
+        }
         auto it = deviceClientContexts_.find(device.deviceId);
         if (it != deviceClientContexts_.end()) {
             deviceClientContexts_.erase(it);
@@ -307,6 +476,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
     deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
     deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
     deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
+    deviceInfo[ADDRESS] = device.address;
     deviceInfo[PRODUCT_NAME] = device.productName;
     deviceInfo[VENDOR_NAME] = device.vendorName;
     for (auto it : clients_) {

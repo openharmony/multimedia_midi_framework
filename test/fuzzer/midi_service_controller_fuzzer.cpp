@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -33,19 +33,19 @@ constexpr int32_t RING_BUFFER_DEFAULT_SIZE = 2048;
 } // namespace
 MidiServiceController *midiServiceController_ = nullptr;
 
-// Mock Callback for CreateClientInServer
+// Mock Callback for CreateMidiInServer
 class MidiServiceCallbackFuzzer : public MidiServiceCallback {
 public:
     void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) override {}
     void NotifyError(int32_t code) override {}
 };
 
-void CreateClientInServer(FuzzedDataProvider &fdp)
+void CreateMidiInServer(FuzzedDataProvider &fdp)
 {
     std::shared_ptr<MidiServiceCallback> callback = std::make_shared<MidiServiceCallbackFuzzer>();
     sptr<IRemoteObject> client;
     uint32_t clientId = 0;
-    midiServiceController_->CreateClientInServer(callback, client, clientId);
+    midiServiceController_->CreateMidiInServer(callback, client, clientId);
 }
 
 void GetDevices(FuzzedDataProvider &fdp) { midiServiceController_->GetDevices(); }
@@ -106,7 +106,7 @@ void MidiServiceControllerTest(FuzzedDataProvider &fdp)
 {
     CHECK_AND_RETURN_LOG(midiServiceController_ != nullptr, "midiServiceController_ is nullptr");
 
-    auto func = fdp.PickValueInArray({CreateClientInServer, GetDevices, GetDevicePorts, OpenDevice, CloseDevice,
+    auto func = fdp.PickValueInArray({CreateMidiInServer, GetDevices, GetDevicePorts, OpenDevice, CloseDevice,
                                       OpenInputPort, CloseInputPort, DestroyMidiClient});
 
     func(fdp);

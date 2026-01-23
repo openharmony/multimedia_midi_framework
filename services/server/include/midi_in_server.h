@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,20 +13,21 @@
  * limitations under the License.
  */
 
-#ifndef MIDI_CLIENT_IN_SERVER_H
-#define MIDI_CLIENT_IN_SERVER_H
+#ifndef MIDI_IN_SERVER_H
+#define MIDI_IN_SERVER_H
 #include "midi_info.h"
 #include "midi_shared_ring.h"
-#include "ipc_midi_client_in_server_stub.h"
+#include "ipc_midi_in_server_stub.h"
 namespace OHOS {
 namespace MIDI {
-class MidiClientInServer : public IpcMidiClientInServerStub {
+class MidiInServer : public IpcMidiInServerStub {
 public:
-    MidiClientInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback);
-    virtual ~MidiClientInServer();
+    MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback);
+    virtual ~MidiInServer();
     int32_t GetDevices(std::vector<std::map<int32_t, std::string>> &devices) override;
     int32_t GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports) override;
     int32_t OpenDevice(int64_t deviceId) override;
+    int32_t OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object) override;
     int32_t CloseDevice(int64_t deviceId) override;
     int32_t OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex) override;
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override;

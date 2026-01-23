@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,6 +17,7 @@
 
 #include "imidi_service.h"
 #include "midi_callback_stub.h"
+#include "midi_device_open_callback_stub.h"
 #include "midi_info.h"
 #include "midi_shared_ring.h"
 #include "native_midi_base.h"
@@ -32,6 +33,7 @@ public:
     virtual OH_MIDIStatusCode CloseDevice(int64_t deviceId) = 0;
     virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId,
                                              std::vector<std::map<int32_t, std::string>> &portInfos) = 0;
+    virtual OH_MIDIStatusCode OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback) = 0;
     virtual OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                             uint32_t portIndex) = 0;
     virtual OH_MIDIStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) = 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -104,22 +104,29 @@ OH_MIDIStatusCode OH_MIDIGetDevices(OH_MIDIClient *client, OH_MIDIDeviceInformat
 OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device);
 
 /**
- * @brief Open MIDI BLE device
+ * @brief Open MIDI BLE device asynchronously.
+ *
+ * Initiates a connection to a Bluetooth LE MIDI device. This function returns immediately,
+ * and the connection result is delivered via the provided callback.
  *
  * @permission ohos.permission.ACCESS_BLUETOOTH
+ *
  * @param client Target client handle.
- * @param deviceAddr BLE Mac Address.
- * @param device Pointer to receive the device handle.
- * @param deviceId Device ID.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- * or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- * or {@link #MIDI_STATUS_DEVICE_ALREADY_OPEN} if device is opened by this client.
- * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if device is nullptr, or the deviceAddr does not exist.
- * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @param deviceAddr The MAC address of the BLE device (e.g., "AA:BB:CC:DD:EE:FF").
+ * @param callback The callback function to be invoked when the connection process completes.
+ * @param userData User context pointer to be passed to the callback.
+ * @return {@link #MIDI_STATUS_OK} if the connection request was successfully dispatched.
+ * {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ * {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceAddr or callback is nullptr.
+ * {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if the service is unreachable.
+ * @note This function triggers a BLE scan and connection process which may take time.
+ * Ensure the application has the necessary Bluetooth permissions.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(
-    OH_MIDIClient *client, const char *deviceAddr, OH_MIDIDevice **device, int64_t *deviceId);
+OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, 
+                                       const char *deviceAddr, 
+                                       OH_MIDIOnDeviceOpened callback, 
+                                       void *userData);
 
 /**
  * @brief Close MIDI device
@@ -167,7 +174,7 @@ OH_MIDIStatusCode OH_MIDIGetDevicePorts(
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIOpenInputPort(
-    OH_MIDIDevice *device, OH_MIDIPortDescriptor portIndex, OH_OnMIDIReceived callback, void *userData);
+    OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor, OH_OnMIDIReceived callback, void *userData);
 
 /**
  * @brief Open MIDI output port (Send Data)

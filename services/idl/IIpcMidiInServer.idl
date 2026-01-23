@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,10 +16,11 @@ package OHOS.MIDI;
 sequenceable OHOS.IRemoteObject;
 sequenceable midi_shared_ring..OHOS.MIDI.MidiSharedRing;
 
-interface IIpcMidiClientInServer{
+interface IIpcMidiInServer {
     [ipccode 0] void GetDevices([out] List<OrderedMap<int, String>> devices);
     void GetDevicePorts([in] long deviceId, [out] List<OrderedMap<int, String>> ports);
     void OpenDevice([in] long deviceId);
+    void OpenBleDevice([in] String address, [in] IRemoteObject object);
     void OpenInputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
     void CloseInputPort([in] long deviceId, [in] unsigned int portIndex);
     void CloseDevice([in] long deviceId);

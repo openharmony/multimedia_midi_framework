@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -42,7 +42,8 @@ ohos_shared_library("midi_service") {
   install_enable = true
 
   sources = [
-    "server/src/midi_client_in_server.cpp",
+    "server/src/midi_in_server.cpp",
+    "server/src/midi_device_ble.cpp",
     "server/src/midi_device_mananger.cpp",
     "server/src/midi_device_usb.cpp",
     "server/src/midi_listener_callback.cpp",
@@ -69,8 +70,10 @@ ohos_shared_library("midi_service") {
 
   external_deps = [
     "ability_base:want",
+    "bluetooth:btframework",
     "common_event_service:cesfwk_innerkits",
     "c_utils:utils",
+    "eventhandler:libeventhandler",
     "drivers_interface_midi:libmidi_proxy_1.0",
     "hilog:libhilog",
     "init:libbegetutil",

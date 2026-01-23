@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,7 +20,6 @@
 #include "iservice_registry.h"
 #include "system_ability_definition.h"
 #include "midi_log.h"
-#include "midi_listener_callback.h"
 namespace OHOS {
 namespace MIDI {
 REGISTER_SYSTEM_ABILITY_BY_ID(MidiServer, MIDI_SERVICE_ID, false)
@@ -36,15 +35,12 @@ void MidiServer::OnStart()
 
 void MidiServer::OnDump() {}
 
-int32_t MidiServer::CreateClientInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
+int32_t MidiServer::CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
                                          uint32_t &clientId)
 {
     CHECK_AND_RETURN_RET_LOG(controller_, MIDI_STATUS_UNKNOWN_ERROR, "controller_ is nullptr");
-    sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_UNKNOWN_ERROR, "listener is nullptr");
-    std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
-    CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
-    return controller_->CreateClientInServer(callback, client, clientId);
+    CHECK_AND_RETURN_RET_LOG(object, MIDI_STATUS_UNKNOWN_ERROR, "object is nullptr");
+    return controller_->CreateMidiInServer(object, client, clientId);
 }
 
 } // namespace MIDI
