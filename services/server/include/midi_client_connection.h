@@ -33,7 +33,7 @@ class ClientConnectionInServer {
 public:
     struct PendingEvent {
         std::chrono::steady_clock::time_point due;
-        std::vector<uint8_t> data;
+        std::vector<uint32_t> data;
         uint64_t timestamp = 0;
     };
     struct PendingGreater {
@@ -48,7 +48,7 @@ public:
         : clientId_(clientId), deviceHandle_(handle), portIndex_(portIndex) {}
     ~ClientConnectionInServer() = default;
 
-    int32_t CreateRingBuffer();
+    int32_t CreateRingBuffer(int fd = -1);
 
     int64_t GetDeviceHandle() const { return deviceHandle_; }
     uint32_t GetClientId() const { return clientId_; }
@@ -61,9 +61,9 @@ public:
     void SetMaxPending(size_t maxPending) { maxPending_ = maxPending; }
     bool IsPendingFull() const { return pending_.size() >= maxPending_; }
     bool HasPending() const { return !pending_.empty(); }
-    bool EnqueueNonRealtime(const uint8_t* payload, size_t len,
-                            const std::chrono::steady_clock::time_point& due,
-                            uint64_t ts);
+    bool EnqueueNonRealtime(std::vector<uint32_t>&& payloadWords,
+                            std::chrono::steady_clock::time_point dueTime,
+                            uint64_t timestamp);
     const PendingEvent* PeekPendingTop() const;
     bool PopPendingTop(PendingEvent& out);
 

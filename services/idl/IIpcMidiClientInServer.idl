@@ -21,7 +21,9 @@ interface IIpcMidiClientInServer{
     void GetDevicePorts([in] long deviceId, [out] List<OrderedMap<int, String>> ports);
     void OpenDevice([in] long deviceId);
     void OpenInputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
+    void OpenOutputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
     void CloseInputPort([in] long deviceId, [in] unsigned int portIndex);
+    void CloseOutputPort([in] long deviceId, [in] unsigned int portIndex);
     void CloseDevice([in] long deviceId);
     void DestroyMidiClient();
 }

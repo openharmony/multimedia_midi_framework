@@ -55,7 +55,10 @@ public:
     int32_t CloseDevice(int64_t deviceId);
     int32_t OpenInputPort(std::shared_ptr<DeviceConnectionForInput> &inputConnection, int64_t deviceId,
                           uint32_t portIndex);
+    int32_t OpenOutputPort(std::shared_ptr<DeviceConnectionForOutput> &outputConnection, int64_t deviceId,
+                          uint32_t portIndex);
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex);
+    int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex);
 
 private:
     int64_t GenerateDeviceId();

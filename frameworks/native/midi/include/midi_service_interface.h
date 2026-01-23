@@ -34,7 +34,10 @@ public:
                                              std::vector<std::map<int32_t, std::string>> &portInfos) = 0;
     virtual OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                             uint32_t portIndex) = 0;
+    virtual OH_MIDIStatusCode OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
+                                    uint32_t portIndex) = 0;
     virtual OH_MIDIStatusCode CloseInputPort(int64_t deviceId, uint32_t portIndex) = 0;
+    virtual OH_MIDIStatusCode CloseOutputPort(int64_t deviceId, uint32_t portIndex) = 0;
     virtual OH_MIDIStatusCode DestroyMidiClient() = 0;
 };
 } // namespace MIDI
