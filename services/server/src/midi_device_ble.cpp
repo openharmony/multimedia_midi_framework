@@ -269,7 +269,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
     }
     std::unique_lock<std::mutex> lock(instance->lock_);
     auto it = instance->devices_.find(clientId);
-    CHECK_AND_CONTINUE(it != instance->devices_.end());
+    CHECK_AND_RETURN(it != instance->devices_.end());
     auto &d = it->second;
     std::string svcStr;
     BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcStr);
