@@ -529,7 +529,8 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list)
+int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex,
+    std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
     std::lock_guard<std::mutex> lock(lock_);
@@ -537,7 +538,7 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
     CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}ld", deviceId);
     auto &d = it->second;
     CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady, -1, "not open");
-    for (auto midiEvent : list){
+    for (auto midiEvent : list) {
         std::vector<uint8_t> midi1Buffer;
         ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
         CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
