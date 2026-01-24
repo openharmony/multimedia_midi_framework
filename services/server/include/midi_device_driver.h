@@ -38,15 +38,15 @@ public:
 
     virtual int32_t CloseDevice(int64_t deviceId) = 0;
 
-    virtual int32_t OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb) = 0;
+    virtual int32_t OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback cb) = 0;
 
     virtual int32_t OpenOutputPort(int64_t deviceId, uint32_t portIndex) = 0;
 
-    virtual int32_t CloseInputPort(int64_t deviceId, size_t portIndex) = 0;
+    virtual int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) = 0;
 
     virtual int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) = 0;
 
-    virtual int32_t HanleUmpInput(int64_t deviceId, size_t portIndex, std::vector<MidiEventInner> &list) = 0;
+    virtual int32_t HanleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) = 0;
 };
 
 } // namespace MIDI

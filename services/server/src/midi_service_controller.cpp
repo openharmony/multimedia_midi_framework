@@ -228,7 +228,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
                 address.c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
-           std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
+            std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
             lock.unlock();
             callback->NotifyDeviceOpened(true, deviceInfo);
             return MIDI_STATUS_OK;
@@ -388,7 +388,7 @@ int32_t MidiServiceController::OpenOutputPort(
     }
 
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
-    auto ret = deviceManager_.OpenOutputPort(outputConnection, deviceId, portIndex);
+    auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open output port fail!");
     // start events handle thread of output port
     outputConnection->Start();
@@ -465,7 +465,7 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
     if (outputPort != outputPortConnections.end()) {
         outputPort->second->RemoveClientConnection(clientId);
         if (outputPort->second->IsEmptyClientConections()) {
-            auto ret = deviceManager_.CloseOutputPort(deviceId, portIndex);
+            auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
             CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
             outputPortConnections.erase(outputPort);
         }

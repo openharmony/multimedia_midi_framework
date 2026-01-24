@@ -159,7 +159,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level0)
 HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level0)
 {
     int64_t driverId = 404;
-    size_t portIndex = 1;
+    uint32_t portIndex = 1;
     std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();
@@ -179,7 +179,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level0)
 HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level0)
 {
     int64_t driverId = 505;
-    size_t portIndex = 0;
+    uint32_t portIndex = 0;
     std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();

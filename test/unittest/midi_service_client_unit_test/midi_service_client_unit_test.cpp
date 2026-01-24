@@ -32,7 +32,7 @@ public:
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
 };
 
-class MockIpcMidiClientInServer : public IIpcMidiClientInServer {
+class MockIpcMidiInServer : public IIpcMidiInServer {
 public:
     MOCK_METHOD(int32_t, GetDevices, ((std::vector<std::map<int32_t, std::string>> & devices)), (override));
     MOCK_METHOD(int32_t, OpenDevice, (int64_t), (override));
@@ -59,7 +59,7 @@ class MidiServiceClientUnitTest : public testing::Test {
 public:
 };
 
-static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiClientInServer> &ipc) { client.ipc_ = ipc; }
+static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiInServer> &ipc) { client.ipc_ = ipc; }
 
 /**
  * @tc.name: Init_001
@@ -70,7 +70,7 @@ HWTEST_F(MidiServiceClientUnitTest, Init_001, TestSize.Level0)
 {
     auto client = std::make_shared<MidiServiceClient>();
     sptr<MockMidiCallbackStub> callback = sptr<MockMidiCallbackStub>::MakeSptr();
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(nullptr, client);
     ASSERT_NE(nullptr, callback);
     ASSERT_NE(nullptr, mockIpc);
@@ -99,7 +99,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_001, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, GetDevices_002, TestSize.Level0)
 {
     MidiServiceClient client;
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
@@ -136,7 +136,7 @@ HWTEST_F(MidiServiceClientUnitTest, OpenDevice_001, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, OpenDevice_002, TestSize.Level0)
 {
     MidiServiceClient client;
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
@@ -164,7 +164,7 @@ HWTEST_F(MidiServiceClientUnitTest, CloseDevice_001, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, CloseDevice_002, TestSize.Level0)
 {
     MidiServiceClient client;
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
@@ -193,7 +193,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_001, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_002, TestSize.Level0)
 {
     MidiServiceClient client;
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
@@ -233,7 +233,7 @@ HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_001, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_002, TestSize.Level0)
 {
     MidiServiceClient client;
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
@@ -271,7 +271,7 @@ HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_001, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_002, TestSize.Level0)
 {
     MidiServiceClient client;
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
@@ -290,7 +290,7 @@ HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, DestroyMidiClient_001, TestSize.Level0)
 {
     auto client = std::make_shared<MidiServiceClient>();
-    sptr<MockIpcMidiClientInServer> mockIpc = sptr<MockIpcMidiClientInServer>::MakeSptr();
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
     ASSERT_NE(nullptr, client);
     ASSERT_NE(nullptr, mockIpc);
     client->ipc_ = mockIpc;
