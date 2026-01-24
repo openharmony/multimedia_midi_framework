@@ -392,7 +392,7 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
 
 int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 {
-    std::lock_guard lock(lock_);
+    std::unique_lock<std::mutex> lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
         MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
@@ -419,11 +419,11 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     deviceClientContexts_.erase(it);
     for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); ) {
         if (it->second == deviceId) {
-            activeBleDevices_.erase(it++);
-        } else {
-            ++it;
+            activeBleDevices_.erase(it);
+            break;
         }
     }
+    lock.unlock();
     CHECK_AND_RETURN_RET_LOG(deviceManager_->CloseDevice(deviceId) == MIDI_STATUS_OK,
         MIDI_STATUS_UNKNOWN_ERROR,
         "Close device failed: deviceId=%{public}" PRId64,
@@ -481,9 +481,8 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
         MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
         for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); ) {
             if (it->second == device.deviceId) {
-                activeBleDevices_.erase(it++);
-            } else {
-                ++it;
+                activeBleDevices_.erase(it);
+                break;
             }
         }
         auto it = deviceClientContexts_.find(device.deviceId);

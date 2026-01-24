@@ -405,7 +405,7 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
         device.driverDeviceId);
     MIDI_INFO_LOG("Device closed successfully: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64,
         deviceId,
-        device.driverDeviceId);
+        device.driverDeviceId);    
     return result;
 }
 }  // namespace MIDI

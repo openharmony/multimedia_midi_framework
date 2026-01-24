@@ -283,7 +283,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
 {
     CHECK_AND_RETURN(instance != nullptr);
     MIDI_INFO_LOG("OnRegisterNotify clientId %{public}d status %{public}d", clientId, status);
-    
+
     std::unique_lock<std::mutex> lock(instance->lock_);
     auto it = instance->devices_.find(clientId);
     CHECK_AND_RETURN(it != instance->devices_.end());
@@ -407,7 +407,7 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
 
 int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 {
-    std::lock_guard<std::mutex> lock(lock_);
+    std::unique_lock<std::mutex> lock(lock_);
 
     auto it = devices_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1,"Device not found: %{public}ld", deviceId);
@@ -417,6 +417,9 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     MIDI_INFO_LOG("BleGattcDisconnect : %{public}d", ret);
     BleGattcUnRegister(ctx.id);
     MIDI_INFO_LOG("Unregistered client: %{public}ld", ctx.id);
+    lock.unlock();
+    NotifyManager(deviceId, false);
+    lock.lock();
     devices_.erase(it);
     MIDI_INFO_LOG("Device closed successfully: id=%{public}ld, address=%{public}s", 
             deviceId, ctx.address.c_str());
