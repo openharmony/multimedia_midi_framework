@@ -141,7 +141,6 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<in
 
     OH_MIDIDeviceInformation info;
     bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    // todo 改变midiClient中的设备信息
     CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_UNKNOWN_ERROR, "ConvertToDeviceInformation failed");
     deviceChange_(static_cast<OH_MIDIDeviceChangeAction>(change), info);
 
