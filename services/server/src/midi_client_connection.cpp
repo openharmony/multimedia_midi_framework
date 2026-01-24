@@ -31,9 +31,10 @@ std::shared_ptr<MidiSharedRing> ClientConnectionInServer::GetRingBuffer()
     return sharedRingBuffer_;
 }
 
-int32_t ClientConnectionInServer::CreateRingBuffer()
+int32_t ClientConnectionInServer::CreateRingBuffer(int fd)
 {
-    sharedRingBuffer_ = MidiSharedRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE);
+    auto fdObject = std::make_shared<UniqueFd>(fd);
+    sharedRingBuffer_ = MidiSharedRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE, fdObject);
     CHECK_AND_RETURN_RET_LOG(sharedRingBuffer_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "create fail");
 
     memset_s(sharedRingBuffer_->GetDataBase(), sharedRingBuffer_->GetCapacity(), 0,
@@ -49,17 +50,17 @@ int32_t ClientConnectionInServer::TrySendToClient(const MidiEventInner& event)
     return MIDI_STATUS_OK;
 }
 
-bool ClientConnectionInServer::EnqueueNonRealtime(const uint8_t* payload, size_t len,
-                                                  const std::chrono::steady_clock::time_point& due,
-                                                  uint64_t ts)
+bool ClientConnectionInServer::EnqueueNonRealtime(std::vector<uint32_t>&& payloadWords,
+                                                  std::chrono::steady_clock::time_point dueTime,
+                                                  uint64_t timestamp)
 {
     if (IsPendingFull()) {
         return false;
     }
     PendingEvent event;
-    event.due = due;
-    event.timestamp = ts;
-    event.data.assign(payload, payload + len);
+    event.due = dueTime;
+    event.timestamp = timestamp;
+    event.data = std::move(payloadWords);
     pending_.push(std::move(event));
     return true;
 }

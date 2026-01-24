@@ -24,6 +24,7 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
+#include <securec.h>
 #include <unistd.h>
 
 #include "native_midi_base.h"
@@ -32,36 +33,6 @@
 
 namespace OHOS {
 namespace MIDI {
-
-// ====== UniqueFd ======
-UniqueFd::~UniqueFd()
-{
-    Reset();
-}
-
-UniqueFd::UniqueFd(UniqueFd &&other) noexcept
-{
-    fd_ = other.fd_;
-    other.fd_ = -1;
-}
-
-UniqueFd &UniqueFd::operator=(UniqueFd &&other) noexcept
-{
-    if (this != &other) {
-        Reset();
-        fd_ = other.fd_;
-        other.fd_ = -1;
-    }
-    return *this;
-}
-
-void UniqueFd::Reset(int fd)
-{
-    if (fd_ >= 0) {
-        ::close(fd_);
-    }
-    fd_ = fd;
-}
 
 void DrainCounterFd(int fd)
 {
@@ -118,6 +89,15 @@ void DeviceConnectionBase::RemoveClientConnection(uint32_t clientId)
         clients_.end());
 }
 
+bool DeviceConnectionBase::HasClientConnection(uint32_t clientId) const
+{
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    return std::any_of(clients_.begin(), clients_.end(),
+        [&](const std::shared_ptr<ClientConnectionInServer> &c) {
+            return c && c->GetClientId() == clientId;
+        });
+}
+
 bool DeviceConnectionBase::IsEmptyClientConections()
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
@@ -157,7 +137,24 @@ DeviceConnectionForOutput::DeviceConnectionForOutput(DeviceConnectionInfo info) 
 
 DeviceConnectionForOutput::~DeviceConnectionForOutput()
 {
+    MIDI_INFO_LOG("DeviceConnectionForOutput Destroy");
     (void)Stop();
+}
+
+
+int32_t DeviceConnectionForOutput::AddClientConnection(
+    uint32_t clientId, int64_t deviceHandle, std::shared_ptr<MidiSharedRing> &buffer)
+{
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    int fd = dup(notifyEventFd_.Get());
+    auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
+    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "creat client connection fail");
+    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer(fd) == MIDI_STATUS_OK,
+        MIDI_STATUS_UNKNOWN_ERROR,
+        "init client connection fail");
+    buffer = clientConnection->GetRingBuffer();
+    clients_.push_back(std::move(clientConnection));
+    return MIDI_STATUS_OK;
 }
 
 int32_t DeviceConnectionForOutput::Start()
@@ -266,7 +263,7 @@ void DeviceConnectionForOutput::DrainTimerFd()
 
 void DeviceConnectionForOutput::ThreadMain()
 {
-    UpdateNextTimer();  // 初始 disarm 或设定
+    UpdateNextTimer();
 
     while (running_.load()) {
         epoll_event events[8]{};
@@ -278,7 +275,6 @@ void DeviceConnectionForOutput::ThreadMain()
             break;
         }
 
-        // 不区分触发源：统一 drain 可读 fd，避免重复触发
         DrainEventFd();
         DrainTimerFd();
 
@@ -288,10 +284,10 @@ void DeviceConnectionForOutput::ThreadMain()
 
 void DeviceConnectionForOutput::HandleWakeupOnce()
 {
-    DrainAllClientsRings();
-    CollectDueEventsFromClientHeaps();
-    FlushSendCacheToDriver();
-    UpdateNextTimer();
+    DrainAllClientsRings(); // read event from shared_rings
+    CollectDueEventsFromClientHeaps(); // collect due events
+    FlushSendCacheToDriver(); // send to driver
+    UpdateNextTimer(); // update timer
 }
 
 // ---------------- Step1: drain ring ----------------
@@ -316,9 +312,6 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
     MidiSharedRing::PeekedEvent ringEvent{};
     MidiStatusCode status = MidiStatusCode::OK;
     while ((status = clientRing.PeekNext(ringEvent)) == MidiStatusCode::OK) {
-        if (status == MidiStatusCode::WOULD_BLOCK) {  // todo: no need
-            break;
-        }
         if (status != MidiStatusCode::OK) {
             break;
         }
@@ -335,23 +328,33 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
     }
 }
 
-bool DeviceConnectionForOutput::ConsumeRealtimeEvent(
-    MidiSharedRing &clientRing, const MidiSharedRing::PeekedEvent &ringEvent)
+bool DeviceConnectionForOutput::ConsumeRealtimeEvent(MidiSharedRing& clientRing,
+                                                     const MidiSharedRing::PeekedEvent& ringEvent)
 {
-    std::vector<uint8_t> payload;  // todo: do not create vector here
+    const size_t payloadWordCount = static_cast<size_t>(ringEvent.length);
+    const uint32_t* payloadWords =
+        reinterpret_cast<const uint32_t*>(ringEvent.payloadPtr);
 
-    payload.assign(ringEvent.payloadPtr, ringEvent.payloadPtr + ringEvent.length);
-
-    if (!TryAppendToSendCache(payload)) {
-        FlushSendCacheToDriver();  // todo: flush outside
+    // try enqueue send cache
+    auto res = TryAppendToSendCache(ringEvent.timestamp, payloadWords, payloadWordCount);
+    if (res) {
+        clientRing.CommitRead(ringEvent);
+        return true;
     }
-    if (!TryAppendToSendCache(payload)) {  // todo: no need if, send directly
-        SendToDriver(payload);
+    // if unable to enqueue, flush the send cache, and try again
+    FlushSendCacheToDriver();
+    if (!TryAppendToSendCache(ringEvent.timestamp, payloadWords, payloadWordCount)) {
+        MidiEventInner directEvent {};
+        directEvent.timestamp = ringEvent.timestamp;
+        directEvent.length = payloadWordCount;
+        directEvent.data = payloadWords;
+        SendToDriver(directEvent);
     }
 
     clientRing.CommitRead(ringEvent);
     return true;
 }
+
 
 bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer &clientConnection,
     MidiSharedRing &clientRing, const MidiSharedRing::PeekedEvent &ringEvent)
@@ -360,13 +363,22 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         return false;
     }
 
-    // timestamp: relative delay
-    const auto now = std::chrono::steady_clock::now();
-    const auto delay = std::chrono::nanoseconds(static_cast<int64_t>(ringEvent.timestamp));
-    const auto dueTime = now + delay;
+    const auto dueTime = std::chrono::steady_clock::time_point(std::chrono::nanoseconds(ringEvent.timestamp));
 
-    const bool enqueued =
-        clientConnection.EnqueueNonRealtime(ringEvent.payloadPtr, ringEvent.length, dueTime, ringEvent.timestamp);
+    const size_t payloadWordCount = static_cast<size_t>(ringEvent.length);
+    const size_t payloadBytes = payloadWordCount * sizeof(uint32_t);
+
+    std::vector<uint32_t> payloadWords;
+    payloadWords.resize(payloadWordCount);
+
+    if (payloadBytes > 0) {
+        (void)memcpy_s(payloadWords.data(),
+                       payloadBytes,
+                       ringEvent.payloadPtr,
+                       payloadBytes);
+    }
+
+    const bool enqueued = clientConnection.EnqueueNonRealtime(std::move(payloadWords), dueTime, ringEvent.timestamp);
     if (!enqueued) {
         return false;
     }
@@ -380,46 +392,70 @@ void DeviceConnectionForOutput::CollectDueEventsFromClientHeaps()
 {
     const auto clientsSnapshot = SnapshotClients();  // todo: make clientsSnapshot be clientsSnapshot_
     auto now = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point earliestDueTime {};
 
-    std::chrono::steady_clock::time_point earliestDueTime{};
-    auto earliestClient = FindClientWithEarliestDue(clientsSnapshot, earliestDueTime);
-    while (earliestClient != nullptr && earliestDueTime <= now) {
+    while (auto earliestClient = FindClientWithEarliestDue(clientsSnapshot, earliestDueTime)) {
+        if (earliestDueTime > now) {
+            break;
+        }
+
         ClientConnectionInServer::PendingEvent dueEvent;
         if (!earliestClient->PopPendingTop(dueEvent)) {
             break;
         }
 
-        const std::vector<uint8_t> &payload = dueEvent.data;
+        MidiEventInner dueMidiEvent;
+        dueMidiEvent.timestamp = dueEvent.timestamp;
+        dueMidiEvent.length = dueEvent.data.size();
+        dueMidiEvent.data = dueEvent.data.data();
 
-        if (!TryAppendToSendCache(payload)) {
-            FlushSendCacheToDriver();
-            TryAppendToSendCache(payload);
+        // try enqueue send cache
+        auto res = TryAppendToSendCache(dueEvent.timestamp, dueEvent.data.data(), dueEvent.data.size());
+        CHECK_AND_RETURN(res != true);
+        FlushSendCacheToDriver();
+
+        if (!TryAppendToSendCache(dueEvent.timestamp, dueEvent.data.data(), dueEvent.data.size())) {
+            SendToDriver(dueMidiEvent);
         }
-        SendToDriver(payload);
 
         now = std::chrono::steady_clock::now();
     }
 }
 
 // ---------------- Step3: flush cache ----------------
-bool DeviceConnectionForOutput::TryAppendToSendCache(const std::vector<uint8_t> &payload)
+bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
+                                                     const uint32_t* payloadWords,
+                                                     size_t payloadWordCount)
 {
-    if (payload.empty()) {
+    if (payloadWordCount == 0) {
         return true;
     }
-
-    const size_t payloadSize = payload.size();
-    if (payloadSize > maxSendCacheBytes_) {
-        return false;
-    }
-    if (currentSendCacheBytes_ + payloadSize > maxSendCacheBytes_) {
+    if (payloadWords == nullptr) {
         return false;
     }
 
-    SendItem item;
-    item.data = payload;
-    sendCache_.push_back(std::move(item));
-    currentSendCacheBytes_ += payloadSize;
+    const size_t payloadBytes = payloadWordCount * sizeof(uint32_t);
+
+    if (payloadBytes > maxSendCacheBytes_) {
+        return false;
+    }
+    if (currentSendCacheBytes_ + payloadBytes > maxSendCacheBytes_) {
+        return false;
+    }
+
+    std::vector<uint32_t> payloadBuffer;
+    payloadBuffer.resize(payloadWordCount);
+    auto ret = memcpy_s(payloadBuffer.data(), payloadBytes, payloadWords, payloadBytes);
+    CHECK_AND_RETURN_RET_LOG(ret == 0, false, "copy error");
+    MidiEventInner cachedEvent {};
+    cachedEvent.timestamp = timestamp;
+    cachedEvent.length = payloadWordCount;
+    cachedEvent.data = payloadBuffer.data();
+
+    sendCachePayloadBuffers_.push_back(std::move(payloadBuffer));
+    sendCache_.push_back(cachedEvent);
+
+    currentSendCacheBytes_ += payloadBytes;
     return true;
 }
 
@@ -427,7 +463,7 @@ std::shared_ptr<ClientConnectionInServer> DeviceConnectionForOutput::FindClientW
     const std::vector<std::shared_ptr<ClientConnectionInServer>> &clientsSnapshot,
     std::chrono::steady_clock::time_point &outEarliestDueTime)
 {
-    std::shared_ptr<ClientConnectionInServer> bestClient;
+    std::shared_ptr<ClientConnectionInServer> bestClient = nullptr;
     bool hasCandidate = false;
 
     for (const auto &clientConnection : clientsSnapshot) {
@@ -453,18 +489,16 @@ void DeviceConnectionForOutput::FlushSendCacheToDriver()
     if (sendCache_.empty()) {
         return;
     }
-
-    for (const auto &item : sendCache_) {
-        SendToDriver(item.data);
-    }
-
+    CHECK_AND_RETURN_LOG(info_.driver != nullptr, "driver is null!");
+    info_.driver->HanleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
     sendCache_.clear();
+    sendCachePayloadBuffers_.clear();
     currentSendCacheBytes_ = 0;
 }
 
-void DeviceConnectionForOutput::SendToDriver(const std::vector<uint8_t> &payload)
+void DeviceConnectionForOutput::SendToDriver(MidiEventInner event)
 {
-    (void)payload;
+    (void)event;
 }
 
 // ---------------- Step4: timerfd ----------------

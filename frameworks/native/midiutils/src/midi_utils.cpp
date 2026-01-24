@@ -54,5 +54,35 @@ void CloseFd(int fd)
     close(fd);
     MIDI_DEBUG_LOG("fd: %{public}d closed successfuly!", tmpFd);
 }
+
+// ====== UniqueFd ======
+UniqueFd::~UniqueFd()
+{
+    Reset();
+}
+
+UniqueFd::UniqueFd(UniqueFd &&other) noexcept
+{
+    fd_ = other.fd_;
+    other.fd_ = -1;
+}
+
+UniqueFd &UniqueFd::operator=(UniqueFd &&other) noexcept
+{
+    if (this != &other) {
+        Reset();
+        fd_ = other.fd_;
+        other.fd_ = -1;
+    }
+    return *this;
+}
+
+void UniqueFd::Reset(int fd)
+{
+    if (fd_ >= 0) {
+        ::close(fd_);
+    }
+    fd_ = fd;
+}
 } // namespace MIDI
 } // namespace OHOS

@@ -33,29 +33,9 @@ enum class MidiPortDirection : uint32_t { INPUT = 0, OUTPUT = 1 };
 
 struct DeviceConnectionInfo {
     MidiDeviceDriver *driver = nullptr;
-    uint32_t deviceId = 0;
+    int64_t deviceId = 0;
     MidiPortDirection direction;
     uint32_t portIndex;
-};
-
-class UniqueFd {
-public:
-    UniqueFd() = default;
-    explicit UniqueFd(int fd) : fd_(fd) {}
-    ~UniqueFd();
-
-    UniqueFd(const UniqueFd &) = delete;
-    UniqueFd &operator=(const UniqueFd &) = delete;
-
-    UniqueFd(UniqueFd &&other) noexcept;
-    UniqueFd &operator=(UniqueFd &&other) noexcept;
-
-    int Get() const { return fd_; }
-    bool Valid() const { return fd_ >= 0; }
-    void Reset(int fd = -1);
-
-private:
-    int fd_ = -1;
 };
 
 class DeviceConnectionBase {
@@ -70,10 +50,9 @@ public:
 
     virtual int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle,
                                         std::shared_ptr<MidiSharedRing> &buffer);
-
     virtual void RemoveClientConnection(uint32_t clientId);
-
     virtual bool IsEmptyClientConections();
+    virtual bool HasClientConnection(uint32_t clientId) const;
 
 protected:
     std::vector<std::shared_ptr<ClientConnectionInServer>> SnapshotClients() const;
@@ -105,11 +84,13 @@ public:
     int32_t Stop();
 
     int GetNotifyEventFdForClients() const;
+    int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle,
+                                        std::shared_ptr<MidiSharedRing> &buffer) override;
 
     // todo: maybe not needed
     void SetPerClientMaxPendingEvents(size_t maxPendingEvents);
     void SetMaxSendCacheBytes(size_t maxSendCacheBytes);
-
+    
 private:
     // worker loop
     void ThreadMain();
@@ -127,17 +108,18 @@ private:
     // Step3：flush cache -> driver
     void FlushSendCacheToDriver();
 
-    // Step4：timerfd 设定全局最早 due
+    // Step4：timerfd set earliest due
     void UpdateNextTimer();
 
-    // helper：在所有 client 堆顶找最早 due 的 client
     std::shared_ptr<ClientConnectionInServer>
     FindClientWithEarliestDue(const std::vector<std::shared_ptr<ClientConnectionInServer>> &clientsSnapshot,
                               std::chrono::steady_clock::time_point &outEarliestDueTime);
 
     // send cache helper
-    bool TryAppendToSendCache(const std::vector<uint8_t> &payload);
-    void SendToDriver(const std::vector<uint8_t> &payload);
+    bool TryAppendToSendCache(uint64_t timestamp,
+                              const uint32_t* payloadWords,
+                              size_t payloadWordCount);
+    void SendToDriver(MidiEventInner event);
 
     // fd/epoll helper
     int32_t InitEpollAndFds();
@@ -154,11 +136,12 @@ private:
 
     UniqueFd notifyEventFd_; // eventfd: clients -> server notify
     UniqueFd epollFd_;       // epoll: wait eventfd + timerfd
-    UniqueFd timerFd_;       // timerfd: pending 最早到期
+    UniqueFd timerFd_;       // timerfd: pending earliest due
 
     size_t maxSendCacheBytes_ = 64 * 1024;
     size_t currentSendCacheBytes_ = 0;
-    std::vector<SendItem> sendCache_;
+    std::vector<MidiEventInner> sendCache_;
+    std::vector<std::vector<uint32_t>> sendCachePayloadBuffers_; // for payload
 
     size_t perClientMaxPendingEvents_ = 1024;
 
