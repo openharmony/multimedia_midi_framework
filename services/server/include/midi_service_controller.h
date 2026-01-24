@@ -73,8 +73,8 @@ private:
     void ClosePortforDevice(
         uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
-    void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId, 
-                                const std::map<int32_t, std::string> &deviceInfo);
+    void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
+        const std::map<int32_t, std::string> &deviceInfo);
 
     void ScheduleUnloadTask();
     void CancelUnloadTask();

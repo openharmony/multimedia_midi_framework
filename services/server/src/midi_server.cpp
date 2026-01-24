@@ -36,7 +36,7 @@ void MidiServer::OnStart()
 void MidiServer::OnDump() {}
 
 int32_t MidiServer::CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
-                                         uint32_t &clientId)
+    uint32_t &clientId)
 {
     CHECK_AND_RETURN_RET_LOG(controller_, MIDI_STATUS_UNKNOWN_ERROR, "controller_ is nullptr");
     CHECK_AND_RETURN_RET_LOG(object, MIDI_STATUS_UNKNOWN_ERROR, "object is nullptr");

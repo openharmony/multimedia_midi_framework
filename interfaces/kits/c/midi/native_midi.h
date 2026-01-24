@@ -123,10 +123,8 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
  * Ensure the application has the necessary Bluetooth permissions.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, 
-                                       const char *deviceAddr, 
-                                       OH_MIDIOnDeviceOpened callback, 
-                                       void *userData);
+OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback,
+    void *userData);
 
 /**
  * @brief Close MIDI device

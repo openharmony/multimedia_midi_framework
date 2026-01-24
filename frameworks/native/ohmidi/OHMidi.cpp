@@ -65,11 +65,12 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback, void *userData)
+OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback,
+    void *userData)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient*) client;
-    CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT,"Invalid client");
-    CHECK_AND_RETURN_RET_LOG(deviceAddr != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,"Invalid parameter");
+    CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
+    CHECK_AND_RETURN_RET_LOG(deviceAddr != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
     std::string deviceAddress(deviceAddr);
     OH_MIDIStatusCode ret = midiclient->OpenBleDevice(deviceAddress, callback, userData);
 

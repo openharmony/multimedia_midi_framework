@@ -86,20 +86,17 @@ void MidiServiceController::ScheduleUnloadTask()
 
     unloadThread_ = std::thread([this]() {
         MIDI_INFO_LOG("Unload timer started. Waiting for 5 minutes...");
-        
         std::unique_lock<std::mutex> lk(unloadMutex_);
         if (unloadCv_.wait_for(lk, std::chrono::milliseconds(UNLOAD_DELAY_TIME)) == std::cv_status::timeout) {
-
-            if (isUnloadPending_) {
-                MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
-                auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-                if (samgr != nullptr) {
-                    samgr->UnloadSystemAbility(MIDI_SERVICE_ID);
-                } else {
-                    MIDI_ERR_LOG("Get samgr failed.");
-                }
-                isUnloadPending_ = false;
+            CHECK_AND_RETURN(isUnloadPending_);
+            MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
+            auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
+            if (samgr != nullptr) {
+                samgr->UnloadSystemAbility(MIDI_SERVICE_ID);
+            } else {
+                MIDI_ERR_LOG("Get samgr failed.");
             }
+            isUnloadPending_ = false;
         } else {
             MIDI_INFO_LOG("Unload timer thread woke up early (Cancelled).");
         }
@@ -121,7 +118,7 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
             currentClientId_ = 0;
         }
         clientId = ++currentClientId_;
-    } while(clients_.find(clientId) != clients_.end());
+    } while (clients_.find(clientId) != clients_.end());
     sptr<MidiInServer> midiClient = new (std::nothrow) MidiInServer(clientId, callback);
     CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient nullptr");
     client = midiClient->AsObject();
@@ -201,7 +198,8 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     return MIDI_STATUS_OK;
 }
 
-int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::string &address, const sptr<IRemoteObject> &object)
+int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::string &address,
+    const sptr<IRemoteObject> &object)
 {
     MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, address=%{public}s", clientId, address.c_str());
 
@@ -217,7 +215,8 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         int64_t deviceId = activeIt->second;
         auto ctxIt = deviceClientContexts_.find(deviceId);
         if (ctxIt != deviceClientContexts_.end()) {
-            MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.", address.c_str(), deviceId);
+            MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
+                address.c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
             std::map<int32_t, std::string> deviceInfo;
@@ -239,7 +238,8 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     pendingBleConnections_[address].push_back(req);
 
     if (!isFirstRequest) {
-        MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.", address.c_str(), clientId);
+        MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.",
+            address.c_str(), clientId);
         return MIDI_STATUS_OK;
     }
 
@@ -247,7 +247,8 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
-    auto completeCallback = [weakSelf, address](bool success, int64_t deviceId, const std::map<int32_t, std::string> &info) {
+    auto completeCallback = [weakSelf, address](bool success, int64_t deviceId,
+        const std::map<int32_t, std::string> &info) {
         auto self = weakSelf.lock();
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
         self->HandleBleOpenComplete(address, success, deviceId, info);
@@ -264,10 +265,10 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     return MIDI_STATUS_OK;
 }
 
-void MidiServiceController::HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId, 
-                                                const std::map<int32_t, std::string> &deviceInfo)
+void MidiServiceController::HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
+    const std::map<int32_t, std::string> &deviceInfo)
 {
-    MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64, 
+    MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
                 address.c_str(), success, deviceId);
 
     std::list<PendingBleConnection> waitingClients;
@@ -417,7 +418,7 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     MIDI_INFO_LOG("Client removed from device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
     CHECK_AND_RETURN_RET(clients.empty(), MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
-    for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); ) {
+    for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end();) {
         if (it->second == deviceId) {
             activeBleDevices_.erase(it);
             break;
@@ -479,7 +480,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
     if (change == REMOVED) {
         std::lock_guard lock(lock_);
         MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
-        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); ) {
+        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end();) {
             if (it->second == device.deviceId) {
                 activeBleDevices_.erase(it);
                 break;

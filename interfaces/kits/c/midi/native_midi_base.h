@@ -388,18 +388,18 @@ typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
  * @param opened Indicates whether the connection was successful.
  * true: Connection established, device handle is valid.
  * false: Connection failed, device handle is NULL.
- * @param device The handle of the connected device. 
- * If opened is true, the application MUST close this handle using 
+ * @param device The handle of the connected device.
+ * If opened is true, the application MUST close this handle using
  * {@link OH_MIDICloseDevice} when it is no longer needed.
  * If opened is false, this parameter is NULL.
  * @param info The information of the connected device.
  * Note: This object is valid ONLY within the scope of this callback.
- * If you need to persist specific attributes (e.g., ID or Name), 
+ * If you need to persist specific attributes (e.g., ID or Name),
  * copy them using the Getter interfaces inside the callback.
  * @since 24
  */
 typedef void (*OH_MIDIOnDeviceOpened)(void *userData, 
-                                      bool opened, 
+                                      bool opened,
                                       OH_MIDIDevice *device, 
                                       OH_MIDIDeviceInformation info);
 

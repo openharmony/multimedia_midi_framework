@@ -51,7 +51,7 @@ static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector
         if (mt == UMP_MT_CHANNEL_VOICE) {
             // Type 2: MIDI 1.0 Channel Voice Messages (32-bit)
             // Format: [4b MT][4b Group][4b Status][4b Channel] [8b Note/Data1][8b Vel/Data2]
-            // Note: In UMP, Status includes Channel. UMP: 0x2GSCDD       
+            // Note: In UMP, Status includes Channel. UMP: 0x2GSCDD
             uint8_t status = (ump >> UMP_SHIFT_STATUS) & UMP_MASK_BYTE;
             uint8_t data1 = (ump >> UMP_SHIFT_DATA1) & UMP_MASK_BYTE;
             uint8_t data2 = ump & UMP_MASK_BYTE;
@@ -95,7 +95,7 @@ static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector
                     // No data bytes
                     break;
                 default:
-                    // 0xF0 (Sysex Start) and 0xF7 (Sysex End) are handled in Type 3 usually, 
+                    // 0xF0 (Sysex Start) and 0xF7 (Sysex End) are handled in Type 3 usually,
                     // but simple 1-packet sysex might appear here.
                     break;
             }
@@ -136,8 +136,9 @@ static std::vector<PortInformation> GetPortInfo()
     return portInfos;
 }
 
-static void NotifyManager(int32_t clientId, bool success) {
-    if (!instance) return;
+static void NotifyManager(int32_t clientId, bool success)
+{
+    CHECK_AND_RETURN(instance);
     std::string name = ""; // Could fetch name from GATT
     
     auto it = instance->devices_.find(clientId);
@@ -176,16 +177,22 @@ static bool ParseMac(const std::string &mac, BdAddr &out)
     for (size_t i = 0; i < mac.size();) {
         CHECK_AND_RETURN_RET(i + 1 < mac.size(), false);
         char c1 = mac[i];
-        char c2 = mac[i+1];
+        char c2 = mac[i + 1];
         auto hexVal = [](char c)->int {
-            if (c >= '0' && c <= '9') return c - '0';
-            if (c >= 'A' && c <= 'F') return 10 + (c -'A');
-            if (c >= 'a' && c <= 'f') return 10 + (c -'a');
+            if (c >= '0' && c <= '9') {
+                return c - '0';
+            }
+            if (c >= 'A' && c <= 'F') {
+                return 10 + (c - 'A');
+            }
+            if (c >= 'a' && c <= 'f') {
+                return 10 + (c - 'a');
+            }
             return -1;
         };
         int32_t v1 = hexVal(c1);
         int32_t v2 = hexVal(c2);
-        CHECK_AND_RETURN_RET(v1 >= 0 && v2>= 0, false);
+        CHECK_AND_RETURN_RET(v1 >= 0 && v2 >= 0, false);
         out.addr[bi++] = static_cast<unsigned char>((v1 <<4) | v2);
         i += 2;
         CHECK_AND_RETURN_RET(bi != 6, true);
@@ -202,8 +209,8 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
     size_t len = std::strlen(canonical);
     CHECK_AND_RETURN_RET(u.uuidLen == len, false);
     for (size_t i = 0; i < len; i++) {
-        unsigned char cu = (unsigned char)u.uuid[i];
-        unsigned char cc = (unsigned char)canonical[i];      
+        unsigned char cu = static_cast<unsigned char>(u.uuid[i]);
+        unsigned char cc = static_cast<unsigned char>(canonical[i]);
         CHECK_AND_RETURN_RET(std::toupper(cu) == std::toupper(cc), false);
     }
     return true;
@@ -223,7 +230,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         MIDI_INFO_LOG("Device disconnected or failed connection");
         
         // Notify Manager of disconnection
-        // Important: Only notify if we previously notified success, 
+        // Important: Only notify if we previously notified success,
         // OR if this is the initial failure
         lock.unlock();
         NotifyManager(clientId, false);
@@ -254,16 +261,13 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         BleGattcDisconnect(clientId);
         return;
     }
-
     std::unique_lock<std::mutex> lock(instance->lock_);
     auto it = instance->devices_.find(clientId);
-    if (it == instance->devices_.end()) return;
+    CHECK_AND_CONTINUE(it != instance->devices_.end());
     auto &d = it->second;
-
     std::string svcStr;
     BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcStr);
-    
-    // Simplified logic: Try to get service and subscribe
+
     if (BleGattcGetService(clientId, svc)) {
         d.serviceReady = true;
         d.serviceUuidStorage = MIDI_SERVICE_UUID;
@@ -323,26 +327,18 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
     CHECK_AND_RETURN(cb && devId != 0);
     const uint8_t* src = data->data;
     size_t srcLen = data->dataLen;
-    CHECK_AND_RETURN(src && srcLen !=0);
+    CHECK_AND_RETURN(src && srcLen != 0);
     std::ostringstream midiStream;
     for (size_t i = 0; i < static_cast<size_t>(srcLen); i++) {
         midiStream << std::hex << std::setw(2) << std::setfill('0') << static_cast<uint32_t>(src[i]) << " ";
     }
     MIDI_INFO_LOG("midiStream 1.0: %{public}s", midiStream.str().c_str());
-    
+
     UmpProcessor processor;
     std::vector<UmpPacket> results;
-    processor.ProcessBytes(src, srcLen, [&](const UmpPacket& p){
+    processor.ProcessBytes(src, srcLen, [&](const UmpPacket& p) {
         results.push_back(p);
     });
-    for (auto p : results)  {
-        std::ostringstream umpStream;
-        for (uint8_t i = 0; i < p.WordCount(); i++) {
-            umpStream << std::hex << std::setw(8) << std::setfill('0') << p.Word(i) << " ";
-        }
-        MIDI_INFO_LOG("umpStream 1.0: %{public}s", umpStream.str().c_str());
-    }
-
     std::vector<MidiEventInner> events;
     std::vector<uint32_t> midi2;
     for (auto p : results)  {
@@ -410,7 +406,7 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     std::unique_lock<std::mutex> lock(lock_);
 
     auto it = devices_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1,"Device not found: %{public}ld", deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}ld", deviceId);
     DeviceCtx& ctx = it->second;
 
     int32_t ret = BleGattcDisconnect(ctx.id);
@@ -421,8 +417,8 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     NotifyManager(deviceId, false);
     lock.lock();
     devices_.erase(it);
-    MIDI_INFO_LOG("Device closed successfully: id=%{public}ld, address=%{public}s", 
-            deviceId, ctx.address.c_str());
+    MIDI_INFO_LOG("Device closed successfully: id=%{public}ld, address=%{public}s",
+        deviceId, ctx.address.c_str());
     return 0;
 }
 
@@ -439,9 +435,9 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
     for (auto &[id, d] : devices_) {
         if (d.address == deviceAddr) {
             MIDI_WARNING_LOG("Driver: Device %{public}s already has context", deviceAddr.c_str());
-            // If it's fully ready, we might callback immediately, 
+            // If it's fully ready, we might callback immediately,
             // but Controller handles "Pending" logic usually.
-            return -1; 
+            return -1;
         }
     }
 
@@ -480,8 +476,7 @@ int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t por
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        // CHECK_AND_RETURN_RET_LOG(d.connected && d.serviceReady, -1, "not ready");
-        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1 , "already open");
+        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
         d.inputCallback = cb;
         d.inputOpen = true;
         return 0;
@@ -495,8 +490,7 @@ int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t po
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        // CHECK_AND_RETURN_RET_LOG(d.connected && d.serviceReady, -1, "not ready");
-        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1 , "not open");
+        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
         d.inputCallback = nullptr;
         d.inputOpen = false;
         return 0;
@@ -510,8 +504,7 @@ int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, size_t po
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        // CHECK_AND_RETURN_RET_LOG(d.connected && d.serviceReady, -1, "not ready");
-        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1 , "already open");
+        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
         d.outputOpen = true;
         return 0;
     }
@@ -524,8 +517,7 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, size_t p
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        // CHECK_AND_RETURN_RET_LOG(d.connected && d.serviceReady, -1, "not ready");
-        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1 , "not open");
+        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
         d.outputOpen = false;
         return 0;
     }

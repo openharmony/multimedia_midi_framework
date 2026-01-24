@@ -83,10 +83,9 @@ static bool ConvertToDeviceInformation(
     return true;
 }
 MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-        OH_MIDIOnDeviceOpened callback, void *userData)
-        : ipc_(midiServiceInterface), callback_(callback), userData_(userData)
+    OH_MIDIOnDeviceOpened callback, void *userData)
+    : ipc_(midiServiceInterface), callback_(callback), userData_(userData)
 {
-
 }
 
 int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo)
