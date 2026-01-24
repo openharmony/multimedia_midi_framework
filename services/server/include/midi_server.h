@@ -38,7 +38,7 @@ public:
                                  uint32_t &clientId) override;
 
 private:
-    MidiServiceController *controller_;
+    std::shared_ptr<MidiServiceController> controller_;
 };
 } // namespace MIDI
 } // namespace OHOS

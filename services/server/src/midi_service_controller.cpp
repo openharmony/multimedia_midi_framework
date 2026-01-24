@@ -39,7 +39,7 @@ DeviceClientContext::~DeviceClientContext()
 
 MidiServiceController::MidiServiceController()
 {
-    deviceManager_ = std::make_shared<MidiDeviceManager();
+    deviceManager_ = std::make_shared<MidiDeviceManager>();
 }
 
 MidiServiceController::~MidiServiceController()
@@ -418,7 +418,7 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     CHECK_AND_RETURN_RET(clients.empty(), MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
     for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); ) {
-        if (it->second == device.deviceId) {
+        if (it->second == deviceId) {
             activeBleDevices_.erase(it++);
         } else {
             ++it;
