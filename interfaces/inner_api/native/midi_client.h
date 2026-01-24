@@ -23,8 +23,13 @@ class MidiDevice {
 public:
     virtual ~MidiDevice() = default;
     virtual OH_MIDIStatusCode CloseDevice();
-    virtual OH_MIDIStatusCode OpenInputPort(uint32_t portIndex, OH_OnMIDIReceived callback, void *userData);
+    virtual OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
+                                                OH_OnMIDIReceived callback, void *userData);
+    virtual OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor);
     virtual OH_MIDIStatusCode ClosePort(uint32_t portIndex);
+    virtual OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
+                                    uint32_t eventCount, uint32_t *eventsWritten);
+    virtual OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex);
 };
 
 class MidiClient {
