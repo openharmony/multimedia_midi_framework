@@ -217,7 +217,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
     bool isDisconnect = (connState == OHOS_STATE_DISCONNECTED) || (status != 0 && connState != OHOS_STATE_CONNECTED);
 
     if (isDisconnect) {
-        std::lock_guard<std::mutex> lock(instance->lock_);
+        std::unique_lock<std::mutex> lock(instance->lock_);
         auto it = instance->devices_.find(clientId);
         CHECK_AND_RETURN(it != instance->devices_.end());
         MIDI_INFO_LOG("Device disconnected or failed connection");
@@ -225,9 +225,9 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         // Notify Manager of disconnection
         // Important: Only notify if we previously notified success, 
         // OR if this is the initial failure
-        instance->lock_.unlock();
+        lock.unlock();
         NotifyManager(clientId, false);
-        
+        lock.lock();
         BleGattcUnRegister(clientId);
         instance->devices_.erase(it);
         return;
@@ -255,7 +255,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         return;
     }
 
-    std::lock_guard<std::mutex> lock(instance->lock_);
+    std::unique_lock<std::mutex> lock(instance->lock_);
     auto it = instance->devices_.find(clientId);
     if (it == instance->devices_.end()) return;
     auto &d = it->second;
@@ -275,7 +275,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         CHECK_AND_RETURN(rc != 0);
     }
     BleGattcDisconnect(clientId);
-    instance->lock_.unlock();
+    lock.unlock();
     NotifyManager(clientId, false);
 }
 
@@ -284,7 +284,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
     CHECK_AND_RETURN(instance != nullptr);
     MIDI_INFO_LOG("OnRegisterNotify clientId %{public}d status %{public}d", clientId, status);
     
-    std::lock_guard<std::mutex> lock(instance->lock_);
+    std::unique_lock<std::mutex> lock(instance->lock_);
     auto it = instance->devices_.find(clientId);
     CHECK_AND_RETURN(it != instance->devices_.end());
     auto &d = it->second;
@@ -299,7 +299,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         MIDI_ERR_LOG("Notify Enable Failed");
         BleGattcDisconnect(clientId);
     }
-    instance->lock_.unlock();
+    lock.unlock();
     NotifyManager(clientId, d.notifyEnabled);
 }
 

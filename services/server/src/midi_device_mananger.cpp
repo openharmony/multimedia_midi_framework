@@ -79,7 +79,12 @@ void MidiDeviceManager::Init()
 {
     MIDI_INFO_LOG("Initialize");
     CHECK_AND_RETURN_LOG(eventSubscriber_ == nullptr, "feventSubscriber_ already exists");
-    auto eventCallback = [this]() { this->UpdateDevices(); };
+    std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
+    auto eventCallback = [weakSelf]() {
+        auto self = weakSelf.lock();
+        CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
+        self->UpdateDevices();
+    };
     eventSubscriber_ = SubscribeCommonEvent(eventCallback);  // todo 工厂
     UpdateDevices();
     MIDI_INFO_LOG("MidiDeviceManager initialized successfully");
@@ -279,7 +284,10 @@ int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCall
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
     // Define the callback that the DRIVER will call (can be called multiple times: connect, disconnect)
-    auto driverCallback = [this, callback, address](bool connected, DeviceInformation devInfo) {
+    std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
+    auto driverCallback = [weakSelf, callback, address](bool connected, DeviceInformation devInfo) {
+        auto self = weakSelf.lock();
+        CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
         MIDI_INFO_LOG("Driver Callback: connected=%{public}d, driverId=%{public}ld", connected, devInfo.driverDeviceId);
         int64_t driverDeviceId = devInfo.driverDeviceId;
         int64_t midiDeviceId = 0;

@@ -50,11 +50,11 @@ struct PendingBleConnection {
     sptr<IMidiDeviceOpenCallback> callback;
 };
 
-class MidiServiceController {
+class MidiServiceController : public std::enable_shared_from_this<MidiServiceController> {
 public:
     MidiServiceController();
     ~MidiServiceController();
-    static MidiServiceController *GetInstance();
+    static std::shared_ptr<MidiServiceController> GetInstance();
     void Init();
     int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client, uint32_t &clientId);
     std::vector<std::map<int32_t, std::string>> GetDevices();
@@ -87,7 +87,7 @@ private:
     // Map Address -> List of waiting clients
     std::unordered_map<std::string, std::list<PendingBleConnection>> pendingBleConnections_;
  	 
-    MidiDeviceManager deviceManager_{};
+    std::shared_ptr<MidiDeviceManager> deviceManager_;
     static std::atomic<uint32_t> currentClientId_;
     std::mutex lock_;
     const int64_t UNLOAD_DELAY_TIME = 5 * 60 * 1000; // 5 minutes

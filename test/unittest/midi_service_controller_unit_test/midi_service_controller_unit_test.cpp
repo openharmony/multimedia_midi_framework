@@ -33,8 +33,8 @@ public:
         controller_->Init();
         mockDriver_ = std::make_unique<MockMidiDeviceDriver>();
         rawMockDriver_ = mockDriver_.get();
-        controller_->deviceManager_.drivers_.clear();
-        controller_->deviceManager_.drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockDriver_));
+        controller_->deviceManager_->drivers_.clear();
+        controller_->deviceManager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockDriver_));
         mockCallback_ = std::make_shared<MockMidiServiceCallback>();
         sptr<IRemoteObject> clientObj;
         controller_->CreateMidiInServer(mockCallback_, clientObj, clientId_);
@@ -43,9 +43,9 @@ public:
     void TearDown() override
     {
         controller_->DestroyMidiClient(clientId_);
-        controller_->deviceManager_.devices_.clear();
-        controller_->deviceManager_.driverIdToMidiId_.clear();
-        controller_->deviceManager_.drivers_.clear();
+        controller_->deviceManager_->devices_.clear();
+        controller_->deviceManager_->driverIdToMidiId_.clear();
+        controller_->deviceManager_->drivers_.clear();
     }
 
     /**
@@ -71,9 +71,9 @@ public:
 
         EXPECT_CALL(*rawMockDriver_, GetRegisteredDevices()).WillOnce(Return(devices));
 
-        controller_->deviceManager_.UpdateDevices();
+        controller_->deviceManager_->UpdateDevices();
 
-        auto allDevices = controller_->deviceManager_.GetDevices();
+        auto allDevices = controller_->deviceManager_->GetDevices();
         if (allDevices.empty()) {
             return -1;
         }

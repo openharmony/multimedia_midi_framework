@@ -45,7 +45,7 @@ private:
     std::function<void()> callback_;
 };
 
-class MidiDeviceManager {
+class MidiDeviceManager : public std::enable_shared_from_this<MidiServiceController> {
 public:
     MidiDeviceManager();
     ~MidiDeviceManager();
