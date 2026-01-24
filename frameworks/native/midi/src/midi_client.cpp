@@ -27,7 +27,7 @@
 
 namespace OHOS {
 namespace MIDI {
-namespace { 
+namespace {
     constexpr uint32_t MAX_EVENTS_NUMS = 1000;
 }  // namespace
 class MidiClientCallback : public MidiCallbackStub {
