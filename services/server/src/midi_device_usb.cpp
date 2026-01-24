@@ -82,11 +82,6 @@ int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t p
     return midiHdi_->OpenInputPort(deviceId, portIndex, usbCallback);
 }
 
-int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t portIndex)
-{
-    return midiHdi_->OpenOutputPort(deviceId, portIndex);
-}
-
 int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
