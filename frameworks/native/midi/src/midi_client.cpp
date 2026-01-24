@@ -165,7 +165,7 @@ OH_MIDIStatusCode MidiDevicePrivate::CloseDevice()
 }
 
 OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descriptor,
-                                                    OH_OnMIDIReceived callback, void *userData)
+    OH_OnMIDIReceived callback, void *userData)
 {
     std::lock_guard<std::mutex> lock(inputPortsMutex_);
     auto ipc = ipc_.lock();

@@ -449,10 +449,7 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
 
     std::vector<uint32_t> payloadBuffer;
     payloadBuffer.resize(payloadWordCount);
-    auto ret = memcpy_s(payloadBuffer.data(),
-                   payloadBytes,
-                   payloadWords,
-                   payloadBytes);
+    auto ret = memcpy_s(payloadBuffer.data(), payloadBytes, payloadWords, payloadBytes);
     CHECK_AND_RETURN_RET_LOG(ret == 0, false, "copy error");
     MidiEventInner cachedEvent {};
     cachedEvent.timestamp = timestamp;

@@ -90,7 +90,7 @@ OH_MIDIStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId,
 }
 
 OH_MIDIStatusCode MidiServiceClient::OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
-                                                    uint32_t portIndex)
+                                                   uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
