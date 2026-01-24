@@ -310,7 +310,6 @@ void MidiDeviceManager::HandleBleConnect(DeviceInformation devInfo, BleOpenCallb
         std::lock_guard<std::mutex> lock(devicesMutex_);
         auto it = std::find_if(devices_.begin(), devices_.end(),
             [midiDeviceId](const DeviceInformation& d) { return d.deviceId == midiDeviceId; });
-        
         if (it == devices_.end()) {
             devInfo.deviceId = midiDeviceId;
             devices_.push_back(devInfo);
@@ -343,7 +342,6 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
             std::lock_guard<std::mutex> listLock(devicesMutex_);
             auto it = std::find_if(devices_.begin(), devices_.end(),
                 [midiDeviceId](const DeviceInformation& d) { return d.deviceId == midiDeviceId; });
-            
             if (it != devices_.end()) {
                 exists = true;
                 foundInfo = *it;

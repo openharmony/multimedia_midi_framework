@@ -475,7 +475,7 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
     return 0; // Async process started
 }
 
-int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
+int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback cb)
 {
     CHECK_AND_RETURN_RET(portIndex == 1, -1);
     std::lock_guard<std::mutex> lock(lock_);
@@ -489,7 +489,7 @@ int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t por
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t portIndex)
+int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET(portIndex == 1, -1);
     std::lock_guard<std::mutex> lock(lock_);
@@ -503,7 +503,7 @@ int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t po
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, size_t portIndex)
+int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
     std::lock_guard<std::mutex> lock(lock_);
@@ -516,7 +516,7 @@ int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, size_t po
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, size_t portIndex)
+int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
     std::lock_guard<std::mutex> lock(lock_);
@@ -529,7 +529,7 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, size_t p
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, MidiEventInner list)
+int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
     std::lock_guard<std::mutex> lock(lock_);
@@ -537,14 +537,15 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t por
     CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}ld", deviceId);
     auto &d = it->second;
     CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady, -1, "not open");
-
-    std::vector<uint8_t> midi1Buffer;
-    ConvertUmpToMidi1(list.data, list.length, midi1Buffer);
-    CHECK_AND_RETURN_RET_LOG(!midi1Buffer.empty(), -1, "midi1Buffer is empty");
-    const char *payload = reinterpret_cast<const char*>(midi1Buffer.data());
-    int32_t payloadLen = static_cast<int32_t>(midi1Buffer.size());
-    CHECK_AND_RETURN_RET_LOG(BleGattcWriteCharacteristic(d.id, d.dataChar, OHOS_GATT_WRITE_NO_RSP,
-        payloadLen, payload) == 0, -1, "write characteristic failed");
+    for (auto midiEvent : list){
+        std::vector<uint8_t> midi1Buffer;
+        ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
+        CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
+        const char *payload = reinterpret_cast<const char*>(midi1Buffer.data());
+        int32_t payloadLen = static_cast<int32_t>(midi1Buffer.size());
+        CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(d.id, d.dataChar, OHOS_GATT_WRITE_NO_RSP,
+            payloadLen, payload) == 0, "write characteristic failed");
+    }
     return 0;
 }
 

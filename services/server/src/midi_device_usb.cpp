@@ -75,7 +75,7 @@ int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     return midiHdi_->CloseDevice(deviceId);
 }
 
-int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, size_t portIndex, UmpInputCallback cb)
+int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback cb)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
     auto usbCallback = sptr<UsbDriverCallback>::MakeSptr(cb);
@@ -87,26 +87,26 @@ int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t 
     return midiHdi_->OpenOutputPort(deviceId, portIndex);
 }
 
-int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, size_t portIndex)
+int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->CloseInputPort(deviceId, portIndex);
 }
 
-int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, size_t portIndex)
+int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->OpenOutputPort(deviceId, portIndex);
 }
 
-int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, size_t portIndex)
+int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->CloseOutputPort(deviceId, portIndex);
 }
 
 
-int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex,
+int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
