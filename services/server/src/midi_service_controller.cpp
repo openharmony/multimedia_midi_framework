@@ -456,7 +456,6 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
         auto &clients = deviceIt->second->clients;
         if (clients.find(clientId) != clients.end()) {
             int64_t deviceId = deviceIt->first;
-            // todo 关闭打开的端口
             ClosePortforDevice(clientId, deviceId, deviceIt->second);
             clients.erase(clientId);
             if (clients.empty()) {
