@@ -545,7 +545,7 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t por
     int32_t payloadLen = static_cast<int32_t>(midi1Buffer.size());
     CHECK_AND_RETURN_RET_LOG(BleGattcWriteCharacteristic(d.id, d.dataChar, OHOS_GATT_WRITE_NO_RSP,
         payloadLen, payload) == 0, -1, "write characteristic failed");
-    return -1;
+    return 0;
 }
 
 } // namespace MIDI
