@@ -392,9 +392,9 @@ void DeviceConnectionForOutput::CollectDueEventsFromClientHeaps()
 {
     const auto clientsSnapshot = SnapshotClients();  // todo: make clientsSnapshot be clientsSnapshot_
     auto now = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point earliestDueTime {};
 
     while (auto earliestClient = FindClientWithEarliestDue(clientsSnapshot, earliestDueTime)) {
-        std::chrono::steady_clock::time_point earliestDueTime {};
         if (earliestDueTime > now) {
             break;
         }
