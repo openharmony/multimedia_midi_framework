@@ -82,7 +82,8 @@ int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
     return midiHdi_->CloseOutputPort(deviceId, portIndex);
 }
 
-int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex, std::vector<MidiEventInner> &list)
+int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t portIndex,
+    std::vector<MidiEventInner> &list)
 {
     for (auto &event: list) {
         OHOS::HDI::Midi::V1_0::MidiMessage msg;
@@ -91,20 +92,6 @@ int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, size_t por
             msg.data.push_back(event.data[i]);
         }
         messages_.emplace_back(msg);
-        std::string hexStr = " data: ";
-        for (size_t i = 0; i < event.length; ++i) {
-            uint32_t word = event.data[i];
-            for (int j = 3; j >= 0; j--) {
-                uint8_t value = (word >> (j * 8)) & 0xFF;
-                char buf[4];
-                snprintf(buf, sizeof(buf), "%02X", value);
-                hexStr += buf;
-            }
-            if (i > event.length - 1) {
-                hexStr += " ";
-            }
-        }
-        MIDI_INFO_LOG("%{public}s", hexStr.c_str());
     }
     
     int32_t ret = midiHdi_->SendMidiMessages(deviceId, portIndex, messages_);

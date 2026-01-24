@@ -449,11 +449,11 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
 
     std::vector<uint32_t> payloadBuffer;
     payloadBuffer.resize(payloadWordCount);
-    (void)memcpy_s(payloadBuffer.data(),
+    auto ret = memcpy_s(payloadBuffer.data(),
                    payloadBytes,
                    payloadWords,
                    payloadBytes);
-
+    CHECK_AND_RETURN_RET_LOG(ret == 0, false, "copy error");
     MidiEventInner cachedEvent {};
     cachedEvent.timestamp = timestamp;
     cachedEvent.length = payloadWordCount;
@@ -465,8 +465,6 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
     currentSendCacheBytes_ += payloadBytes;
     return true;
 }
-
-
 
 std::shared_ptr<ClientConnectionInServer> DeviceConnectionForOutput::FindClientWithEarliestDue(
     const std::vector<std::shared_ptr<ClientConnectionInServer>> &clientsSnapshot,
@@ -497,24 +495,6 @@ void DeviceConnectionForOutput::FlushSendCacheToDriver()
 {
     if (sendCache_.empty()) {
         return;
-    }
-    MIDI_INFO_LOG("[server] Send Midi Events: num: %{public}zu", sendCache_.size());
-    for (const auto& event : sendCache_) {
-        std::string hexStr = " data: ";
-        for (size_t i = 0; i < event.length; ++i) {
-            uint32_t word = event.data[i];
-            for (int j = 3; j >= 0; j--) {
-                uint8_t value = (word >> (j * 8)) & 0xFF;
-                char buf[4];
-                snprintf(buf, sizeof(buf), "%02X", value);
-                hexStr += buf;
-            }
-            if (i > event.length - 1) {
-                hexStr += " ";
-            }
-        }
-        MIDI_INFO_LOG("%{public}s", hexStr.c_str());
-        SendToDriver(event);
     }
     CHECK_AND_RETURN_LOG(info_.driver != nullptr, "driver is null!");
     info_.driver->HanleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
