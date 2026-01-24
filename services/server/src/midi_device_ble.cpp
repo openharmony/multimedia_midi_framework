@@ -206,7 +206,7 @@ static bool ParseMac(const std::string &mac, BdAddr &out)
         CHECK_AND_RETURN_RET(mac[i] == ':', false);
         i++;
     }
-    return bi == 6;
+    return bi == MAC_ADDR_BYTES;
 }
 
 static bool BtUuidEquals(const BtUuid &u, const char *canonical)
@@ -273,14 +273,12 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
     auto &d = it->second;
     std::string svcStr;
     BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcStr);
-
     if (BleGattcGetService(clientId, svc)) {
         d.serviceReady = true;
         d.serviceUuidStorage = MIDI_SERVICE_UUID;
         d.characteristicUuidStorage = MIDI_CHAR_UUID;
         d.dataChar.serviceUuid = MakeBtUuid(d.serviceUuidStorage, d.serviceUuidStorage);
         d.dataChar.characteristicUuid = MakeBtUuid(d.characteristicUuidStorage, d.characteristicUuidStorage);
-        // Critical: Subscribe to Notify
         int32_t rc = BleGattcRegisterNotification(clientId, d.dataChar, true);
         CHECK_AND_RETURN(rc != 0);
     }

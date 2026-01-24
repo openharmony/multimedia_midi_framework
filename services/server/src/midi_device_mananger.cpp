@@ -289,7 +289,6 @@ int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCall
     auto driverCallback = [weakSelf, callback](bool connected, DeviceInformation devInfo) {
         auto self = weakSelf.lock();
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
-        
         if (connected) {
             self->HandleBleConnect(devInfo, callback);
         } else {

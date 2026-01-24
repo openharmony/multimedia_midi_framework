@@ -398,9 +398,9 @@ typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
  * copy them using the Getter interfaces inside the callback.
  * @since 24
  */
-typedef void (*OH_MIDIOnDeviceOpened)(void *userData, 
+typedef void (*OH_MIDIOnDeviceOpened)(void *userData,
                                       bool opened,
-                                      OH_MIDIDevice *device, 
+                                      OH_MIDIDevice *device,
                                       OH_MIDIDeviceInformation info);
 
 /**

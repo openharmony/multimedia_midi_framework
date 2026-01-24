@@ -31,6 +31,22 @@ namespace OHOS {
 namespace MIDI {
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
 static constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
+static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device)
+{
+    std::map<int32_t, std::string> deviceInfo;
+
+    // Convert numeric IDs to strings
+    deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
+    deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
+    deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
+
+    // Direct string assignments
+    deviceInfo[ADDRESS] = device.address;
+    deviceInfo[PRODUCT_NAME] = device.productName;
+    deviceInfo[VENDOR_NAME] = device.vendorName;
+
+    return deviceInfo;
+}
 DeviceClientContext::~DeviceClientContext()
 {
     MIDI_INFO_LOG("~DeviceClientContext");
@@ -142,14 +158,7 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevices()
     std::vector<std::map<int32_t, std::string>> ret;
     auto result = deviceManager_->GetDevices();
     for (const auto &d : result) {
-        std::map<int32_t, std::string> deviceInfo;
-        deviceInfo[DEVICE_ID] = std::to_string(d.deviceId);
-        deviceInfo[DEVICE_TYPE] = std::to_string(d.deviceType);
-        deviceInfo[MIDI_PROTOCOL] = std::to_string(d.transportProtocol);
-        deviceInfo[PRODUCT_NAME] = d.productName;
-        deviceInfo[VENDOR_NAME] = d.vendorName;
-        deviceInfo[ADDRESS] = d.address;
-        ret.push_back(std::move(deviceInfo));
+        ret.push_back(ConvertDeviceInfo(d));
     }
     return ret;
 }
@@ -219,13 +228,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
                 address.c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
-            std::map<int32_t, std::string> deviceInfo;
-            deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
-            deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
-            deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
-            deviceInfo[ADDRESS] = device.address;
-            deviceInfo[PRODUCT_NAME] = device.productName;
-            deviceInfo[VENDOR_NAME] = device.vendorName;
+           std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
             lock.unlock();
             callback->NotifyDeviceOpened(true, deviceInfo);
             return MIDI_STATUS_OK;
@@ -242,7 +245,6 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
             address.c_str(), clientId);
         return MIDI_STATUS_OK;
     }
-
     MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", address.c_str());
     
     // We use a lambda that captures 'this' to callback into the controller
@@ -261,7 +263,6 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         pendingBleConnections_.erase(address);
         return ret;
     }
-
     return MIDI_STATUS_OK;
 }
 
@@ -572,13 +573,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
             deviceClientContexts_.erase(it);
         }
     }
-    std::map<int32_t, std::string> deviceInfo;
-    deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
-    deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
-    deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
-    deviceInfo[ADDRESS] = device.address;
-    deviceInfo[PRODUCT_NAME] = device.productName;
-    deviceInfo[VENDOR_NAME] = device.vendorName;
+    std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
     for (auto it : clients_) {
         CHECK_AND_CONTINUE(it.second != nullptr);
         it.second->NotifyDeviceChange(change, deviceInfo);
