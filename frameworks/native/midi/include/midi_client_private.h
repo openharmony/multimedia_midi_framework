@@ -34,7 +34,7 @@ class MidiClientCallback;
 
 class MidiInputPort {
 public:
-    MidiInputPort(OH_OnMIDIReceived callback, void *userData);
+    MidiInputPort(OH_OnMIDIReceived callback, void *userData, OH_MIDIProtocol protocol);
     ~MidiInputPort();
     std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 
@@ -53,6 +53,18 @@ private:
     std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
     std::thread receiverThread_;
     void *userData_ = nullptr;
+    OH_MIDIProtocol protocol_;
+};
+
+class MidiOutputPort {
+public:
+    MidiOutputPort(OH_MIDIProtocol protocol);
+    ~MidiOutputPort();
+    int32_t Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
+    std::shared_ptr<MidiSharedRing> &GetRingBuffer();
+private:
+    std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
+    OH_MIDIProtocol protocol_;
 };
 
 class MidiDevicePrivate : public MidiDevice {
@@ -60,14 +72,21 @@ public:
     MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, int64_t deviceId);
     virtual ~MidiDevicePrivate();
     OH_MIDIStatusCode CloseDevice() override;
-    OH_MIDIStatusCode OpenInputPort(uint32_t portIndex, OH_OnMIDIReceived callback, void *userData) override;
+    OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
+                                    OH_OnMIDIReceived callback, void *userData) override;
+    OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor) override;
     OH_MIDIStatusCode ClosePort(uint32_t portIndex) override;
+    OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
+                            uint32_t eventCount, uint32_t *eventsWritten) override;
+    OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
 
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
     int64_t deviceId_;
     std::mutex inputPortsMutex_;
+    std::mutex outputPortsMutex_;
     std::unordered_map<uint32_t, std::shared_ptr<MidiInputPort>> inputPortsMap_;
+    std::unordered_map<uint32_t, std::shared_ptr<MidiOutputPort>> outputPortsMap_;
 };
 
 class MidiClientPrivate : public MidiClient {

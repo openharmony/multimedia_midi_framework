@@ -57,10 +57,23 @@ int32_t MidiClientInServer::OpenInputPort(std::shared_ptr<MidiSharedRing> &buffe
     return MidiServiceController::GetInstance()->OpenInputPort(clientId_, buffer, deviceId, portIndex);
 }
 
+int32_t MidiClientInServer::OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
+    uint32_t portIndex)
+{
+    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]---->portIndex[%{public}u]", deviceId, portIndex);
+    return MidiServiceController::GetInstance()->OpenOutputPort(clientId_, buffer, deviceId, portIndex);
+}
+
 int32_t MidiClientInServer::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
     return MidiServiceController::GetInstance()->CloseInputPort(clientId_, deviceId, portIndex);
+}
+
+int32_t MidiClientInServer::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
+    return MidiServiceController::GetInstance()->CloseOutputPort(clientId_, deviceId, portIndex);
 }
 
 int32_t MidiClientInServer::CloseDevice(int64_t deviceId)

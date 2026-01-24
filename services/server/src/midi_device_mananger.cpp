@@ -274,12 +274,11 @@ int32_t MidiDeviceManager::OpenInputPort(
     CHECK_AND_RETURN_RET_LOG(driver != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "driver is nullptr");
     DeviceConnectionInfo info = {
         .driver = driver,
-        .deviceId = deviceId,
+        .deviceId = device.driverDeviceId,
         .direction = MidiPortDirection::INPUT,
         .portIndex = portIndex,
     };
     auto connection = std::make_shared<DeviceConnectionForInput>(info);
-    CHECK_AND_RETURN_RET_LOG(connection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "connection is nullptr");
     inputConnection = connection;
     std::weak_ptr<DeviceConnectionForInput> weakConnection = connection;
     // register DeviceConnectionForInput::HandleDeviceUmpInput
@@ -290,6 +289,28 @@ int32_t MidiDeviceManager::OpenInputPort(
             }
         });
     return ret;
+}
+
+int32_t MidiDeviceManager::OpenOutputPort(
+    std::shared_ptr<DeviceConnectionForOutput> &outputConnection, int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
+    auto device = GetDeviceForDeviceId(deviceId);
+    if (device.deviceId == 0) {
+        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        return MIDI_STATUS_UNKNOWN_ERROR;
+    }
+    auto driver = GetDriverForDeviceType(device.deviceType);
+    CHECK_AND_RETURN_RET_LOG(driver != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "driver is nullptr");
+    DeviceConnectionInfo info = {
+        .driver = driver,
+        .deviceId = device.driverDeviceId,
+        .direction = MidiPortDirection::OUTPUT,
+        .portIndex = portIndex,
+    };
+    auto connection = std::make_shared<DeviceConnectionForOutput>(info);
+    outputConnection = connection;
+    return driver->OpenOutputPort(device.driverDeviceId, portIndex);
 }
 
 int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
@@ -303,6 +324,19 @@ int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
     auto driver = GetDriverForDeviceType(device.deviceType);
     CHECK_AND_RETURN_RET_LOG(driver != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "driver is nullptr");
     return driver->CloseInputPort(device.driverDeviceId, static_cast<size_t>(portIndex));
+}
+
+int32_t MidiDeviceManager::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
+    auto device = GetDeviceForDeviceId(deviceId);
+    if (device.deviceId == 0) {
+        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        return MIDI_STATUS_UNKNOWN_ERROR;
+    }
+    auto driver = GetDriverForDeviceType(device.deviceType);
+    CHECK_AND_RETURN_RET_LOG(driver != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "driver is nullptr");
+    return driver->CloseOutputPort(device.driverDeviceId, static_cast<size_t>(portIndex));
 }
 
 int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)

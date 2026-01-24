@@ -97,11 +97,26 @@ OH_MIDIStatusCode MidiServiceClient::OpenInputPort(std::shared_ptr<MidiSharedRin
     return (OH_MIDIStatusCode)ipc_->OpenInputPort(buffer, deviceId, portIndex);
 }
 
+OH_MIDIStatusCode MidiServiceClient::OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
+                                                    uint32_t portIndex)
+{
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    return (OH_MIDIStatusCode)ipc_->OpenOutputPort(buffer, deviceId, portIndex);
+}
+
 OH_MIDIStatusCode MidiServiceClient::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
     return (OH_MIDIStatusCode)ipc_->CloseInputPort(deviceId, portIndex);
+}
+
+OH_MIDIStatusCode MidiServiceClient::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
+{
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    return (OH_MIDIStatusCode)ipc_->CloseOutputPort(deviceId, portIndex);
 }
 
 OH_MIDIStatusCode MidiServiceClient::DestroyMidiClient()

@@ -160,21 +160,65 @@ int32_t MidiServiceController::OpenInputPort(
     auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
-        inputPort->second->AddClientConnection(clientId, deviceId, buffer);  // todo 需要判断client是否有打开此端口。
-        MIDI_INFO_LOG("InputPort already opened");
+        CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
+            MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
+        inputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        MIDI_INFO_LOG("connect inputport success");
         return MIDI_STATUS_OK;
     }
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
     auto ret = deviceManager_.OpenInputPort(inputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open input port fail!");
 
-    if (inputConnection) {
-        inputConnection->AddClientConnection(clientId, deviceId, buffer);
-    }
+    inputConnection->AddClientConnection(clientId, deviceId, buffer);
+
     inputPortConnections.emplace(portIndex, std::move(inputConnection));
     MIDI_INFO_LOG("OpenInputPort Success");
     return MIDI_STATUS_OK;
 }
+
+int32_t MidiServiceController::OpenOutputPort(
+    uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG(
+        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
+        MIDI_STATUS_INVALID_CLIENT,
+        "Client not found: %{public}u",
+        clientId);
+    auto it = deviceClientContexts_.find(deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
+        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        "device %{public}" PRId64 "not opened",
+        deviceId);
+    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
+        MIDI_STATUS_UNKNOWN_ERROR,
+        "client %{public}u doesn't open device %{public}" PRId64 "",
+        clientId,
+        deviceId);
+    
+    auto &outputPortConnections = it->second->outputDeviceconnections_;
+    auto outputPort = outputPortConnections.find(portIndex);
+    if (outputPort != outputPortConnections.end()) {
+        CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId) != true,
+            MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
+        outputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        MIDI_INFO_LOG("connect outputport success");
+        return MIDI_STATUS_OK;
+    }
+
+    std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
+    auto ret = deviceManager_.OpenOutputPort(outputConnection, deviceId, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open output port fail!");
+    // start events handle thread of output port
+    outputConnection->Start();
+    outputConnection->AddClientConnection(clientId, deviceId, buffer);
+    outputPortConnections.emplace(portIndex, std::move(outputConnection));
+    MIDI_INFO_LOG("OpenOutputPort Success");
+    return MIDI_STATUS_OK;
+}
+
 
 int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
@@ -186,6 +230,18 @@ int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceI
         "Client not found: %{public}u",
         clientId);
     return CloseInputPortInner(clientId, deviceId, portIndex);
+}
+
+int32_t MidiServiceController::CloseOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG(
+        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
+        MIDI_STATUS_INVALID_CLIENT,
+        "Client not found: %{public}u",
+        clientId);
+    return CloseOutputPortInner(clientId, deviceId, portIndex);
 }
 
 int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
@@ -208,6 +264,31 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
             auto ret = deviceManager_.CloseInputPort(deviceId, portIndex);
             CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
             inputPortConnections.erase(inputPort);
+        }
+    }
+    return MIDI_STATUS_OK;
+}
+
+int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
+{
+    auto it = deviceClientContexts_.find(deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
+        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        "device %{public}" PRId64 "not opened",
+        deviceId);
+    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+        "client %{public}u doesn't open device %{public}" PRId64,
+        clientId,
+        deviceId);
+    auto &outputPortConnections = it->second->outputDeviceconnections_;
+    auto outputPort = outputPortConnections.find(portIndex);
+    if (outputPort != outputPortConnections.end()) {
+        outputPort->second->RemoveClientConnection(clientId);
+        if (outputPort->second->IsEmptyClientConections()) {
+            auto ret = deviceManager_.CloseOutputPort(deviceId, portIndex);
+            CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
+            outputPortConnections.erase(outputPort);
         }
     }
     return MIDI_STATUS_OK;
@@ -251,12 +332,12 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 void MidiServiceController::ClosePortforDevice(
     uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext)
 {
-    std::vector<uint32_t> portIndexs;
-    for (auto const &inputPort : deviceClientContext->inputDeviceconnections_) {
-        portIndexs.push_back(inputPort.first);
-    }
-    for (auto portIndex : portIndexs) {
+    for (const auto &[portIndex, _] : deviceClientContext->inputDeviceconnections_) {
         CloseInputPortInner(clientId, deviceId, portIndex);
+    }
+
+    for (const auto &[portIndex, _]: deviceClientContext->outputDeviceconnections_) {
+        CloseOutputPortInner(clientId, deviceId, portIndex);
     }
 }
 
