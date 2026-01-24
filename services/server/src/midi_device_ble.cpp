@@ -36,8 +36,14 @@ namespace {
     constexpr uint8_t STATUS_CHAN_PRESSURE = 0xD0;
     constexpr uint8_t STATUS_MASK_CMD = 0xF0;
     constexpr int64_t NSEC_PER_SEC = 1000000000;
+    constexpr int32_t MIDI_BYTE_HEX_WIDTH = 2;
     static constexpr const char *MIDI_SERVICE_UUID = "03B80E5A-EDE8-4B33-A751-6CE34EC4C700";
     static constexpr const char *MIDI_CHAR_UUID = "7772E5DB-3868-4112-A1A9-F2669D106BF3";
+    const size_t MAC_STR_LENGTH = 17;
+    const size_t MAC_ADDR_BYTES = 6;
+    const int32_t HEX_STEP = 2;
+    const int32_t BIT_SHIFT_FOUR = 4;
+    const int32_t HEX_VAL_OFFSET = 10;
 }
 
 static BleMidiTransportDeviceDriver *instance;
@@ -172,7 +178,7 @@ static BtUuid MakeBtUuid(const std::string &s, std::string &storage)
 
 static bool ParseMac(const std::string &mac, BdAddr &out)
 {
-    CHECK_AND_RETURN_RET(mac.size() == 17, false);
+    CHECK_AND_RETURN_RET(mac.size() == MAC_STR_LENGTH, false);
     int32_t  bi = 0;
     for (size_t i = 0; i < mac.size();) {
         CHECK_AND_RETURN_RET(i + 1 < mac.size(), false);
@@ -183,19 +189,19 @@ static bool ParseMac(const std::string &mac, BdAddr &out)
                 return c - '0';
             }
             if (c >= 'A' && c <= 'F') {
-                return 10 + (c - 'A');
+                return HEX_VAL_OFFSET + (c - 'A');
             }
             if (c >= 'a' && c <= 'f') {
-                return 10 + (c - 'a');
+                return HEX_VAL_OFFSET + (c - 'a');
             }
             return -1;
         };
         int32_t v1 = hexVal(c1);
         int32_t v2 = hexVal(c2);
         CHECK_AND_RETURN_RET(v1 >= 0 && v2 >= 0, false);
-        out.addr[bi++] = static_cast<unsigned char>((v1 <<4) | v2);
-        i += 2;
-        CHECK_AND_RETURN_RET(bi != 6, true);
+        out.addr[bi++] = static_cast<unsigned char>((v1 << BIT_SHIFT_FOUR) | v2);
+        i += HEX_STEP;
+        CHECK_AND_RETURN_RET(bi != MAC_ADDR_BYTES, true);
         CHECK_AND_CONTINUE(i < mac.size());
         CHECK_AND_RETURN_RET(mac[i] == ':', false);
         i++;
@@ -306,6 +312,17 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
     lock.unlock();
     NotifyManager(clientId, d.notifyEnabled);
 }
+static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)
+{
+    UmpProcessor processor;
+    std::vector<uint32_t> midi2;
+    processor.ProcessBytes(src, srcLen, [&](const UmpPacket& p) {
+        for (uint8_t i = 0; i < p.WordCount(); i++) {
+            midi2.push_back(p.Word(i));
+        }
+    });
+    return midi2;
+}
 
 static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t status)
 {
@@ -330,22 +347,12 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
     CHECK_AND_RETURN(src && srcLen != 0);
     std::ostringstream midiStream;
     for (size_t i = 0; i < static_cast<size_t>(srcLen); i++) {
-        midiStream << std::hex << std::setw(2) << std::setfill('0') << static_cast<uint32_t>(src[i]) << " ";
+        midiStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
+            static_cast<uint32_t>(src[i]) << " ";
     }
     MIDI_INFO_LOG("midiStream 1.0: %{public}s", midiStream.str().c_str());
-
-    UmpProcessor processor;
-    std::vector<UmpPacket> results;
-    processor.ProcessBytes(src, srcLen, [&](const UmpPacket& p) {
-        results.push_back(p);
-    });
     std::vector<MidiEventInner> events;
-    std::vector<uint32_t> midi2;
-    for (auto p : results)  {
-        for (uint8_t i = 0; i < p.WordCount(); i++) {
-            midi2.push_back(p.Word(i));
-        }
-    }
+    std::vector<uint32_t> midi2 = ParseUmpData(src, srcLen);
     MidiEventInner event = {
         .timestamp = GetCurNano(),
         .length = midi2.size(),

@@ -71,6 +71,8 @@ private:
     MidiDeviceDriver *GetDriverForDeviceType(DeviceType type);
     void CompareDevices(const std::vector<DeviceInformation> &oldDevices,
                         const std::vector<DeviceInformation> &newDevices);
+    void HandleBleConnect(DeviceInformation devInfo, BleOpenCallback callback);
+    void HandleBleDisconnect(DeviceInformation devInfo, BleOpenCallback callback);
     std::unordered_map<DeviceType, std::unique_ptr<MidiDeviceDriver>> drivers_;
     std::vector<DeviceInformation> devices_{};
     std::shared_ptr<EventSubscriber> eventSubscriber_{nullptr};
