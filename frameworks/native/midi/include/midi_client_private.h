@@ -61,7 +61,6 @@ public:
     MidiOutputPort(OH_MIDIProtocol protocol);
     ~MidiOutputPort();
     int32_t Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
-    // int32_t SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize);
     std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 private:
     std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
@@ -73,10 +72,12 @@ public:
     MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, int64_t deviceId);
     virtual ~MidiDevicePrivate();
     OH_MIDIStatusCode CloseDevice() override;
-    OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor, OH_OnMIDIReceived callback, void *userData) override;
+    OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
+                                    OH_OnMIDIReceived callback, void *userData) override;
     OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor) override;
     OH_MIDIStatusCode ClosePort(uint32_t portIndex) override;
-    OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten) override;
+    OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
+                            uint32_t eventCount, uint32_t *eventsWritten) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
 
 private:

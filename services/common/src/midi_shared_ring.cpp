@@ -268,7 +268,7 @@ int32_t MidiSharedRing::Init(int dataFd)
 
 int MidiSharedRing::GetEventFd() const
 {
-    CHECK_AND_RETURN_RET_LOG(notifyFd_, -123, "notifyFd_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(notifyFd_, -1, "notifyFd_ is nullptr"); // -1 is invalid fd
     return notifyFd_->Get();
 }
 
@@ -322,7 +322,6 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
 
     int minfd = 2; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
-    // CHECK_AND_RETURN_RET_LOG(eventFd > minfd, nullptr, "invalid dataFd: %{public}d", eventFd);
     
     auto notifyFd = std::make_shared<UniqueFd>(eventFd);
     auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);

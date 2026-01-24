@@ -91,7 +91,6 @@ public:
     void SetPerClientMaxPendingEvents(size_t maxPendingEvents);
     void SetMaxSendCacheBytes(size_t maxSendCacheBytes);
     
-
 private:
     // worker loop
     void ThreadMain();

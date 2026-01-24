@@ -164,7 +164,8 @@ OH_MIDIStatusCode MidiDevicePrivate::CloseDevice()
     return ipc->CloseDevice(deviceId_);
 }
 
-OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descriptor, OH_OnMIDIReceived callback, void *userData)
+OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descriptor,
+                                                    OH_OnMIDIReceived callback, void *userData)
 {
     std::lock_guard<std::mutex> lock(inputPortsMutex_);
     auto ipc = ipc_.lock();
@@ -243,14 +244,13 @@ OH_MIDIStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
             ret = ipc->CloseOutputPort(deviceId_, portIndex);
             outputPortsMap_.erase(it);
         }
-
     }
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close port fail");
     return MIDI_STATUS_OK;
 }
 
-MidiInputPort::MidiInputPort(OH_OnMIDIReceived callback, void *userData, OH_MIDIProtocol protocol) :
-    callback_(callback), userData_(userData), protocol_(protocol)
+MidiInputPort::MidiInputPort(OH_OnMIDIReceived callback, void *userData, OH_MIDIProtocol protocol)
+    : callback_(callback), userData_(userData), protocol_(protocol)
 {
     MIDI_INFO_LOG("InputPort created");
 }
@@ -372,8 +372,8 @@ int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t
         "parameter is nullptr");
     CHECK_AND_RETURN_RET_LOG(eventCount > 0 && eventCount <= MAX_EVENTS_NUMS, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "parameter is invalid");
-    CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "protocol is invalid");
+    CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
 
     thread_local std::vector<MidiEventInner> innerEvents;
     innerEvents.clear();
