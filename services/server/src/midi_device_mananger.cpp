@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -19,6 +19,7 @@
 #include "midi_service_controller.h"
 #include "midi_device_mananger.h"
 #include "midi_device_usb.h"
+ #include "midi_device_ble.h"
 #include "midi_log.h"
 
 namespace OHOS {
@@ -33,6 +34,8 @@ static std::shared_ptr<EventSubscriber> SubscribeCommonEvent(std::function<void(
 MidiDeviceManager::MidiDeviceManager() : eventSubscriber_(nullptr)
 {
     MIDI_INFO_LOG("MidiDeviceManager constructor");
+    drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::make_unique<UsbMidiTransportDeviceDriver>());
+    drivers_.emplace(DeviceType::DEVICE_TYPE_BLE, std::make_unique<BleMidiTransportDeviceDriver>());
 }
 
 MidiDeviceManager::~MidiDeviceManager()
@@ -45,6 +48,18 @@ MidiDeviceManager::~MidiDeviceManager()
     MIDI_INFO_LOG("MidiDeviceManager destructor");
 }
 
+std::map<int32_t, std::string> MidiDeviceManager::ConvertDeviceInfo(const DeviceInformation &d)
+{
+    std::map<int32_t, std::string> info;
+    info[DEVICE_ID] = std::to_string(d.deviceId);
+    info[DEVICE_TYPE] = std::to_string(d.deviceType);
+    info[MIDI_PROTOCOL] = std::to_string(d.transportProtocol);
+    info[PRODUCT_NAME] = d.productName;
+    info[VENDOR_NAME] = d.vendorName;
+    info[ADDRESS] = d.address;
+    return info;
+}
+
 int64_t MidiDeviceManager::GenerateDeviceId()
 {
     return ++nextDeviceId_;
@@ -54,7 +69,7 @@ int64_t MidiDeviceManager::GetOrCreateDeviceId(int64_t driverDeviceId, DeviceTyp
 {
     std::lock_guard<std::mutex> lock(mappingMutex_);
 
-    auto it = driverIdToMidiId_.find(driverDeviceId);  // todo sessionId
+    auto it = driverIdToMidiId_.find(driverDeviceId);
     CHECK_AND_RETURN_RET(it == driverIdToMidiId_.end(), it->second);
     int64_t deviceId = GenerateDeviceId();
     driverIdToMidiId_[driverDeviceId] = deviceId;
@@ -64,12 +79,13 @@ int64_t MidiDeviceManager::GetOrCreateDeviceId(int64_t driverDeviceId, DeviceTyp
 void MidiDeviceManager::Init()
 {
     MIDI_INFO_LOG("Initialize");
-    {
-        std::lock_guard<std::mutex> lock(driversMutex_);
-        drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::make_unique<UsbMidiTransportDeviceDriver>());
-    }
     CHECK_AND_RETURN_LOG(eventSubscriber_ == nullptr, "feventSubscriber_ already exists");
-    auto eventCallback = [this]() { this->UpdateDevices(); };
+    std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
+    auto eventCallback = [weakSelf]() {
+        auto self = weakSelf.lock();
+        CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
+        self->UpdateDevices();
+    };
     eventSubscriber_ = SubscribeCommonEvent(eventCallback);  // todo 工厂
     UpdateDevices();
     MIDI_INFO_LOG("MidiDeviceManager initialized successfully");
@@ -251,7 +267,7 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 
     auto driver = GetDriverForDeviceType(device.deviceType);
     if (!driver) {
-        MIDI_ERR_LOG("Driver not found for device type: %{public}d", static_cast<int>(device.deviceType));
+        MIDI_ERR_LOG("Driver not found for device type: %{public}d", static_cast<int32_t>(device.deviceType));
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
 
@@ -259,6 +275,88 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
     CHECK_AND_RETURN_RET_LOG(result == MIDI_STATUS_OK, result, "Failed to open device: %{public}" PRId64, deviceId);
     MIDI_INFO_LOG("Device opened successfully: %{public}" PRId64, deviceId);
     return result;
+}
+
+int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCallback callback)
+{
+    MIDI_INFO_LOG("MidiDeviceManager::OpenBleDevice %{public}s", address.c_str());
+    auto driver = GetDriverForDeviceType(DEVICE_TYPE_BLE);
+    if (!driver) {
+        return MIDI_STATUS_UNKNOWN_ERROR;
+    }
+
+    std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
+    auto driverCallback = [weakSelf, callback](bool connected, DeviceInformation devInfo) {
+        auto self = weakSelf.lock();
+        CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
+        if (connected) {
+            self->HandleBleConnect(devInfo, callback);
+        } else {
+            self->HandleBleDisconnect(devInfo, callback);
+        }
+    };
+
+    return driver->OpenDevice(address, driverCallback);
+}
+
+void MidiDeviceManager::HandleBleConnect(DeviceInformation devInfo, BleOpenCallback callback)
+{
+    int64_t driverDeviceId = devInfo.driverDeviceId;
+    int64_t midiDeviceId = GetOrCreateDeviceId(driverDeviceId, DEVICE_TYPE_BLE);
+    bool isNewDevice = false;
+    DeviceInformation foundInfo;
+
+    {
+        std::lock_guard<std::mutex> lock(devicesMutex_);
+        auto it = std::find_if(devices_.begin(), devices_.end(),
+            [midiDeviceId](const DeviceInformation& d) { return d.deviceId == midiDeviceId; });
+        if (it == devices_.end()) {
+            devInfo.deviceId = midiDeviceId;
+            devices_.push_back(devInfo);
+            foundInfo = devInfo;
+            isNewDevice = true;
+        } else {
+            foundInfo = *it;
+        }
+    }
+
+    if (callback) {
+        callback(true, midiDeviceId, ConvertDeviceInfo(foundInfo));
+    }
+    if (isNewDevice) {
+        MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::ADD, foundInfo);
+    }
+}
+
+void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCallback callback)
+{
+    int64_t driverDeviceId = devInfo.driverDeviceId;
+    int64_t midiDeviceId = 0;
+    bool exists = false;
+    DeviceInformation foundInfo;
+
+    {
+        std::lock_guard<std::mutex> mapLock(mappingMutex_);
+        if (driverIdToMidiId_.count(driverDeviceId)) {
+            midiDeviceId = driverIdToMidiId_[driverDeviceId];
+            std::lock_guard<std::mutex> listLock(devicesMutex_);
+            auto it = std::find_if(devices_.begin(), devices_.end(),
+                [midiDeviceId](const DeviceInformation& d) { return d.deviceId == midiDeviceId; });
+            if (it != devices_.end()) {
+                exists = true;
+                foundInfo = *it;
+                devices_.erase(it);
+            }
+            driverIdToMidiId_.erase(driverDeviceId);
+        }
+    }
+
+    if (callback) {
+        callback(false, midiDeviceId, ConvertDeviceInfo(foundInfo));
+    }
+    if (exists) {
+        MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::REMOVED, foundInfo);
+    }
 }
 
 int32_t MidiDeviceManager::OpenInputPort(
@@ -351,7 +449,7 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 
     auto driver = GetDriverForDeviceType(device.deviceType);
     if (!driver) {
-        MIDI_ERR_LOG("Driver not found for device type: %{public}d", static_cast<int>(device.deviceType));
+        MIDI_ERR_LOG("Driver not found for device type: %{public}d", static_cast<int32_t>(device.deviceType));
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
 

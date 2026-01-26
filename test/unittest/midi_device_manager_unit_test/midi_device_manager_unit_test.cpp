@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -159,7 +159,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level0)
 HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level0)
 {
     int64_t driverId = 404;
-    size_t portIndex = 1;
+    uint32_t portIndex = 1;
     std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();
@@ -179,7 +179,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level0)
 HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level0)
 {
     int64_t driverId = 505;
-    size_t portIndex = 0;
+    uint32_t portIndex = 0;
     std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, "USB MIDI")};
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
     manager_->UpdateDevices();

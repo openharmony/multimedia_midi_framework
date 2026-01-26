@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Huawei Device Co., Ltd.
+# Copyright (c) 2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,8 +17,9 @@ midi_framework_root = "../.."
 
 idl_gen_interface("midi_service_idl_interface") {
     sources = [
-        "IIpcMidiClientInServer.idl",
+        "IIpcMidiInServer.idl",
         "IMidiCallback.idl",
+        "IMidiDeviceOpenCallback.idl",
         "IMidiService.idl",
     ]
 
