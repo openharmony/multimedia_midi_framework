@@ -500,9 +500,9 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     MIDI_INFO_LOG("Client removed from device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
     CHECK_AND_RETURN_RET(clients.empty(), MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
-    for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end();) {
-        if (it->second == deviceId) {
-            activeBleDevices_.erase(it);
+    for (auto bleIt = activeBleDevices_.begin(); bleIt != activeBleDevices_.end(); bleIt++) {
+        if (bleIt->second == deviceId) {
+            activeBleDevices_.erase(bleIt);
             break;
         }
     }
@@ -562,7 +562,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
     if (change == REMOVED) {
         std::lock_guard lock(lock_);
         MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
-        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end();) {
+        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
             if (it->second == device.deviceId) {
                 activeBleDevices_.erase(it);
                 break;
