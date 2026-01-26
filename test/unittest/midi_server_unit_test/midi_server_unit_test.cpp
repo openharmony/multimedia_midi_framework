@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -49,7 +49,7 @@ public:
 };
 
 class MockMidiServiceController : public MidiServiceController {
-    MOCK_METHOD(int32_t, CreateClientInServer,
+    MOCK_METHOD(int32_t, CreateMidiInServer,
                 (std::shared_ptr<MidiServiceCallback> callback, sptr<IRemoteObject> &client, uint32_t &clientId));
 };
 
@@ -58,63 +58,63 @@ public:
 };
 
 /**
- * @tc.name: MidiClientInServer_GetDevices001
+ * @tc.name: MidiInServer_GetDevices001
  * @tc.desc: call controller's GetDevices(), expect OK
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_GetDevices001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevices001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     std::vector<std::map<int32_t, std::string>> devices;
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_EQ(MIDI_STATUS_OK, client.GetDevices(devices));
     EXPECT_TRUE(devices.empty());
 }
 
 /**
- * @tc.name: MidiClientInServer_GetDevicePorts001
+ * @tc.name: MidiInServer_GetDevicePorts001
  * @tc.desc: call controller's GetDevicePorts(), expect OK
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_GetDevicePorts001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevicePorts001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
     std::vector<std::map<int32_t, std::string>> ports;
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_EQ(MIDI_STATUS_OK, client.GetDevicePorts(deviceId, ports));
     EXPECT_TRUE(ports.empty());
 }
 
 /**
- * @tc.name: MidiClientInServer_OpenDevice001
+ * @tc.name: MidiInServer_OpenDevice001
  * @tc.desc: call controller's OpenDevice()
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_OpenDevice001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_OpenDevice001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_NE(MIDI_STATUS_OK, client.OpenDevice(deviceId));
 }
 
 /**
- * @tc.name: MidiClientInServer_OpenInputPort001
+ * @tc.name: MidiInServer_OpenInputPort001
  * @tc.desc: call controller's OpenInputPort()
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_OpenInputPort001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_OpenInputPort001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
@@ -122,71 +122,71 @@ HWTEST_F(MidiServerUnitTest, MidiClientInServer_OpenInputPort001, TestSize.Level
     int64_t deviceId = 12345;
     uint32_t portIndex = 1;
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_NE(MIDI_STATUS_OK, client.OpenInputPort(buffer, deviceId, portIndex));
 }
 
 /**
- * @tc.name: MidiClientInServer_CloseInputPort001
+ * @tc.name: MidiInServer_CloseInputPort001
  * @tc.desc: call controller's CloseInputPort()
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_CloseInputPort001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_CloseInputPort001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
     uint32_t portIndex = 1;
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_NE(MIDI_STATUS_OK, client.CloseInputPort(deviceId, portIndex));
 }
 
 /**
- * @tc.name: MidiClientInServer_CloseDevice001
+ * @tc.name: MidiInServer_CloseDevice001
  * @tc.desc: call controller's CloseDevice()
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_CloseDevice001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_CloseDevice001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_NE(MIDI_STATUS_OK, client.CloseDevice(deviceId));
 }
 
 /**
- * @tc.name: MidiClientInServer_DestroyMidiClient001
+ * @tc.name: MidiInServer_DestroyMidiClient001
  * @tc.desc: call controller's DestroyMidiClient()
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_DestroyMidiClient001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_DestroyMidiClient001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     EXPECT_NE(MIDI_STATUS_OK, client.DestroyMidiClient());
 }
 
 /**
- * @tc.name: MidiClientInServer_NotifyError001
+ * @tc.name: MidiInServer_NotifyError001
  * @tc.desc: call callback's NotifyError
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiClientInServer_NotifyError001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiInServer_NotifyError001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     auto rawCallback = mockCallback.get();
     uint32_t id = 123;
     EXPECT_CALL(*rawCallback, NotifyError(-1)).Times(1);
 
-    MidiClientInServer client(id, mockCallback);
+    MidiInServer client(id, mockCallback);
     client.NotifyError(-1);
     ASSERT_NE(nullptr, client.callback_);
 }
@@ -241,12 +241,12 @@ HWTEST_F(MidiServerUnitTest, MidiServer_OnStart001, TestSize.Level0)
 }
 
 /**
- * @tc.name: MidiServer_CreateClientInServer001
- * @tc.desc: call callback's CreateClientInServer
+ * @tc.name: MidiServer_CreateMidiInServer001
+ * @tc.desc: call callback's CreateMidiInServer
  * @tc.type: FUNC
  */
 
-HWTEST_F(MidiServerUnitTest, MidiServer_CreateClientInServer001, TestSize.Level0)
+HWTEST_F(MidiServerUnitTest, MidiServer_CreateMidiInServer001, TestSize.Level0)
 {
     int32_t systemAbilityId = 123;
     sptr<MidiServer> server = sptr<MidiServer>::MakeSptr(systemAbilityId, true);
@@ -259,6 +259,6 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateClientInServer001, TestSize.Level0
     ASSERT_NE(object, nullptr);
 
     EXPECT_NE(nullptr, server->controller_);
-    EXPECT_EQ(MIDI_STATUS_OK, server->CreateClientInServer(object, client, clientId));
+    EXPECT_EQ(MIDI_STATUS_OK, server->CreateMidiInServer(object, client, clientId));
     delete controler;
 }

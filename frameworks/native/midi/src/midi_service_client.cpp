@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -44,9 +44,9 @@ OH_MIDIStatusCode MidiServiceClient::Init(sptr<MidiCallbackStub> callback, uint3
     CHECK_AND_RETURN_RET_LOG(gsp != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "init gsp is NULL.");
     sptr<IRemoteObject> ipcProxy = nullptr;
 
-    auto ret = gsp->CreateClientInServer(callback, ipcProxy, clientId);
+    auto ret = gsp->CreateMidiInServer(callback, ipcProxy, clientId);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, (OH_MIDIStatusCode)ret);
-    ipc_ = iface_cast<IIpcMidiClientInServer>(ipcProxy);
+    ipc_ = iface_cast<IIpcMidiInServer>(ipcProxy);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
     callback_ = callback;
     deathRecipient_ = new(std::nothrow) MidiServiceDeathRecipient(0);
@@ -74,6 +74,13 @@ OH_MIDIStatusCode MidiServiceClient::OpenDevice(int64_t deviceId)
     return (OH_MIDIStatusCode)ipc_->OpenDevice(deviceId);
 }
 
+OH_MIDIStatusCode MidiServiceClient::OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback)
+{
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    return (OH_MIDIStatusCode)ipc_->OpenBleDevice(address, callback);
+}
+ 	 
 OH_MIDIStatusCode MidiServiceClient::CloseDevice(int64_t deviceId)
 {
     std::lock_guard lock(lock_);

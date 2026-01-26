@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Device Co., Ltd.
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -24,7 +24,7 @@
 
 namespace OHOS {
 namespace MIDI {
-enum DeviceInformationProperty { DEVICE_ID, DEVICE_TYPE, MIDI_PROTOCOL, PRODUCT_NAME, VENDOR_NAME };
+enum DeviceInformationProperty { DEVICE_ID, DEVICE_TYPE, MIDI_PROTOCOL, PRODUCT_NAME, VENDOR_NAME, ADDRESS};
 
 enum ProtInformationProperty { PORT_INDEX, DIRECTION, PORT_NAME };
 
@@ -38,8 +38,8 @@ enum DeviceChangeType {
 };
 
 enum TransportProtocol {
-    PROTOCOL_1_0,
-    PROTOCOL_2_0,
+    PROTOCOL_1_0 = 1,
+    PROTOCOL_2_0 = 2,
 };
 
 struct PortInformation {
@@ -54,6 +54,7 @@ struct DeviceInformation {
     int64_t driverDeviceId;
     DeviceType deviceType;
     TransportProtocol transportProtocol;
+    std::string address;
     std::string productName;
     std::string vendorName;
     std::vector<PortInformation> portInfos;
