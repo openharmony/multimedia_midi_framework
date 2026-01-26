@@ -411,18 +411,18 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     std::unique_lock<std::mutex> lock(lock_);
 
     auto it = devices_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}ld", deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
     DeviceCtx& ctx = it->second;
 
     int32_t ret = BleGattcDisconnect(ctx.id);
     MIDI_INFO_LOG("BleGattcDisconnect : %{public}d", ret);
     BleGattcUnRegister(ctx.id);
-    MIDI_INFO_LOG("Unregistered client: %{public}ld", ctx.id);
+    MIDI_INFO_LOG("Unregistered client: %{public}" PRId64, ctx.id);
     lock.unlock();
     NotifyManager(deviceId, false);
     lock.lock();
     devices_.erase(it);
-    MIDI_INFO_LOG("Device closed successfully: id=%{public}ld, address=%{public}s",
+    MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
         deviceId, ctx.address.c_str());
     return 0;
 }
@@ -533,22 +533,29 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
-    std::lock_guard<std::mutex> lock(lock_);
-    auto it = devices_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}ld", deviceId);
-    auto &d = it->second;
-    CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady, -1, "not open");
+    int32_t clientId = -1;
+    BtGattCharacteristic dataChar{};
+    {
+        // Scope for the lock: only protect the access to the devices_ map
+        std::lock_guard<std::mutex> lock(lock_);
+        auto it = devices_.find(deviceId);
+        CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
+        const auto &d = it->second;
+        CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady, -1, "Device state invalid");
+        // Copy necessary values to avoid holding the lock during I/O
+        clientId = static_cast<int32_t>(d.id);
+        dataChar = d.dataChar;
+    }
     for (auto midiEvent : list) {
         std::vector<uint8_t> midi1Buffer;
         ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
         CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
         const char *payload = reinterpret_cast<const char*>(midi1Buffer.data());
         int32_t payloadLen = static_cast<int32_t>(midi1Buffer.size());
-        CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(d.id, d.dataChar, OHOS_GATT_WRITE_NO_RSP,
+        CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
             payloadLen, payload) == 0, "write characteristic failed");
     }
     return 0;
 }
-
 } // namespace MIDI
 } // namespace OHOS
