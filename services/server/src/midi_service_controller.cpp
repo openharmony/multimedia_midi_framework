@@ -500,11 +500,12 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     MIDI_INFO_LOG("Client removed from device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
     CHECK_AND_RETURN_RET(clients.empty(), MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
-    for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end();) {
-        if (it->second == deviceId) {
-            activeBleDevices_.erase(it);
+    for (auto bleIt = activeBleDevices_.begin(); bleIt != activeBleDevices_.end();) {
+        if (bleIt->second == deviceId) {
+            activeBleDevices_.erase(bleIt);
             break;
         }
+        bleIt++;
     }
     lock.unlock();
     CHECK_AND_RETURN_RET_LOG(deviceManager_->CloseDevice(deviceId) == MIDI_STATUS_OK,
@@ -567,6 +568,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
                 activeBleDevices_.erase(it);
                 break;
             }
+            it++;
         }
         auto it = deviceClientContexts_.find(device.deviceId);
         if (it != deviceClientContexts_.end()) {
