@@ -40,7 +40,7 @@ public:
 
 class MockMidiServiceCallback : public IRemoteStub<IMidiCallback> {
 public:
-    MOCK_METHOD(ErrCode, NotifyDeviceChange, (int32_t change, (std::map<int32_t, std::string> deviceInfo)),
+    MOCK_METHOD(ErrCode, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
         (override));
     MOCK_METHOD(ErrCode, NotifyError, (int32_t code), (override));
 };
