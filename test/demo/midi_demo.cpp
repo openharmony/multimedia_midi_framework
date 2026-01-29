@@ -129,7 +129,6 @@ static void SetupPorts(OH_MIDIClient *client, OH_MIDIDevice *device, int64_t dev
         }
     }
 }
-}
 
 // 主 MIDI 运行逻辑
 static int RunMidiDemo()
