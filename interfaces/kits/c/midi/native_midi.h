@@ -81,7 +81,7 @@ OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiGetDeviceCount(OH_MidiClient *client, size_t *count);
+OH_MIDIStatusCode OH_MIDIGetDeviceCount(OH_MIDIClient *client, size_t *count);
 
 /**
  * @brief Get the information of connected MIDI devices.
@@ -89,7 +89,7 @@ OH_MidiStatusCode OH_MidiGetDeviceCount(OH_MidiClient *client, size_t *count);
  * Fills the user-allocated buffer with device information.
  *
  * @note Race Condition Handling:
- * If the number of devices increases between calling OH_MidiGetDeviceCount and this function,
+ * If the number of devices increases between calling OH_MIDIGetDeviceCount and this function,
  * this function will only fill up to 'capacity' devices, 'actualNumDevices' set to 'capacity'.
  * If the number decreases, it will fill the actual available devices.
  * Always check 'actualNumDevices' for the real number of records written.
@@ -104,8 +104,8 @@ OH_MidiStatusCode OH_MidiGetDeviceCount(OH_MidiClient *client, size_t *count);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MidiStatusCode OH_MidiGetDeviceInfos(OH_MidiClient *client,
-                                        OH_MidiDeviceInformation *infos,
+OH_MIDIStatusCode OH_MIDIGetDeviceInfos(OH_MIDIClient *client,
+                                        OH_MIDIDeviceInformation *infos,
                                         size_t capacity,
                                         size_t *actualNumDevices);
 
