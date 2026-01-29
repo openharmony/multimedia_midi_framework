@@ -101,7 +101,7 @@ void MidiServiceController::ScheduleUnloadTask()
     }
 
     unloadThread_ = std::thread([this]() {
-        MIDI_INFO_LOG("Unload timer started. Waiting for 5 minutes...");
+        MIDI_INFO_LOG("Unload timer started. Waiting for 60s...");
         std::unique_lock<std::mutex> lk(unloadMutex_);
         if (unloadCv_.wait_for(lk, std::chrono::milliseconds(UNLOAD_DELAY_TIME)) == std::cv_status::timeout) {
             CHECK_AND_RETURN(isUnloadPending_);
@@ -246,7 +246,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         return MIDI_STATUS_OK;
     }
     MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", address.c_str());
-    
+
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     auto completeCallback = [weakSelf, address](bool success, int64_t deviceId,
@@ -376,7 +376,7 @@ int32_t MidiServiceController::OpenOutputPort(
         "client %{public}u doesn't open device %{public}" PRId64 "",
         clientId,
         deviceId);
-    
+
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
