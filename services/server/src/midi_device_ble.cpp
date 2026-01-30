@@ -19,6 +19,7 @@
 #include <fstream>
 #include <sstream>
 #include "midi_log.h"
+#include "midi_utils.h"
 #include "midi_device_ble.h"
 #include "ump_processor.h"
 
@@ -196,9 +197,9 @@ static bool ParseMac(const std::string &mac, BdAddr &out)
             }
             return -1;
         };
-        int32_t v1 = hexVal(c1);
-        int32_t v2 = hexVal(c2);
-        CHECK_AND_RETURN_RET(v1 >= 0 && v2 >= 0, false);
+        CHECK_AND_RETURN_RET(hexVal(c1) >= 0 && hexVal(c2) >= 0, false);
+        uint32_t v1 = static_cast<uint32_t>(hexVal(c1));
+        uint32_t v2 = static_cast<uint32_t>(hexVal(c2));
         out.addr[bi++] = static_cast<unsigned char>((v1 << BIT_SHIFT_FOUR) | v2);
         i += HEX_STEP;
         CHECK_AND_RETURN_RET(bi != MAC_ADDR_BYTES, true);
@@ -423,7 +424,7 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     lock.lock();
     devices_.erase(it);
     MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
-        deviceId, ctx.address.c_str());
+        deviceId, GetEncryptStr(ctx.address).c_str());
     return 0;
 }
 
@@ -439,10 +440,10 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
     // Check if address already exists
     for (auto &[id, d] : devices_) {
         if (d.address == deviceAddr) {
-            MIDI_WARNING_LOG("Driver: Device %{public}s already has context", deviceAddr.c_str());
+            MIDI_WARNING_LOG("Driver: Device %{public}s already has context", GetEncryptStr(deviceAddr).c_str());
             // If it's fully ready, we might callback immediately,
             // but Controller handles "Pending" logic usually.
-            return -1;
+            return MIDI_STATUS_DEVICE_ALREADY_OPEN;
         }
     }
 
@@ -463,7 +464,7 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
     if (!ParseMac(deviceAddr, bd)) {
         BleGattcUnRegister(clientId);
         devices_.erase(clientId);
-        return -1;
+        return MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
 
     if (BleGattcConnect(clientId, &gattCallbacks_, &bd, false, OHOS_BT_TRANSPORT_TYPE_LE) != 0) {

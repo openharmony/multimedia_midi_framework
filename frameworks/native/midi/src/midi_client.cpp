@@ -81,7 +81,7 @@ static bool ConvertToDeviceInformation(
         strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress), it->second.c_str(), it->second.length()) ==
             MIDI_STATUS_OK,
         false,
-        "copy vendorName failed");
+        "copy deviceAddress failed");
     return true;
 }
 MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
@@ -250,7 +250,7 @@ OH_MIDIStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
 {
     auto ipc = ipc_.lock();
     CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
-    OH_MIDIStatusCode ret = MIDI_STATUS_OK;
+    OH_MIDIStatusCode ret = MIDI_STATUS_INVALID_PORT;
     {
         std::lock_guard<std::mutex> lock(inputPortsMutex_);
         auto it = inputPortsMap_.find(portIndex);

@@ -386,6 +386,7 @@ int32_t MidiDeviceManager::OpenInputPort(
                 locked->HandleDeviceUmpInput(events);
             }
         });
+    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, MIDI_STATUS_INVALID_PORT);
     return ret;
 }
 
@@ -408,7 +409,9 @@ int32_t MidiDeviceManager::OpenOutputPort(
     };
     auto connection = std::make_shared<DeviceConnectionForOutput>(info);
     outputConnection = connection;
-    return driver->OpenOutputPort(device.driverDeviceId, portIndex);
+    auto ret = driver->OpenOutputPort(device.driverDeviceId, portIndex);
+    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, MIDI_STATUS_INVALID_PORT);
+    return ret;
 }
 
 int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)

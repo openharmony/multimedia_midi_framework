@@ -239,7 +239,6 @@ HWTEST_F(MidiDeviceUsbUnitTest, CloseInputPort001, TestSize.Level0)
 {
     constexpr int64_t deviceId = 100;
     constexpr uint32_t portIndex = 1;
-    MidiEventInner event;
     sptr<MockIMidiInterface> mockMidiHdi = sptr<MockIMidiInterface>::MakeSptr();
     ASSERT_NE(nullptr, mockMidiHdi);
     UsbMidiTransportDeviceDriver driver;
@@ -248,5 +247,4 @@ HWTEST_F(MidiDeviceUsbUnitTest, CloseInputPort001, TestSize.Level0)
     EXPECT_CALL(*mockMidiHdi, CloseInputPort(deviceId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));
 
     EXPECT_EQ(MIDI_STATUS_OK, driver.CloseInputPort(deviceId, portIndex));
-    EXPECT_EQ(0, driver.HanleUmpInput(deviceId, portIndex, event));
 }

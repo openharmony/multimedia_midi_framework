@@ -59,7 +59,6 @@ public:
 
 private:
     sptr<HDI::Midi::V1_0::IMidiInterface> midiHdi_ = nullptr;
-    std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> messages_;
 };
 } // namespace MIDI
 } // namespace OHOS

@@ -21,6 +21,7 @@ namespace MIDI {
 const uint64_t MIDI_NS_PER_SECOND = 1000000000;
 
 void CloseFd(int fd);
+std::string GetEncryptStr(const std::string &str);
 
 class ClockTime {
 public:
