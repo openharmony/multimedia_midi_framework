@@ -23,6 +23,7 @@
 #include "system_ability_definition.h"
 #include "midi_info.h"
 #include "midi_log.h"
+#include "midi_utils.h"
 #include "imidi_device_open_callback.h"
 #include "midi_listener_callback.h"
 #include <chrono>
@@ -197,7 +198,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
         return MIDI_STATUS_OK;
     }
     CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "Open device failed: deviceId=%{public}" PRId64,
         deviceId);
     std::unordered_set<int32_t> clients = {static_cast<int32_t>(clientId)};
@@ -210,7 +211,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::string &address,
     const sptr<IRemoteObject> &object)
 {
-    MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, address=%{public}s", clientId, address.c_str());
+    MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, device=%{public}s", clientId, GetEncryptStr(address).c_str());
 
     sptr<IMidiDeviceOpenCallback> callback = iface_cast<IMidiDeviceOpenCallback>(object);
     CHECK_AND_RETURN_RET_LOG(callback != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "callback cast failed");
