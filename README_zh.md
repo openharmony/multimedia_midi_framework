@@ -87,16 +87,17 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 * **USB MIDI 设备流程**:
   1. **物理接入**: USB MIDI 键盘/合成器插入，**USB 驱动** 识别硬件并上报给 **USB 服务**。
   2. **被动发现**: **USB 服务** 通知 MIDI 服务的 **USB MIDI 适配** 模块。适配模块解析设备信息后，将其注册到 **MIDI 设备管理** 模块。
-  3. **通知应用**: 若 **MIDI APP** 注册了回调，会收到设备上线事件。此时 APP 可调用 `OH_MIDIGetDevices` 获取最新列表。
+  3. **通知应用**: 若 **MIDI APP** 注册了回调，会收到设备上线事件。此时 APP 可调用 `OH_MIDIGetDeviceCount` 和 `OH_MIDIGetDeviceInfos` 获取最新列表。
   4. **建立连接**: APP 调用 `OH_MIDIOpenDevice` -> 客户端通过 IPC 请求服务端 -> 服务端 **MIDI 设备管理** 识别为 USB 设备 -> 调度 **USB MIDI 适配** 模块 -> 通过 **MIDI 驱动** 打开底层设备节点。
 
 
 * **BLE MIDI 设备流程**:
   1. **主动发现**: **MIDI APP** 调用[系统蓝牙接口](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/connectivity/bluetooth/ble-development-guide.md)（`@ohos.bluetooth.ble`的`startBLEScan`）启动扫描，根据 UUID 过滤出 BLE MIDI 外设。
      * **MIDI Service UUID**: `03B80E5A-EDE8-4B33-A751-6CE34EC4C700` (参照 [Bluetooth Low Energy MIDI Specification](https://midi.org/midi-over-bluetooth-low-energy-ble-midi))
-  2. **接入服务**: APP 获取 MAC 地址后，调用 `OH_MIDIOpenBleDevice`。
+  2. **接入服务**: APP 获取 MAC 地址后，调用 `OH_MIDIOpenBleDevice` 并传入回调函数。
   3. **建立连接**: 客户端请求服务端 -> 服务端 **MIDI 设备管理** 识别为 BLE 请求 -> 调度 **蓝牙 MIDI 适配** 模块 -> 调用 **蓝牙服务** 建立 GATT 连接。
-  4. **统一管理**: 连接成功后，该 BLE 设备被纳入 **MIDI 设备管理** 模块的通用列表，APP 可像操作 USB 设备一样对其进行端口操作。
+  4. **异步回调**: 连接完成后，系统调用 `OH_MIDIOnDeviceOpened` 回调通知 APP 连接结果。若成功，APP 获得设备句柄，可进行后续端口操作。
+  5. **统一管理**: 连接成功后，该 BLE 设备被纳入 **MIDI 设备管理** 模块的通用列表，APP 可像操作 USB 设备一样对其进行端口操作。
 
 #### 端口管理与数据传输
 
@@ -179,19 +180,23 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 
 **表 1** 接口说明
 
-| 接口名称                  | 功能描述                                                             |
-| ------------------------- | -------------------------------------------------------------------- |
-| **OH_MIDIClientCreate**   | 创建MIDI客户端实例，初始化上下文环境，并可注册设备热插拔及错误回调。 |
-| **OH_MIDIClientDestroy**  | 销毁MIDI客户端实例，释放相关资源。                                   |
-| **OH_MIDIGetDevices**     | 获取当前系统已连接的MIDI设备列表及设备详细信息。                     |
-| **OH_MIDIGetDevicePorts** | 获取指定设备的端口信息。                                             |
-| **OH_MIDIOpenDevice**     | 打开指定的MIDI设备，建立连接会话。                                   |
-| **OH_MIDIOpenBleDevice**  | 打开指定的BLE MIDI设备，建立连接会话。                               |
-| **OH_MIDICloseDevice**    | 关闭已打开的MIDI设备，断开连接。                                     |
-| **OH_MIDIOpenInputPort**  | 打开设备的指定输入端口，准备接收MIDI数据。                           |
-| **OH_MIDIOpenOutputPort** | 打开设备的指定输出端口，准备发送MIDI数据。                           |
-| **OH_MIDISend**           | 向指定输出端口发送MIDI数据。                                         |
-| **OH_MIDIClosePort**      | 关闭指定的输入或输出端口，停止数据传输。                             |
+| 接口名称                      | 功能描述                                                             |
+| ----------------------------- | -------------------------------------------------------------------- |
+| **OH_MIDIClientCreate**       | 创建MIDI客户端实例，初始化上下文环境，并可注册设备热插拔及错误回调。 |
+| **OH_MIDIClientDestroy**      | 销毁MIDI客户端实例，释放相关资源。                                   |
+| **OH_MIDIGetDeviceCount**     | 获取当前系统已连接的MIDI设备数量。                                   |
+| **OH_MIDIGetDeviceInfos**     | 获取当前系统已连接的MIDI设备详细信息。                               |
+| **OH_MIDIGetPortCount**       | 获取指定设备的端口数量。                                             |
+| **OH_MIDIGetPortInfos**       | 获取指定设备的端口信息。                                             |
+| **OH_MIDIOpenDevice**         | 打开指定的MIDI设备，建立连接会话。                                   |
+| **OH_MIDIOpenBleDevice**      | 异步打开指定的BLE MIDI设备，建立连接会话。                           |
+| **OH_MIDICloseDevice**        | 关闭已打开的MIDI设备，断开连接。                                     |
+| **OH_MIDIOpenInputPort**      | 打开设备的指定输入端口，准备接收MIDI数据。                           |
+| **OH_MIDIOpenOutputPort**     | 打开设备的指定输出端口，准备发送MIDI数据。                           |
+| **OH_MIDISend**               | 向指定输出端口发送MIDI数据。                                         |
+| **OH_MIDISendSysEx**          | 发送长SysEx消息（字节流到UMP的辅助函数）。                           |
+| **OH_MIDIFlushOutputPort**    | 刷新输出缓冲区中的挂起消息。                                         |
+| **OH_MIDIClosePort**          | 关闭指定的输入或输出端口，停止数据传输。                             |
 
 ### 开发步骤
 
@@ -257,13 +262,14 @@ void MIDIDemo() {
         return;
     }
 
-    // 2. 获取设备列表 (两次调用模式)
+    // 2. 获取设备列表 (先获取数量，再获取信息)
     size_t devCount = 0;
-    OH_MIDIGetDevices(client, nullptr, &devCount);
+    OH_MIDIGetDeviceCount(client, &devCount);
 
     if (devCount > 0) {
         std::vector<OH_MIDIDeviceInformation> devices(devCount);
-        OH_MIDIGetDevices(client, devices.data(), &devCount);
+        size_t actualDevCount = 0;
+        OH_MIDIGetDeviceInfos(client, devices.data(), devCount, &actualDevCount);
 
         // 示例：操作列表中的第一个设备
         int64_t targetDeviceId = devices[0].midiDeviceId;
@@ -271,11 +277,12 @@ void MIDIDemo() {
 
         // 3. 获取端口信息 (无需 OpenDevice 即可查询)
         size_t portCount = 0;
-        OH_MIDIGetDevicePorts(client, targetDeviceId, nullptr, &portCount);
+        OH_MIDIGetPortCount(client, targetDeviceId, &portCount);
 
         if (portCount > 0) {
             std::vector<OH_MIDIPortInformation> ports(portCount);
-            OH_MIDIGetDevicePorts(client, targetDeviceId, ports.data(), &portCount);
+            size_t actualPortCount = 0;
+            OH_MIDIGetPortInfos(client, targetDeviceId, ports.data(), portCount, &actualPortCount);
 
             // 4. 打开设备
             OH_MIDIDevice *device = nullptr;
@@ -333,7 +340,8 @@ void MIDIDemo() {
 #### 注意事项
 
 * **数据格式**：`OH_MIDIEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
-* **内存获取模式**：`OH_MIDIGetDevices` 和 `OH_MIDIGetDevicePorts` 均采用“两次调用”模式。第一次传入 `nullptr` 获取数量，第二次传入分配好的缓冲区获取实际数据。
+* **内存获取模式**：`OH_MIDIGetDeviceInfos` 和 `OH_MIDIGetPortInfos` 采用"分步调用"模式。先调用 `OH_MIDIGetDeviceCount` / `OH_MIDIGetPortCount` 获取数量，再调用 `OH_MIDIGetDeviceInfos` / `OH_MIDIGetPortInfos` 填充缓冲区获取实际数据。注意检查实际写入的记录数以处理竞态条件。
+* **BLE 设备异步连接**：`OH_MIDIOpenBleDevice` 采用异步回调模式。应用需要实现 `OH_MIDIOnDeviceOpened` 回调来接收连接结果，并在成功时关闭设备句柄。
 * **非阻塞发送**：`OH_MIDISend` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
 * **回调限制**：`OnMIDIReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
 

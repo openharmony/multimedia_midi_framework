@@ -274,6 +274,33 @@ typedef struct {
 } OH_MIDIDeviceInformation;
 
 /**
+ * @brief Port Information (Detailed)
+ * Used for enumeration (contains display names).
+ * @since 24
+ */
+typedef struct {
+    /**
+     * @brief The index of the port.
+     */
+    uint32_t portIndex;
+
+    /**
+     * @brief The ID of the device this port belongs to.
+     */
+    int64_t deviceId;
+
+    /**
+     * @brief Direction of the port (Input/Output).
+     */
+    OH_MIDIPortDirection direction;
+
+    /**
+     * @brief Name of the port.
+     */
+    char name[64];
+} OH_MIDIPortInformation;
+
+/**
  * @brief Port Descriptor
  * @since 24
  */
@@ -304,33 +331,6 @@ typedef struct {
      */
     OH_MIDIProtocol protocol;
 } OH_MIDIPortDescriptor;
-
-/**
- * @brief Port Information (Detailed)
- * Used for enumeration (contains display names).
- * @since 24
- */
-typedef struct {
-    /**
-     * @brief The index of the port.
-     */
-    uint32_t portIndex;
-
-    /**
-     * @brief The ID of the device this port belongs to.
-     */
-    int64_t deviceId;
-
-    /**
-     * @brief Direction of the port (Input/Output).
-     */
-    OH_MIDIPortDirection direction;
-
-    /**
-     * @brief Name of the port.
-     */
-    char name[64];
-} OH_MIDIPortInformation;
 
 /**
  * @brief Declare the midi client
