@@ -15,6 +15,7 @@
  */
 #ifndef MIDI_TEST_COMMON_H
 #define MIDI_TEST_COMMON_H
+#include "iremote_stub.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
 #include <gtest/gtest.h>
@@ -38,7 +39,14 @@ public:
         (override));
 };
 
-class MockMidiServiceCallback : public IRemoteStub<IMidiCallback> {
+class MockMidiServiceCallback : public MidiServiceCallback {
+public:
+    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, (std::map<int32_t, std::string>)deviceInfo),
+                (override));
+    MOCK_METHOD(void, NotifyError, (int32_t code), (override));
+};
+
+class MockMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
     MOCK_METHOD(ErrCode, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
         (override));

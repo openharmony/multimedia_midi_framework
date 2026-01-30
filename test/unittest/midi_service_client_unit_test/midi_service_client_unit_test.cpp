@@ -36,10 +36,13 @@ class MockIpcMidiInServer : public IIpcMidiInServer {
 public:
     MOCK_METHOD(int32_t, GetDevices, ((std::vector<std::map<int32_t, std::string>> & devices)), (override));
     MOCK_METHOD(int32_t, OpenDevice, (int64_t), (override));
+    MOCK_METHOD(int32_t, OpenBleDevice, (const std::string &address, const sptr<IRemoteObject> &object), (override));
     MOCK_METHOD(int32_t, CloseDevice, (int64_t), (override));
     MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, (std::vector<std::map<int32_t, std::string>> &)), (override));
     MOCK_METHOD(int32_t, OpenInputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
+    MOCK_METHOD(int32_t, OpenOutputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, CloseInputPort, (int64_t, uint32_t), (override));
+    MOCK_METHOD(int32_t, CloseOutputPort, (int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, DestroyMidiClient, (), (override));
     MOCK_METHOD(sptr<IRemoteObject>, AsObject, (), (override));
 };
