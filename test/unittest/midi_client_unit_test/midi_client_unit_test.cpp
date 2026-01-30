@@ -100,7 +100,8 @@ public:
     MOCK_METHOD(OH_MIDIStatusCode, Init, (sptr<MidiCallbackStub> callback, uint32_t &clientId), (override));
     MOCK_METHOD(OH_MIDIStatusCode, GetDevices, ((std::vector<std::map<int32_t, std::string>>)&deviceInfos), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenDevice, (int64_t deviceId), (override));
-    MOCK_METHOD(OH_MIDIStatusCode, OpenBleDevice, (std::string address, sptr<MidiDeviceOpenCallbackStub> callback), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, OpenBleDevice,
+        (std::string address, sptr<MidiDeviceOpenCallbackStub> callback), (override));
     MOCK_METHOD(OH_MIDIStatusCode, CloseDevice, (int64_t deviceId), (override));
     MOCK_METHOD(OH_MIDIStatusCode, GetDevicePorts,
         (int64_t deviceId, (std::vector<std::map<int32_t, std::string>>)&portInfos), (override));
@@ -404,8 +405,8 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level
 
     EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture), MIDI_STATUS_OK);
     // Second time should hit "already exists" branch and return ALREADY_OPEN without IPC.
-    EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture), MIDI_STATUS_PORT_ALREADY_OPEN);
-
+    EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture),
+        MIDI_STATUS_PORT_ALREADY_OPEN);
     EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
 }
 
