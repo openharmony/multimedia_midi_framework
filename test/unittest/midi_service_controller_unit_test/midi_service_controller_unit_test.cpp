@@ -35,7 +35,7 @@ public:
         rawMockDriver_ = mockDriver_.get();
         controller_->deviceManager_->drivers_.clear();
         controller_->deviceManager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockDriver_));
-        mockCallback_ = new MockMidiServiceCallback();
+        mockCallback_ = new MockMidiCallbackStub();
         sptr<IRemoteObject> clientObj;
         controller_->CreateMidiInServer(mockCallback_->AsObject(), clientObj, clientId_);
     }
@@ -84,7 +84,7 @@ protected:
     std::shared_ptr<MidiServiceController> controller_ = nullptr;
     MockMidiDeviceDriver *rawMockDriver_ = nullptr;
     std::unique_ptr<MockMidiDeviceDriver> mockDriver_;
-    sptr<MockMidiServiceCallback> mockCallback_;
+    sptr<MockMidiCallbackStub> mockCallback_;
     uint32_t clientId_ = 0;
 };
 
@@ -97,7 +97,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CreateClient001, TestSize.Level0)
 {
     uint32_t newClientId = 0;
     sptr<IRemoteObject> clientObj;
-    sptr<MockMidiServiceCallback> cb = new MockMidiServiceCallback();
+    sptr<MockMidiCallbackStub> cb = new MockMidiCallbackStub();
     int32_t ret = controller_->CreateMidiInServer(cb->AsObject(), clientObj, newClientId);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     EXPECT_GT(newClientId, 0);
@@ -228,7 +228,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice005, TestSize.Level0)
     // Create a second client
     uint32_t clientId2 = 0;
     sptr<IRemoteObject> clientObj;
-    sptr<MockMidiServiceCallback> cb2 = new MockMidiServiceCallback();
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
     controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
 
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
@@ -312,7 +312,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseDevice003, TestSize.Level0)
     // Create a second client
     uint32_t clientId2 = 0;
     sptr<IRemoteObject> clientObj;
-    sptr<MockMidiServiceCallback> cb2 = new MockMidiServiceCallback();
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
     controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
 
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
@@ -391,7 +391,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort003, TestSize.Level0)
 
     uint32_t clientId2 = 0;
     sptr<IRemoteObject> clientObj;
-    sptr<MockMidiServiceCallback> cb2 = new MockMidiServiceCallback();
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
     controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
 
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
@@ -420,7 +420,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort004, TestSize.Level0)
 
     uint32_t clientId2 = 0;
     sptr<IRemoteObject> clientObj;
-    sptr<MockMidiServiceCallback> cb2 = new MockMidiServiceCallback();
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
     controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
 
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
@@ -484,7 +484,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort002, TestSize.Level0)
 
     uint32_t clientId2 = 0;
     sptr<IRemoteObject> clientObj;
-    sptr<MockMidiServiceCallback> cb2 = new MockMidiServiceCallback();
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
     controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
     controller_->OpenDevice(clientId_, deviceId);

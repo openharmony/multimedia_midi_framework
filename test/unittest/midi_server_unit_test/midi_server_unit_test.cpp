@@ -16,7 +16,7 @@
 #include "iremote_stub.h"
 #include "iservice_registry.h"
 #include "message_parcel.h"
-#include "midi_client_in_server.h"
+#include "midi_in_server.h"
 #include "midi_info.h"
 #include "midi_listener_callback.h"
 #include "midi_server.h"
@@ -250,7 +250,7 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateMidiInServer001, TestSize.Level0)
 {
     int32_t systemAbilityId = 123;
     sptr<MidiServer> server = sptr<MidiServer>::MakeSptr(systemAbilityId, true);
-    MockMidiServiceController *controler = new MockMidiServiceController();
+    auto controler = std::make_shared<MockMidiServiceController>();
     sptr<IRemoteObject> object = (new TestMidiCallbackStub())->AsObject();
     sptr<IRemoteObject> client;
     uint32_t clientId = 0;
@@ -260,5 +260,4 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateMidiInServer001, TestSize.Level0)
 
     EXPECT_NE(nullptr, server->controller_);
     EXPECT_EQ(MIDI_STATUS_OK, server->CreateMidiInServer(object, client, clientId));
-    delete controler;
 }

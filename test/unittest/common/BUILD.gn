@@ -42,6 +42,7 @@ ohos_unittest("midi_common_unittest") {
 
   deps = [
     "${midi_framework_root}/services/common:midi_common",
+    "${midi_framework_root}/frameworks/native/midiutils:midiutils"
   ]
 
   external_deps = [

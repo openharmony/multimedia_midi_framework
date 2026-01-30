@@ -308,6 +308,9 @@ bool MidiSharedRing::Marshalling(Parcel &parcel) const
 {
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, false, "dataMem_ is nullptr.");
+    if (notifyFd_ == nullptr) {
+        return messageParcel.WriteUint32(capacity_) && messageParcel.WriteFileDescriptor(dataMem_->GetFd());
+    }
     return messageParcel.WriteUint32(capacity_) &&
         messageParcel.WriteFileDescriptor(dataMem_->GetFd()) && messageParcel.WriteFileDescriptor(notifyFd_->Get());
 }
