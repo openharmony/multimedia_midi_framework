@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <cstdint>
 #include <cstddef>
+#include <sys/eventfd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
@@ -199,6 +200,33 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCreateFromRemote_001, TestSize.Le
  * @tc.desc   : Marshalling then Unmarshalling should succeed and produce a usable ring.
  */
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingMarshalling_001, TestSize.Level0)
+{
+    constexpr uint32_t RING_CAPACITY_BYTES = 256;
+    auto fd = std::make_shared<UniqueFd>();
+    int eventFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    fd->Reset(eventFd);
+    auto ring = MidiSharedRing::CreateFromLocal(RING_CAPACITY_BYTES, fd);
+    ASSERT_NE(nullptr, ring);
+
+    MessageParcel parcel;
+    ASSERT_TRUE(ring->Marshalling(parcel));
+    auto *out = MidiSharedRing::Unmarshalling(parcel);
+    ASSERT_NE(nullptr, out);
+
+    EXPECT_EQ(RING_CAPACITY_BYTES, out->GetCapacity());
+    EXPECT_TRUE(out->IsEmpty());
+    EXPECT_NE(nullptr, out->GetControlHeader());
+    EXPECT_NE(nullptr, out->GetDataBase());
+    EXPECT_NE(nullptr, out->GetFutex());
+    delete out;
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Marshalling & Unmarshalling
+ * @tc.number : MidiSharedRingMarshalling_002
+ * @tc.desc   : Marshalling then Unmarshalling should succeed and produce a usable ring without valid fd.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingMarshalling_002, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 256;
     auto ring = MidiSharedRing::CreateFromLocal(RING_CAPACITY_BYTES);
