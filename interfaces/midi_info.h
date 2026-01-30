@@ -58,7 +58,8 @@ struct DeviceInformation {
     std::string productName;
     std::string vendorName;
     std::vector<PortInformation> portInfos;
-    DeviceInformation() : deviceId(0), deviceType(DeviceType::DEVICE_TYPE_USB) {}
+    DeviceInformation() : deviceId(0),  driverDeviceId(0),
+        deviceType(DeviceType::DEVICE_TYPE_USB), transportProtocol(TransportProtocol::PROTOCOL_1_0) {}
 };
 
 struct MidiEvent {

@@ -105,17 +105,17 @@ int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> messages;
     for (auto &event: list) {
         OHOS::HDI::Midi::V1_0::MidiMessage msg;
         msg.timestamp = static_cast<int64_t>(event.timestamp);
         for (size_t i = 0; i < event.length; ++i) {
             msg.data.push_back(event.data[i]);
         }
-        messages_.emplace_back(msg);
+        messages.emplace_back(msg);
     }
     
-    int32_t ret = midiHdi_->SendMidiMessages(deviceId, portIndex, messages_);
-    messages_.clear();
+    int32_t ret = midiHdi_->SendMidiMessages(deviceId, portIndex, messages);
     return ret;
 }
 
