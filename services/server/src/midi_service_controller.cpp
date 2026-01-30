@@ -122,12 +122,12 @@ void MidiServiceController::ScheduleUnloadTask()
 int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &object,
     sptr<IRemoteObject> &client, uint32_t &clientId)
 {
-    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(object, MIDI_STATUS_UNKNOWN_ERROR, "object is nullptr");
     sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
     CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_UNKNOWN_ERROR, "listener is nullptr");
     std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
     CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
-
+    std::lock_guard lock(lock_);
     CancelUnloadTask();
     do {
         if (currentClientId_ >= MAX_CLIENTID) {
