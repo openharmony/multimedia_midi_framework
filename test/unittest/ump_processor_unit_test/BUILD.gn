@@ -17,7 +17,7 @@ import("//foundation/multimedia/midi_framework/config.gni")
 
 module_output_path = "midi_framework/"
 
-ohos_unittest("midi_device_connection_unittest") {
+ohos_unittest("ump_processor_unittest") {
   testonly = true
   module_out_path = module_output_path
 
