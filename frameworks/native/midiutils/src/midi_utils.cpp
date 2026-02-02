@@ -31,6 +31,12 @@
 
 namespace OHOS {
 namespace MIDI {
+namespace {
+    constexpr size_t FIRST_CHAR = 1;
+    constexpr size_t MIN_LEN = 8;
+    constexpr size_t HEAD_STR_LEN = 2;
+    constexpr size_t TAIL_STR_LEN = 5;
+} // namespace
 
 int64_t ClockTime::GetCurNano()
 {
@@ -53,6 +59,31 @@ void CloseFd(int fd)
     int tmpFd = fd;
     close(fd);
     MIDI_DEBUG_LOG("fd: %{public}d closed successfuly!", tmpFd);
+}
+
+std::string GetEncryptStr(const std::string &src)
+{
+    if (src.empty()) {
+        return std::string("");
+    }
+
+    size_t strLen = src.length();
+    std::string dst;
+
+    if (strLen < MIN_LEN) {
+        // src: abcdef
+        // dst: *bcdef
+        dst = '*' + src.substr(FIRST_CHAR, strLen - FIRST_CHAR);
+    } else {
+        // src: 00:00:00:00:00:00
+        // dst: 00**********00:00
+        dst = src.substr(0, HEAD_STR_LEN);
+        std::string tempStr(strLen - HEAD_STR_LEN - TAIL_STR_LEN, '*');
+        dst += tempStr;
+        dst += src.substr(strLen - TAIL_STR_LEN, TAIL_STR_LEN);
+    }
+
+    return dst;
 }
 
 // ====== UniqueFd ======

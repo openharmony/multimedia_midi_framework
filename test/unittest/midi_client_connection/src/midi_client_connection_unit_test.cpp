@@ -161,18 +161,18 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerPendingQueue_001,
     EXPECT_FALSE(clientConnection.PopPendingTop(pendingEventOut));
 
     // Enqueue three events with different due times.
-    const uint8_t payloadData1[] = {0x01, 0x02};
-    const uint8_t payloadData2[] = {0x10, 0x11, 0x12};
-    const uint8_t payloadData3[] = {0x20};
+    std::vector<uint32_t> payloadData1 = {0x01, 0x02};
+    std::vector<uint32_t> payloadData2 = {0x10, 0x11, 0x12};
+    std::vector<uint32_t> payloadData3 = {0x20};
 
     const auto nowTime = steady_clock::now();
     const auto dueLater = nowTime + milliseconds(10);
     const auto dueEarliest = nowTime + milliseconds(1);
     const auto dueMiddle = nowTime + milliseconds(5);
 
-    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(payloadData1, sizeof(payloadData1), dueLater, 100));
-    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(payloadData2, sizeof(payloadData2), dueEarliest, 200));
-    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(payloadData3, sizeof(payloadData3), dueMiddle, 300));
+    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(std::move(payloadData1), dueLater, 100));
+    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(std::move(payloadData2), dueEarliest, 200));
+    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(std::move(payloadData3), dueMiddle, 300));
 
     EXPECT_TRUE(clientConnection.HasPending());
     EXPECT_FALSE(clientConnection.IsPendingFull());
@@ -181,17 +181,17 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerPendingQueue_001,
     const ClientConnectionInServer::PendingEvent *topPending = clientConnection.PeekPendingTop();
     ASSERT_NE(nullptr, topPending);
     EXPECT_EQ(200u, topPending->timestamp);
-    ASSERT_EQ(sizeof(payloadData2), topPending->data.size());
-    EXPECT_EQ(payloadData2[0], topPending->data[0]);
+    ASSERT_EQ(3, topPending->data.size());
+    EXPECT_EQ(0x10, topPending->data[0]);
 
     // Pop should return the same earliest event.
     ClientConnectionInServer::PendingEvent poppedEvent{};
     ASSERT_TRUE(clientConnection.PopPendingTop(poppedEvent));
     EXPECT_EQ(200u, poppedEvent.timestamp);
-    ASSERT_EQ(sizeof(payloadData2), poppedEvent.data.size());
-    EXPECT_EQ(payloadData2[0], poppedEvent.data[0]);
-    EXPECT_EQ(payloadData2[1], poppedEvent.data[1]);
-    EXPECT_EQ(payloadData2[2], poppedEvent.data[2]);
+    ASSERT_EQ(3, poppedEvent.data.size());
+    EXPECT_EQ(0x10, poppedEvent.data[0]);
+    EXPECT_EQ(0x11, poppedEvent.data[1]);
+    EXPECT_EQ(0x12, poppedEvent.data[2]);
 
     // Next top should be the middle due event.
     topPending = clientConnection.PeekPendingTop();
@@ -224,15 +224,15 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerPendingQueue_002,
     EXPECT_FALSE(clientConnection.IsPendingFull());
     EXPECT_FALSE(clientConnection.HasPending());
 
-    const uint8_t payloadData[] = {0xAA, 0xBB, 0xCC};
+    std::vector<uint32_t> payloadData = {0xAA, 0xBB, 0xCC};
     const auto dueTime = steady_clock::now() + milliseconds(3);
 
-    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(payloadData, sizeof(payloadData), dueTime, 999));
+    EXPECT_TRUE(clientConnection.EnqueueNonRealtime(std::move(payloadData), dueTime, 999));
     EXPECT_TRUE(clientConnection.HasPending());
     EXPECT_TRUE(clientConnection.IsPendingFull());
 
     // Second enqueue should fail due to maxPending limit.
-    EXPECT_FALSE(clientConnection.EnqueueNonRealtime(payloadData, sizeof(payloadData), dueTime, 1000));
+    EXPECT_FALSE(clientConnection.EnqueueNonRealtime(std::move(payloadData), dueTime, 1000));
     EXPECT_TRUE(clientConnection.HasPending()); // still has the first one
 
     ClientConnectionInServer::PendingEvent poppedEvent{};
