@@ -15,6 +15,9 @@
 
 #ifndef MIDI_UTILS_H
 #define MIDI_UTILS_H
+
+#include "midi_info.h"
+
 namespace OHOS {
 namespace MIDI {
 
@@ -22,6 +25,10 @@ const uint64_t MIDI_NS_PER_SECOND = 1000000000;
 
 void CloseFd(int fd);
 std::string GetEncryptStr(const std::string &str);
+std::string BytesToString(uint32_t value);
+std::string DumpOneEvent(uint64_t ts, size_t len, const uint32_t *data);
+std::string DumpMidiEvents(const std::vector<MidiEvent>& events);
+std::string DumpMidiEvents(const std::vector<MidiEventInner>& events);
 
 class ClockTime {
 public:
@@ -75,6 +82,10 @@ public:
 private:
     int fd_ = -1;
 };
+
+
+
+
 } // namespace MIDI
 } // namespace OHOS
 #endif

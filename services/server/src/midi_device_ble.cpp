@@ -423,7 +423,7 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     NotifyManager(deviceId, false);
     lock.lock();
     devices_.erase(it);
-    MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
+    MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", device=%{public}s",
         deviceId, GetEncryptStr(ctx.address).c_str());
     return 0;
 }
@@ -547,6 +547,7 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
         clientId = static_cast<int32_t>(d.id);
         dataChar = d.dataChar;
     }
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
     for (auto midiEvent : list) {
         std::vector<uint8_t> midi1Buffer;
         ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
