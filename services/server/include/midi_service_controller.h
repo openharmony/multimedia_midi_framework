@@ -85,17 +85,17 @@ private:
     int32_t CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     std::unordered_map<int64_t, std::shared_ptr<DeviceClientContext>> deviceClientContexts_;
     std::unordered_map<int32_t, sptr<MidiInServer>> clients_;
-    
+
     // Map Address -> DeviceId (For quickly checking if a BLE address is already active)
     std::unordered_map<std::string, int64_t> activeBleDevices_;
 
     // Map Address -> List of waiting clients
     std::unordered_map<std::string, std::list<PendingBleConnection>> pendingBleConnections_;
- 	 
+
     std::shared_ptr<MidiDeviceManager> deviceManager_;
     static std::atomic<uint32_t> currentClientId_;
     std::mutex lock_;
-    const int64_t UNLOAD_DELAY_TIME = 5 * 60 * 1000; // 5 minutes
+    const int64_t UNLOAD_DELAY_TIME = 60 * 1000; // 1 minute
 
     std::atomic<bool> isUnloadPending_{false};
     std::mutex unloadMutex_;

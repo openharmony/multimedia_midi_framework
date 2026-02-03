@@ -102,15 +102,17 @@ static void SendMidiNote(OH_MIDIDevice *device, int8_t portIndex)
 static void SetupPorts(OH_MIDIClient *client, OH_MIDIDevice *device, int64_t deviceId, vector<int> &outOpenedPorts)
 {
     size_t portCount = 0;
-    OH_MIDIGetDevicePorts(client, deviceId, nullptr, &portCount);
+    OH_MIDIGetPortCount(client, deviceId, &portCount);
     if (portCount == 0) {
         return;
     }
 
     vector<OH_MIDIPortInformation> ports(portCount);
-    OH_MIDIGetDevicePorts(client, deviceId, ports.data(), &portCount);
+    size_t actualNumPorts = 0;
+    OH_MIDIGetPortInfos(client, deviceId, ports.data(), portCount, &actualNumPorts);
 
-    for (const auto &port : ports) {
+    for (size_t i = 0; i < actualNumPorts; ++i) {
+        const auto &port = ports[i];
         OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_VERSION};
 
         if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
@@ -142,7 +144,7 @@ static int RunMidiDemo()
     }
 
     size_t devCount = 0;
-    OH_MIDIGetDevices(client, nullptr, &devCount);
+    OH_MIDIGetDeviceCount(client, &devCount);
     if (devCount == 0) {
         cout << "No MIDI devices found." << endl;
         OH_MIDIClientDestroy(client);
@@ -150,7 +152,8 @@ static int RunMidiDemo()
     }
 
     vector<OH_MIDIDeviceInformation> devices(devCount);
-    OH_MIDIGetDevices(client, devices.data(), &devCount);
+    size_t actualNumDevices = 0;
+    OH_MIDIGetDeviceInfos(client, devices.data(), devCount, &actualNumDevices);
 
     // 默认操作第一个设备
     int64_t targetDeviceId = devices[0].midiDeviceId;

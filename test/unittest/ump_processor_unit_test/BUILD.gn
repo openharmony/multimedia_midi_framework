@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025 Huawei Device Co., Ltd.
+# Copyright (c) 2026 Huawei Device Co., Ltd.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,10 +17,10 @@ import("//foundation/multimedia/midi_framework/config.gni")
 
 module_output_path = "midi_framework/"
 
-ohos_unittest("midi_device_connection_unittest") {
+ohos_unittest("ump_processor_unittest") {
   testonly = true
   module_out_path = module_output_path
-  
+
   cflags = [
     "-Wall",
     "-Werror",
@@ -28,7 +28,7 @@ ohos_unittest("midi_device_connection_unittest") {
   ]
 
   include_dirs = [ "${midi_framework_root}/services/common/include" ]
-  
+
   sources = [ "ump_processor_uint_test.cpp" ]
 
   deps = [ "${midi_framework_root}/services/common:midi_common" ]
