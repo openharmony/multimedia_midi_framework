@@ -15,10 +15,12 @@
         "syscap": [],
         "features": [],
         "adapted_system_type": [
-            "standard"
+            "standard",
+            "small",
+            "mini"
         ],
-        "rom": "4500KB",
-        "ram": "4000KB",
+        "rom": "4096KB",
+        "ram": "4096KB",
         "deps": {
             "components": [
                 "ability_base",
