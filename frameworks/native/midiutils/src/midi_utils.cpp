@@ -97,7 +97,9 @@ std::string BytesToString(uint32_t value)
     for (int i = 3; i >= 0; --i) {
         uint8_t byte = static_cast<uint8_t>((value >> (i * 8)) & 0xFFu);
         out << std::setw(WIDE_LEN) << static_cast<unsigned>(byte);
-        if (i != 0) out << ' ';
+        if (i != 0) {
+            out << ' ';
+        }   
     }
     return out.str();
 }

@@ -82,10 +82,6 @@ public:
 private:
     int fd_ = -1;
 };
-
-
-
-
 } // namespace MIDI
 } // namespace OHOS
 #endif
