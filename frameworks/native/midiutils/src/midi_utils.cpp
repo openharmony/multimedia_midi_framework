@@ -99,7 +99,7 @@ std::string BytesToString(uint32_t value)
         out << std::setw(WIDE_LEN) << static_cast<unsigned>(byte);
         if (i != 0) {
             out << ' ';
-        }   
+        }
     }
     return out.str();
 }
