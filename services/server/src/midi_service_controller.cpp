@@ -519,11 +519,18 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 void MidiServiceController::ClosePortforDevice(
     uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext)
 {
+    std::vector<uint32_t> portIndexes;
     for (const auto &[portIndex, _] : deviceClientContext->inputDeviceconnections_) {
+        portIndexes.push_back(portIndex);
+    }
+    for (auto portIndex: portIndexes) {
         CloseInputPortInner(clientId, deviceId, portIndex);
     }
-
+    portIndexes.clear();
     for (const auto &[portIndex, _]: deviceClientContext->outputDeviceconnections_) {
+        portIndexes.push_back(portIndex);
+    }
+    for (auto portIndex: portIndexes) {
         CloseOutputPortInner(clientId, deviceId, portIndex);
     }
 }

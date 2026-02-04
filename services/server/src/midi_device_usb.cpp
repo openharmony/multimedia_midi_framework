@@ -17,6 +17,7 @@
 #endif
 
 #include "midi_log.h"
+#include "midi_utils.h"
 #include "midi_device_usb.h"
 
 using namespace OHOS::HDI::Midi::V1_0;
@@ -123,6 +124,7 @@ int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi:
 {
     std::vector<MidiEventInner> events;
     events.reserve(messages.size());
+    MIDI_DEBUG_LOG("[server]: get midi events from hdi");
     for (auto &message : messages) {
         MidiEventInner event = {
             .timestamp = message.timestamp,
@@ -131,6 +133,7 @@ int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi:
         };
         events.emplace_back(event);
     }
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(events).c_str());
     callback_(events);
     return 0;
 }
