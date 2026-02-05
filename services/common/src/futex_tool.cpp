@@ -107,13 +107,13 @@ FutexCode ExecFutexWaitSyscall(std::atomic<uint32_t> *futexPtr, int64_t timeout,
     auto sysErr = errno;
 
     if ((res != 0) && (sysErr == ETIMEDOUT)) {
-        MIDI_WARNING_LOG("wait:%{public}" PRId64 "ns timeout, result:%{public}" PRId64 ", sysErr[%{public}d]:%{public}s",
+        MIDI_WARNING_LOG("wait:%{public}" PRId64 "ns timeout, result:%{public}ld sysErr[%{public}d]:%{public}s",
                          timeout, res, sysErr, strerror(sysErr));
         return FUTEX_TIMEOUT;
     }
 
     if ((res != 0) && (sysErr != EAGAIN)) {
-        MIDI_WARNING_LOG("result:%{public}" PRId64 ", sysErr[%{public}d]:%{public}s", res, sysErr, strerror(sysErr));
+        MIDI_WARNING_LOG("result:%{public}ld, sysErr[%{public}d]:%{public}s", res, sysErr, strerror(sysErr));
     }
     // EAGAIN or Success are treated as continuation or success in caller
     return FUTEX_SUCCESS;
@@ -179,7 +179,7 @@ FutexCode FutexTool::FutexWake(std::atomic<uint32_t> *futexPtr, uint32_t wakeVal
     if (futexPtr->compare_exchange_strong(expect, IS_READY)) {
         long res = g_sysCallFunc(futexPtr, FUTEX_WAKE, INT_MAX, NULL);
         if (res < 0) {
-            MIDI_ERR_LOG("failed:%{public}" PRId64 ", errno[%{public}d]:%{public}s", res, errno, strerror(errno));
+            MIDI_ERR_LOG("failed:%{public}ld, errno[%{public}d]:%{public}s", res, errno, strerror(errno));
             return FUTEX_OPERATION_FAILED;
         }
     }

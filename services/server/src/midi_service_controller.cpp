@@ -32,7 +32,7 @@ namespace OHOS {
 namespace MIDI {
 namespace {
 constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
-constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_US = 60 * 1000;
+constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_MS = 60 * 1000;
 }
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
 static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device)
@@ -58,7 +58,7 @@ DeviceClientContext::~DeviceClientContext()
 }
 
 MidiServiceController::MidiServiceController()
-    : unloadDelayTime_(UNLOAD_DELAY_DEFAULT_TIME_IN_US)  // Default: 60 seconds (production)
+    : unloadDelayTime_(UNLOAD_DELAY_DEFAULT_TIME_IN_MS)  // Default: 60 seconds (production)
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
 }
@@ -106,7 +106,7 @@ void MidiServiceController::ScheduleUnloadTask()
     }
 
     unloadThread_ = std::thread([this]() {
-        MIDI_INFO_LOG("Unload timer started. Waiting for %{public}lld ms...", unloadDelayTime_);
+        MIDI_INFO_LOG("Unload timer started. Waiting for %{public}" PRId64 " ms...", unloadDelayTime_);
         std::unique_lock<std::mutex> lk(unloadMutex_);
         if (unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_)) == std::cv_status::timeout) {
             CHECK_AND_RETURN(isUnloadPending_);
