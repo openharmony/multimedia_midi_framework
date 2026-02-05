@@ -164,8 +164,8 @@ void MidiDeviceManager::UpdateDevices()
     std::vector<DeviceInformation> oldDevices;
     {
         std::lock_guard<std::mutex> lock(devicesMutex_);
-        oldDevices = devices_;
-        devices_ = newDevices;
+        oldDevices = std::move(devices_);
+        devices_ = std::move(newDevices);
     }
 
     CompareDevices(oldDevices, newDevices);  // todo 优化
@@ -176,7 +176,7 @@ void MidiDeviceManager::CompareDevices(
 {
     std::vector<DeviceInformation> addedDevices;
     std::vector<DeviceInformation> removedDevices;
-
+    std::vector<int64_t> removedDriverIds;
     for (const auto &newDevice : newDevices) {
         auto it = std::find_if(oldDevices.begin(), oldDevices.end(), [&newDevice](const DeviceInformation &oldDevice) {
             return oldDevice.driverDeviceId == newDevice.driverDeviceId && oldDevice.deviceType == newDevice.deviceType;
@@ -196,11 +196,17 @@ void MidiDeviceManager::CompareDevices(
         });
         if (it == newDevices.end()) {
             removedDevices.push_back(oldDevice);
-            driverIdToMidiId_.erase(oldDevice.driverDeviceId);
+            removedDriverIds.push_back(oldDevice.driverDeviceId);
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 oldDevice.deviceId,
                 oldDevice.driverDeviceId,
                 oldDevice.productName.c_str());
+        }
+    }
+    if (!removedDriverIds.empty()) {
+        std::lock_guard<std::mutex> lock(mappingMutex_);
+        for (int64_t driverId : removedDriverIds) {
+            driverIdToMidiId_.erase(driverId);
         }
     }
     if (!addedDevices.empty()) {
@@ -279,7 +285,7 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 
 int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCallback callback)
 {
-    MIDI_INFO_LOG("MidiDeviceManager::OpenBleDevice %{public}s", address.c_str());
+    MIDI_INFO_LOG("MidiDeviceManager::OpenBleDevice %{public}s", GetEncryptStr(deviceAddr).c_str());
     auto driver = GetDriverForDeviceType(DEVICE_TYPE_BLE);
     if (!driver) {
         return MIDI_STATUS_UNKNOWN_ERROR;
@@ -334,20 +340,24 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
     int64_t midiDeviceId = 0;
     bool exists = false;
     DeviceInformation foundInfo;
-
     {
         std::lock_guard<std::mutex> mapLock(mappingMutex_);
-        if (driverIdToMidiId_.count(driverDeviceId)) {
-            midiDeviceId = driverIdToMidiId_[driverDeviceId];
-            std::lock_guard<std::mutex> listLock(devicesMutex_);
-            auto it = std::find_if(devices_.begin(), devices_.end(),
-                [midiDeviceId](const DeviceInformation& d) { return d.deviceId == midiDeviceId; });
-            if (it != devices_.end()) {
-                exists = true;
-                foundInfo = *it;
-                devices_.erase(it);
-            }
-            driverIdToMidiId_.erase(driverDeviceId);
+        auto it = driverIdToMidiId_.find(driverDeviceId);
+        if (it != driverIdToMidiId_.end()) {
+            midiDeviceId = it->second;
+            driverIdToMidiId_.erase(it);
+        }
+    }
+    bool exists = false;
+    DeviceInformation foundInfo;
+    {
+        std::lock_guard<std::mutex> listLock(devicesMutex_);
+        auto it = std::find_if(devices_.begin(), devices_.end(),
+            [midiDeviceId](const DeviceInformation& d) { return d.deviceId == midiDeviceId; });
+        if (it != devices_.end()) {
+            exists = true;
+            foundInfo = *it;
+            devices_.erase(it);
         }
     }
 

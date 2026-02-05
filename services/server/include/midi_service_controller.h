@@ -71,7 +71,6 @@ public:
     MidiServiceController();
     ~MidiServiceController();
     static std::shared_ptr<MidiServiceController> GetInstance();
-    void Init();
     int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client, uint32_t &clientId);
     std::vector<std::map<int32_t, std::string>> GetDevices();
     std::vector<std::map<int32_t, std::string>> GetDevicePorts(int64_t deviceId);
@@ -94,6 +93,12 @@ private:
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
         const std::map<int32_t, std::string> &deviceInfo);
+
+    // Helper functions for DestroyMidiClient
+    void CollectDevicesForClientDestruction(uint32_t clientId,
+        std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean);
+    void CleanupDeviceForClient(uint32_t clientId, int64_t deviceId);
+    void CleanupClientResources(uint32_t clientId, uint32_t clientUid);
 
     void ScheduleUnloadTask();
     void CancelUnloadTask();

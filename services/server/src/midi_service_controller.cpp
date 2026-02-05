@@ -58,6 +58,7 @@ DeviceClientContext::~DeviceClientContext()
 MidiServiceController::MidiServiceController()
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
+    deviceManager_->Init();  // Initialize immediately to avoid race condition
 }
 
 MidiServiceController::~MidiServiceController()
@@ -75,10 +76,6 @@ std::shared_ptr<MidiServiceController> MidiServiceController::GetInstance()
     return instance;
 }
 
-void MidiServiceController::Init()
-{
-    deviceManager_->Init();
-}
 
 void MidiServiceController::CancelUnloadTask()
 {
@@ -261,7 +258,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         auto ctxIt = deviceClientContexts_.find(deviceId);
         if (ctxIt != deviceClientContexts_.end()) {
             MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
-                address.c_str(), deviceId);
+                GetEncryptStr(deviceAddr).c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
             std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
@@ -278,10 +275,10 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
 
     if (!isFirstRequest) {
         MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.",
-            address.c_str(), clientId);
+            GetEncryptStr(deviceAddr).c_str(), clientId);
         return MIDI_STATUS_OK;
     }
-    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", address.c_str());
+    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(deviceAddr).c_str());
 
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
@@ -306,7 +303,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
     const std::map<int32_t, std::string> &deviceInfo)
 {
     MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
-                address.c_str(), success, deviceId);
+                GetEncryptStr(deviceAddr).c_str(), success, deviceId);
 
     std::list<PendingBleConnection> waitingClients;
 
@@ -317,7 +314,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
             waitingClients = std::move(it->second);
             pendingBleConnections_.erase(it);
         } else {
-            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)", address.c_str());
+            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)", GetEncryptStr(deviceAddr).c_str());
         }
 
         if (success) {
@@ -606,80 +603,140 @@ void MidiServiceController::ClosePortforDevice(
     }
 }
 
+void MidiServiceController::CollectDevicesForClientDestruction(uint32_t clientId,
+    std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean)
+{
+    for (auto& [deviceId, context] : deviceClientContexts_) {
+        if (context->clients.find(clientId) != context->clients.end()) {
+            if (context->clients.size() == 1) {
+                devicesToClose.push_back(deviceId);
+            }
+            devicesToClean.push_back(deviceId);
+        }
+    }
+}
+
+void MidiServiceController::CleanupDeviceForClient(uint32_t clientId, int64_t deviceId)
+{
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        return;
+    }
+    ClosePortforDevice(clientId, deviceId, it->second);
+    auto& clients = it->second->clients;
+    clients.erase(clientId);
+    if (clients.empty()) {
+        deviceClientContexts_.erase(it);
+        auto bleIt = std::find_if(activeBleDevices_.begin(), activeBleDevices_.end(),
+            [deviceId](const auto& pair) { return pair.second == deviceId; });
+        if (bleIt != activeBleDevices_.end()) {
+            activeBleDevices_.erase(bleIt);
+        }
+    }
+}
+
+void MidiServiceController::CleanupClientResources(uint32_t clientId, uint32_t clientUid)
+{
+    if (clientUid == 0) {
+        return;
+    }
+    auto appIt = appClientMap_.find(clientUid);
+    if (appIt != appClientMap_.end()) {
+        appIt->second.erase(clientId);
+        if (appIt->second.empty()) {
+            appClientMap_.erase(appIt);
+        }
+    }
+    clientResourceInfo_.erase(clientId);
+}
+
 int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 {
     MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
-    std::lock_guard lock(lock_);
-    auto it = clients_.find(clientId);
-    CHECK_AND_RETURN_RET_LOG(
-        it != clients_.end(), MIDI_STATUS_INVALID_CLIENT, "Client not found for destruction: %{public}u", clientId);
 
-    for (auto deviceIt = deviceClientContexts_.begin(); deviceIt != deviceClientContexts_.end();) {
-        auto &clients = deviceIt->second->clients;
-        if (clients.find(clientId) != clients.end()) {
-            int64_t deviceId = deviceIt->first;
-            ClosePortforDevice(clientId, deviceId, deviceIt->second);
-            clients.erase(clientId);
-            if (clients.empty()) {
-                deviceManager_->CloseDevice(deviceId);
-                deviceIt = deviceClientContexts_.erase(deviceIt);
-                continue;
-            }
+    std::vector<int64_t> devicesToClose;
+    std::vector<int64_t> devicesToClean;
+    uint32_t clientUid = 0;
+
+    {
+        std::lock_guard lock(lock_);
+        auto it = clients_.find(clientId);
+        CHECK_AND_RETURN_RET_LOG(
+            it != clients_.end(), MIDI_STATUS_INVALID_CLIENT, "Client not found: %{public}u", clientId);
+
+        CollectDevicesForClientDestruction(clientId, devicesToClose, devicesToClean);
+
+        auto resourceInfoIt = clientResourceInfo_.find(clientId);
+        if (resourceInfoIt != clientResourceInfo_.end()) {
+            clientUid = resourceInfoIt->second.uid;
         }
-        ++deviceIt;
+        clients_.erase(it);
     }
 
-    // Clean up client resource tracking
-    auto resourceInfoIt = clientResourceInfo_.find(clientId);
-    if (resourceInfoIt != clientResourceInfo_.end()) {
-        uint32_t uid = resourceInfoIt->second.uid;
-        // Remove client from app client map
-        auto appIt = appClientMap_.find(uid);
-        if (appIt != appClientMap_.end()) {
-            appIt->second.erase(clientId);
-            if (appIt->second.empty()) {
-                appClientMap_.erase(appIt);
-            }
-        }
-        clientResourceInfo_.erase(resourceInfoIt);
+    for (auto deviceId : devicesToClose) {
+        deviceManager_->CloseDevice(deviceId);
     }
 
-    clients_.erase(it);
+    {
+        std::lock_guard lock(lock_);
+        for (auto deviceId : devicesToClean) {
+            CleanupDeviceForClient(clientId, deviceId);
+        }
+        CleanupClientResources(clientId, clientUid);
+    }
+
     MIDI_INFO_LOG("Client destroyed: %{public}u", clientId);
     CHECK_AND_RETURN_RET(clients_.empty(), MIDI_STATUS_OK);
-    MIDI_INFO_LOG("No clients left. Scheduling unload.");
     ScheduleUnloadTask();
     return MIDI_STATUS_OK;
 }
 
 void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
-    if (change == REMOVED) {
+    std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
+    std::vector<std::shared_ptr<MidiListenerCallback>> clientsToNotify;
+
+    {
         std::lock_guard lock(lock_);
-        MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
-        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
-            if (it->second == device.deviceId) {
-                activeBleDevices_.erase(it);
-                break;
+        if (change == REMOVED) {
+            MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
+            for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
+                if (it->second == device.deviceId) {
+                    activeBleDevices_.erase(it);
+                    break;
+                }
+            }
+            auto it = deviceClientContexts_.find(device.deviceId);
+            if (it != deviceClientContexts_.end()) {
+                deviceClientContexts_.erase(it);
             }
         }
-        auto it = deviceClientContexts_.find(device.deviceId);
-        if (it != deviceClientContexts_.end()) {
-            deviceClientContexts_.erase(it);
+        clientsToNotify.reserve(clients_.size());
+        for (auto& [id, client] : clients_) {
+            if (client != nullptr) {
+                clientsToNotify.push_back(client);
+            }
         }
     }
-    std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
-    for (auto it : clients_) {
-        CHECK_AND_CONTINUE(it.second != nullptr);
-        it.second->NotifyDeviceChange(change, deviceInfo);
+    for (auto& client : clientsToNotify) {
+        client->NotifyDeviceChange(change, deviceInfo);
     }
 }
 
 void MidiServiceController::NotifyError(int32_t code)
 {
-    for (auto it : clients_) {
-        CHECK_AND_CONTINUE(it.second != nullptr);
-        it.second->NotifyError(code);
+    std::vector<std::shared_ptr<MidiListenerCallback>> clientsToNotify;
+    {
+        std::lock_guard lock(lock_);
+        clientsToNotify.reserve(clients_.size());
+        for (auto& [id, client] : clients_) {
+            if (client != nullptr) {
+                clientsToNotify.push_back(client);
+            }
+        }
+    }
+    for (auto& client : clientsToNotify) {
+        client->NotifyError(code);
     }
 }
 }  // namespace MIDI
