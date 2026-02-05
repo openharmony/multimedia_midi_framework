@@ -20,6 +20,8 @@
 #include <cinttypes>
 #include <climits>
 #include <ctime>
+#include <cstdint>
+#include <iomanip>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -36,6 +38,7 @@ namespace {
     constexpr size_t MIN_LEN = 8;
     constexpr size_t HEAD_STR_LEN = 2;
     constexpr size_t TAIL_STR_LEN = 5;
+    constexpr size_t WIDE_LEN = 2;
 } // namespace
 
 int64_t ClockTime::GetCurNano()
@@ -84,6 +87,60 @@ std::string GetEncryptStr(const std::string &src)
     }
 
     return dst;
+}
+
+std::string BytesToString(uint32_t value)
+{
+    std::ostringstream out;
+    out << std::hex << std::uppercase << std::setfill('0');
+
+    for (int i = 3; i >= 0; --i) {
+        uint8_t byte = static_cast<uint8_t>((value >> (i * 8)) & 0xFFu);
+        out << std::setw(WIDE_LEN) << static_cast<unsigned>(byte);
+        if (i != 0) {
+            out << ' ';
+        }
+    }
+    return out.str();
+}
+
+std::string DumpOneEvent(uint64_t ts, size_t len, const uint32_t *data)
+{
+    std::ostringstream out;
+    out << "ts: " << ts << " len: " << len << " data: ";
+    if (len == 0) {
+        return out.str() + "<empty>";
+    }
+    if (data == nullptr) {
+        return out.str() + "<null>";
+    }
+    for (size_t i = 0; i < len; ++i) {
+        out << BytesToString(data[i]);
+        if (i + 1 != len) {
+            out << " | ";
+        }
+    }
+    return out.str();
+}
+
+std::string DumpMidiEvents(const std::vector<MidiEvent>& events)
+{
+    std::ostringstream out;
+    out << "MidiEvents count=" << events.size() << ":";
+    for (size_t i = 0; i < events.size(); ++i) {
+        out << "\n  [" << i << "] " << DumpOneEvent(events[i].timestamp, events[i].length, events[i].data);
+    }
+    return out.str();
+}
+
+std::string DumpMidiEvents(const std::vector<MidiEventInner>& events)
+{
+    std::ostringstream out;
+    out << "MidiEvents count=" << events.size() << ":";
+    for (size_t i = 0; i < events.size(); ++i) {
+        out << "\n  [" << i << "] " << DumpOneEvent(events[i].timestamp, events[i].length, events[i].data);
+    }
+    return out.str();
 }
 
 // ====== UniqueFd ======

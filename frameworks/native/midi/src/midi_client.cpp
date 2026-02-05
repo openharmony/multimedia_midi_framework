@@ -369,6 +369,8 @@ void MidiInputPort::DrainRingAndDispatch()
         callbackEvent.data = event.data;
         callbackEvents.push_back(callbackEvent);
     }
+    MIDI_DEBUG_LOG("[client] receive midi events from server");
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(midiEvents).c_str());
     CHECK_AND_RETURN(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0);
     callback_(userData_, callbackEvents.data(), callbackEvents.size());
 }
@@ -404,7 +406,8 @@ int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t
     for (uint32_t i = 0; i < eventCount; ++i) {
         innerEvents[i] = MidiEventInner{events[i].timestamp, events[i].length, events[i].data};
     }
-
+    MIDI_DEBUG_LOG("[client] send midi events");
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(innerEvents).c_str());
     auto ret = ringBuffer_->TryWriteEvents(innerEvents.data(), eventCount, eventsWritten);
     return GetStatusCode(ret);
 }

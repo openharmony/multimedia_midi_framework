@@ -652,6 +652,7 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
         clientId = static_cast<int32_t>(d.id);
         dataChar = d.dataChar;
     }
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
     for (auto midiEvent : list) {
         // Validate data pointer before use
         CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "HanleUmpInput: midiEvent.data is nullptr");
