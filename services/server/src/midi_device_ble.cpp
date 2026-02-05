@@ -175,7 +175,7 @@ static void NotifyManager(DeviceCtx &d, bool success)
     cb(success, devInfo);
 }
 
-static bool CleanupDeviceAndNotifyFailure(std::unique_lock<std::mutex> &lock, int32_t clientId)
+static bool g_cleanupDeviceAndNotifyFailure(std::unique_lock<std::mutex> &lock, int32_t clientId)
 {
     // Load instance once to prevent TOCTOU issues
     auto *inst = instance.load();
@@ -245,9 +245,7 @@ static bool ParseMac(const std::string &mac, BdAddr &out)
 
 static bool BtUuidEquals(const BtUuid &u, const char *canonical)
 {
-
     CHECK_AND_RETURN_RET(u.uuid && canonical, false);
-
     // Use strnlen to limit scan length and prevent buffer overruns
     constexpr size_t MAX_UUID_LEN = 64;  // BLE UUID max length is 36 for standard format
     size_t len = strnlen(canonical, MAX_UUID_LEN);
@@ -276,7 +274,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         // Device may have already been cleaned up by active disconnect (e.g., in OnSearvicesComplete)
         CHECK_AND_RETURN(it != inst->devices_.end());
         MIDI_INFO_LOG("Device disconnected or failed connection");
-        DeviceCtx device= it->second;
+        DeviceCtx device = it->second;
         BleGattcUnRegister(clientId);
         inst->devices_.erase(it);
         lock.unlock();
@@ -293,7 +291,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         int32_t ret = BleGattcSearchServices(clientId);
         if (ret != 0) {
             MIDI_ERR_LOG("Search Service failed");
-            CleanupDeviceAndNotifyFailure(lock, clientId);
+            g_cleanupDeviceAndNotifyFailure(lock, clientId);
         }
     }
 }
@@ -308,18 +306,16 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         // Service discovery failed - cleanup and notify failure
         MIDI_ERR_LOG("Service discovery failed: clientId=%{public}d, status=%{public}d", clientId, status);
         std::unique_lock<std::mutex> lock(inst->lock_);
-        CleanupDeviceAndNotifyFailure(lock, clientId);
+        g_cleanupDeviceAndNotifyFailure(lock, clientId);
         return;
     }
     std::unique_lock<std::mutex> lock(inst->lock_);
     auto it = inst->devices_.find(clientId);
     CHECK_AND_RETURN(it != inst->devices_.end());
     auto &d = it->second;
-
     // Use local temporary for service lookup (OK since BleGattcGetService is synchronous)
     std::string svcTempStorage;
     BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcTempStorage);
-
     if (BleGattcGetService(clientId, svc)) {
         MIDI_INFO_LOG("MIDI service found: clientId=%{public}d", clientId);
         d.serviceReady = true;
@@ -330,11 +326,12 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         d.dataCharServiceUuidStorage = MIDI_SERVICE_UUID;
         d.dataCharCharacteristicUuidStorage = MIDI_CHAR_UUID;
         d.dataChar.serviceUuid = MakeBtUuid(d.dataCharServiceUuidStorage, d.dataCharServiceUuidStorage);
-        d.dataChar.characteristicUuid = MakeBtUuid(d.dataCharCharacteristicUuidStorage, d.dataCharCharacteristicUuidStorage);
+        d.dataChar.characteristicUuid = MakeBtUuid(d.dataCharCharacteristicUuidStorage,
+            d.dataCharCharacteristicUuidStorage);
         int32_t rc = BleGattcRegisterNotification(clientId, d.dataChar, true);
         if (rc != 0) {
             // Register notification failed - cleanup and notify failure
-            CleanupDeviceAndNotifyFailure(lock, clientId);
+            g_cleanupDeviceAndNotifyFailure(lock, clientId);
             return;
         }
         // Wait for OnRegisterNotify callback
@@ -342,7 +339,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
     } else {
         // MIDI service not found - cleanup and notify failure
         MIDI_ERR_LOG("MIDI service not found: clientId=%{public}d", clientId);
-        CleanupDeviceAndNotifyFailure(lock, clientId);
+        g_cleanupDeviceAndNotifyFailure(lock, clientId);
     }
 }
 
@@ -369,7 +366,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         d.notifyEnabled = false;
         MIDI_ERR_LOG("Notify Enable Failed");
         // Cleanup and notify failure
-        CleanupDeviceAndNotifyFailure(lock, clientId);
+        g_cleanupDeviceAndNotifyFailure(lock, clientId);
     }
 }
 static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)

@@ -314,7 +314,8 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
             waitingClients = std::move(it->second);
             pendingBleConnections_.erase(it);
         } else {
-            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)", GetEncryptStr(deviceAddr).c_str());
+            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)",
+                GetEncryptStr(deviceAddr).c_str());
         }
 
         if (success) {
