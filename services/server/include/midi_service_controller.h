@@ -16,6 +16,13 @@
 #ifndef MIDI_SERVICE_CONTROLLER_H
 #define MIDI_SERVICE_CONTROLLER_H
 
+// Enable test helper methods when building unit tests
+#ifdef UNIT_TEST_SUPPORT
+#define MIDI_TEST_VISIBLE
+#else
+#define MIDI_TEST_VISIBLE
+#endif
+
 #include <map>
 #include <mutex>
 #include <vector>
@@ -73,6 +80,41 @@ public:
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation device);
     void NotifyError(int32_t code);
 
+    // Runtime configuration (callable from tests)
+    void SetUnloadDelay(int64_t delayMs) { unloadDelayTime_ = delayMs; }
+
+#ifdef UNIT_TEST_SUPPORT
+    /**
+     * @brief Test helper: Get the device manager instance for testing
+     * @return Shared pointer to the device manager
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    std::shared_ptr<MidiDeviceManager> GetDeviceManagerForTest() const { return deviceManager_; }
+
+    /**
+     * @brief Test helper: Clear all internal state for test isolation
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    void ClearStateForTest();
+
+    /**
+     * @brief Test helper: Check if a device has client context
+     * @param deviceId The device ID to check
+     * @return true if device context exists, false otherwise
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    bool HasDeviceContextForTest(int64_t deviceId) const;
+
+    /**
+     * @brief Test helper: Check if a client is associated with a device
+     * @param deviceId The device ID to check
+     * @param clientId The client ID to check
+     * @return true if client is associated with device, false otherwise
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    bool HasClientForDeviceForTest(int64_t deviceId, uint32_t clientId) const;
+#endif
+
 private:
     void ClosePortforDevice(
         uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
@@ -94,8 +136,8 @@ private:
 
     std::shared_ptr<MidiDeviceManager> deviceManager_;
     static std::atomic<uint32_t> currentClientId_;
-    std::mutex lock_;
-    const int64_t UNLOAD_DELAY_TIME = 60 * 1000; // 1 minute
+    mutable std::mutex lock_;
+    int64_t unloadDelayTime_;  // Runtime-configurable unload delay (ms)
 
     std::atomic<bool> isUnloadPending_{false};
     std::mutex unloadMutex_;

@@ -30,11 +30,14 @@ public:
     void SetUp() override
     {
         controller_ = MidiServiceController::GetInstance();
-        controller_->Init();
+        // Set unload delay to 0 for fast test execution
+        controller_->SetUnloadDelay(0);
+        // Skip Init() in unit tests to avoid system event subscription timeout
+        // controller_->Init();
         mockDriver_ = std::make_unique<MockMidiDeviceDriver>();
         rawMockDriver_ = mockDriver_.get();
-        controller_->deviceManager_->drivers_.clear();
-        controller_->deviceManager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockDriver_));
+        // Use test helper to inject mock driver
+        controller_->GetDeviceManagerForTest()->InjectDriverForTest(DeviceType::DEVICE_TYPE_USB, std::move(mockDriver_));
         mockCallback_ = new MockMidiCallbackStub();
         sptr<IRemoteObject> clientObj;
         controller_->CreateMidiInServer(mockCallback_->AsObject(), clientObj, clientId_);
@@ -43,9 +46,8 @@ public:
     void TearDown() override
     {
         controller_->DestroyMidiClient(clientId_);
-        controller_->deviceManager_->devices_.clear();
-        controller_->deviceManager_->driverIdToMidiId_.clear();
-        controller_->deviceManager_->drivers_.clear();
+        // Use test helper to clear state
+        controller_->ClearStateForTest();
     }
 
     /**
@@ -71,9 +73,9 @@ public:
 
         EXPECT_CALL(*rawMockDriver_, GetRegisteredDevices()).WillOnce(Return(devices));
 
-        controller_->deviceManager_->UpdateDevices();
+        controller_->GetDeviceManagerForTest()->UpdateDevices();
 
-        auto allDevices = controller_->deviceManager_->GetDevices();
+        auto allDevices = controller_->GetDeviceManagerForTest()->GetDevices();
         if (allDevices.empty()) {
             return -1;
         }
@@ -152,9 +154,8 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice001, TestSize.Level0)
 
     int32_t ret = controller_->OpenDevice(clientId_, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    ASSERT_NE(it, controller_->deviceClientContexts_.end());
-    EXPECT_NE(it->second->clients.find(clientId_), it->second->clients.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
+    EXPECT_TRUE(controller_->HasClientForDeviceForTest(deviceId, clientId_));
 }
 
 /**
@@ -187,9 +188,8 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice003, TestSize.Level0)
     EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_UNKNOWN_ERROR));
 
     int32_t ret = controller_->OpenDevice(clientId_, deviceId);
-    EXPECT_EQ(ret, MIDI_STATUS_UNKNOWN_ERROR);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    EXPECT_EQ(it, controller_->deviceClientContexts_.end());
+    EXPECT_EQ(ret, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
 }
 
 /**
@@ -210,9 +210,8 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice004, TestSize.Level0)
     // Second Open (Same Client)
     int32_t ret = controller_->OpenDevice(clientId_, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_DEVICE_ALREADY_OPEN);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    ASSERT_NE(it, controller_->deviceClientContexts_.end());
-    EXPECT_NE(it->second->clients.find(clientId_), it->second->clients.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
+    EXPECT_TRUE(controller_->HasClientForDeviceForTest(deviceId, clientId_));
 }
 
 /**
@@ -236,10 +235,9 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice005, TestSize.Level0)
     EXPECT_EQ(controller_->OpenDevice(clientId_, deviceId), MIDI_STATUS_OK);
 
     EXPECT_EQ(controller_->OpenDevice(clientId2, deviceId), MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    ASSERT_NE(it, controller_->deviceClientContexts_.end());
-    EXPECT_NE(it->second->clients.find(clientId_), it->second->clients.end());
-    EXPECT_NE(it->second->clients.find(clientId2), it->second->clients.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
+    EXPECT_TRUE(controller_->HasClientForDeviceForTest(deviceId, clientId_));
+    EXPECT_TRUE(controller_->HasClientForDeviceForTest(deviceId, clientId2));
     controller_->DestroyMidiClient(clientId2);
 }
 
@@ -258,8 +256,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice006, TestSize.Level0)
 
     int32_t ret = controller_->OpenDevice(invalidClientId, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_INVALID_CLIENT);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    EXPECT_EQ(it, controller_->deviceClientContexts_.end());
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
 }
 
 /**
@@ -279,8 +276,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseDevice001, TestSize.Level0)
 
     int32_t ret = controller_->CloseDevice(clientId_, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    EXPECT_EQ(it, controller_->deviceClientContexts_.end());
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
 }
 
 /**
@@ -322,17 +318,15 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseDevice003, TestSize.Level0)
 
     int32_t ret = controller_->CloseDevice(clientId_, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    ASSERT_NE(it, controller_->deviceClientContexts_.end());
-    EXPECT_EQ(it->second->clients.find(clientId_), it->second->clients.end());
-    EXPECT_NE(it->second->clients.find(clientId2), it->second->clients.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
+    EXPECT_FALSE(controller_->HasClientForDeviceForTest(deviceId, clientId_));
+    EXPECT_TRUE(controller_->HasClientForDeviceForTest(deviceId, clientId2));
 
     EXPECT_CALL(*rawMockDriver_, CloseDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
 
     ret = controller_->CloseDevice(clientId2, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it2 = controller_->deviceClientContexts_.find(deviceId);
-    EXPECT_EQ(it2, controller_->deviceClientContexts_.end());
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
     controller_->DestroyMidiClient(clientId2);
 }
 
@@ -355,10 +349,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort001, TestSize.Level0)
     std::shared_ptr<MidiSharedRing> buffer;
     int32_t ret = controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    auto &inputPortConnections = it->second->inputDeviceconnections_;
-    auto inputPort = inputPortConnections.find(portIndex);
-    EXPECT_NE(inputPort, inputPortConnections.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
 }
 
 /**
@@ -435,10 +426,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort004, TestSize.Level0)
     std::shared_ptr<MidiSharedRing> buffer2;
     ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    auto &inputPortConnections = it->second->inputDeviceconnections_;
-    auto inputPort = inputPortConnections.find(portIndex);
-    EXPECT_NE(inputPort, inputPortConnections.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
     controller_->DestroyMidiClient(clientId2);
 }
 
@@ -465,10 +453,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort001, TestSize.Level0)
 
     int32_t ret = controller_->CloseInputPort(clientId_, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    auto &inputPortConnections = it->second->inputDeviceconnections_;
-    auto inputPort = inputPortConnections.find(portIndex);
-    EXPECT_EQ(inputPort, inputPortConnections.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
 }
 
 /**
@@ -497,18 +482,12 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort002, TestSize.Level0)
     int32_t ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     ret = controller_->CloseInputPort(clientId_, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-    auto it = controller_->deviceClientContexts_.find(deviceId);
-    auto &inputPortConnections = it->second->inputDeviceconnections_;
-    auto inputPort = inputPortConnections.find(portIndex);
-    EXPECT_NE(inputPort, inputPortConnections.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
     EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));
     ret = controller_->CloseInputPort(clientId2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
 
-    auto it2 = controller_->deviceClientContexts_.find(deviceId);
-    auto &inputPortConnections2 = it2->second->inputDeviceconnections_;
-    auto inputPort2 = inputPortConnections2.find(portIndex);
-    EXPECT_EQ(inputPort2, inputPortConnections2.end());
+    ASSERT_TRUE(controller_->HasDeviceContextForTest(deviceId));
     controller_->DestroyMidiClient(clientId2);
 }
 

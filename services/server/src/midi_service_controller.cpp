@@ -55,6 +55,7 @@ DeviceClientContext::~DeviceClientContext()
 }
 
 MidiServiceController::MidiServiceController()
+    : unloadDelayTime_(60 * 1000)  // Default: 60 seconds (production)
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
 }
@@ -102,9 +103,9 @@ void MidiServiceController::ScheduleUnloadTask()
     }
 
     unloadThread_ = std::thread([this]() {
-        MIDI_INFO_LOG("Unload timer started. Waiting for 60s...");
+        MIDI_INFO_LOG("Unload timer started. Waiting for %{public}lld ms...", unloadDelayTime_);
         std::unique_lock<std::mutex> lk(unloadMutex_);
-        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(UNLOAD_DELAY_TIME)) == std::cv_status::timeout) {
+        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_)) == std::cv_status::timeout) {
             CHECK_AND_RETURN(isUnloadPending_);
             MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
             auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
@@ -588,5 +589,44 @@ void MidiServiceController::NotifyError(int32_t code)
         it.second->NotifyError(code);
     }
 }
+
+#ifdef UNIT_TEST_SUPPORT
+void MidiServiceController::ClearStateForTest()
+{
+    // Cancel any pending unload task before clearing state
+    CancelUnloadTask();
+
+    // Wait for unload thread to complete (immediate in test mode since UNLOAD_DELAY_TIME = 0)
+    if (unloadThread_.joinable()) {
+        unloadThread_.join();
+    }
+
+    std::lock_guard<std::mutex> lock(lock_);
+    deviceClientContexts_.clear();
+    activeBleDevices_.clear();
+    pendingBleConnections_.clear();
+    clients_.clear();
+    if (deviceManager_) {
+        deviceManager_->ClearStateForTest();
+    }
+    currentClientId_.store(0);
+}
+
+bool MidiServiceController::HasDeviceContextForTest(int64_t deviceId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    return deviceClientContexts_.find(deviceId) != deviceClientContexts_.end();
+}
+
+bool MidiServiceController::HasClientForDeviceForTest(int64_t deviceId, uint32_t clientId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        return false;
+    }
+    return it->second->clients.find(static_cast<int32_t>(clientId)) != it->second->clients.end();
+}
+#endif
 }  // namespace MIDI
 }  // namespace OHOS
