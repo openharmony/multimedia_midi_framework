@@ -32,12 +32,11 @@ public:
         controller_ = MidiServiceController::GetInstance();
         // Set unload delay to 0 for fast test execution
         controller_->SetUnloadDelay(0);
-        // Skip Init() in unit tests to avoid system event subscription timeout
-        // controller_->Init();
         mockDriver_ = std::make_unique<MockMidiDeviceDriver>();
         rawMockDriver_ = mockDriver_.get();
         // Use test helper to inject mock driver
-        controller_->GetDeviceManagerForTest()->InjectDriverForTest(DeviceType::DEVICE_TYPE_USB, std::move(mockDriver_));
+        controller_->GetDeviceManagerForTest()->InjectDriverForTest(DeviceType::DEVICE_TYPE_USB,
+            std::move(mockDriver_));
         mockCallback_ = new MockMidiCallbackStub();
         sptr<IRemoteObject> clientObj;
         controller_->CreateMidiInServer(mockCallback_->AsObject(), clientObj, clientId_);

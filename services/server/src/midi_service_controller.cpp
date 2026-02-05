@@ -30,8 +30,11 @@
 
 namespace OHOS {
 namespace MIDI {
+namespace {
+constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
+constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_US = 60 * 1000;
+}
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
-static constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
 static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device)
 {
     std::map<int32_t, std::string> deviceInfo;
@@ -55,7 +58,7 @@ DeviceClientContext::~DeviceClientContext()
 }
 
 MidiServiceController::MidiServiceController()
-    : unloadDelayTime_(60 * 1000)  // Default: 60 seconds (production)
+    : unloadDelayTime_(UNLOAD_DELAY_DEFAULT_TIME_IN_US)  // Default: 60 seconds (production)
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
 }

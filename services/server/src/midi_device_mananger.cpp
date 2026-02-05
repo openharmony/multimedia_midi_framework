@@ -484,7 +484,7 @@ void MidiDeviceManager::ClearStateForTest()
     std::lock_guard<std::mutex> mapLock(mappingMutex_);
     devices_.clear();
     driverIdToMidiId_.clear();
-    nextDeviceId_.store(1000);
+    nextDeviceId_.store(0);
 }
 
 bool MidiDeviceManager::HasDriverMappingForTest(int64_t driverId) const
