@@ -22,5 +22,16 @@ group("midi_demo_test") {
 
 group("midi_unit_test") {
   testonly = true
-  deps = []
+  deps = [
+    "unittest/common:midi_common_unittest",
+    "unittest/midi_client_connection:midi_client_connection_unittest",
+    "unittest/midi_client_unit_test:midi_client_unit_test",
+    "unittest/midi_device_connection:midi_device_connection_unittest",
+    "unittest/midi_device_manager_unit_test:midi_device_manager_unit_test",
+    "unittest/midi_device_usb_unit_test:midi_device_usb_unittest",
+    "unittest/midi_server_unit_test:midi_server_unittest",
+    "unittest/midi_service_client_unit_test:midi_service_client_unittest",
+    "unittest/midi_service_controller_unit_test:midi_service_controller_unit_test",
+    "unittest/ump_processor_unit_test:ump_processor_unittest",
+  ]
 }

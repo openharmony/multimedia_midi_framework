@@ -80,6 +80,7 @@ void MidiDeviceManager::Init()
 {
     MIDI_INFO_LOG("Initialize");
     CHECK_AND_RETURN_LOG(eventSubscriber_ == nullptr, "feventSubscriber_ already exists");
+#ifndef MIDI_TEST_DISABLE_EVENT_SUBSCRIPTION
     std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
     auto eventCallback = [weakSelf]() {
         auto self = weakSelf.lock();
@@ -87,6 +88,7 @@ void MidiDeviceManager::Init()
         self->UpdateDevices();
     };
     eventSubscriber_ = SubscribeCommonEvent(eventCallback);  // todo 工厂
+#endif
     UpdateDevices();
     MIDI_INFO_LOG("MidiDeviceManager initialized successfully");
 }
@@ -467,5 +469,29 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
         device.driverDeviceId);
     return result;
 }
+
+#ifdef UNIT_TEST_SUPPORT
+void MidiDeviceManager::InjectDriverForTest(DeviceType type, std::unique_ptr<MidiDeviceDriver> driver)
+{
+    std::lock_guard<std::mutex> lock(driversMutex_);
+    drivers_[type] = std::move(driver);
+}
+
+void MidiDeviceManager::ClearStateForTest()
+{
+    std::lock_guard<std::mutex> driverLock(driversMutex_);
+    std::lock_guard<std::mutex> devLock(devicesMutex_);
+    std::lock_guard<std::mutex> mapLock(mappingMutex_);
+    devices_.clear();
+    driverIdToMidiId_.clear();
+    nextDeviceId_.store(0);
+}
+
+bool MidiDeviceManager::HasDriverMappingForTest(int64_t driverId) const
+{
+    std::lock_guard<std::mutex> lock(mappingMutex_);
+    return driverIdToMidiId_.count(driverId) > 0;
+}
+#endif
 }  // namespace MIDI
 }  // namespace OHOS
