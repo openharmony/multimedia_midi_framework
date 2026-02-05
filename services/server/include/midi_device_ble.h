@@ -33,11 +33,14 @@ struct DeviceCtx {
     bool notifyEnabled{false}; // The source of truth for "Online"
     bool inputOpen{false};
     bool outputOpen{false};
+    // Store owning strings for UUIDs to prevent dangling pointers
     std::string serviceUuidStorage;
     std::string characteristicUuidStorage;
+    // Additional owning storage for BtGattCharacteristic UUID pointers
+    std::string dataCharServiceUuidStorage;
+    std::string dataCharCharacteristicUuidStorage;
     BtGattCharacteristic dataChar{};
     UmpInputCallback inputCallback{nullptr};
-    
     // The callback to Manager
     BleDriverCallback deviceCallback{nullptr};
     bool initialCallbackCalled{false}; // Prevent double callbacks

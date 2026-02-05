@@ -26,6 +26,7 @@
 #include "midi_utils.h"
 #include "imidi_device_open_callback.h"
 #include "midi_listener_callback.h"
+#include "ipc_skeleton.h"
 #include <chrono>
 
 namespace OHOS {
@@ -128,8 +129,27 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
     CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_UNKNOWN_ERROR, "listener is nullptr");
     std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
     CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
+
+    // Get calling application UID
+    uint32_t callingUid = IPCSkeleton::GetCallingUid();
+    MIDI_INFO_LOG("CreateMidiInServer called from UID: %{public}u", callingUid);
+
     std::lock_guard lock(lock_);
     CancelUnloadTask();
+
+    // Check client count limit (overall system)
+    if (clients_.size() >= MAX_CLIENTS) {
+        MIDI_ERR_LOG("Maximum number of clients reached: %{public}u", MAX_CLIENTS);
+        return MIDI_STATUS_TOO_MANY_CLIENTS;
+    }
+
+    // Check client count limit per application (UID)
+    auto &appClients = appClientMap_[callingUid];
+    if (appClients.size() >= MAX_CLIENTS_PER_APP) {
+        MIDI_ERR_LOG("Application (UID=%{public}u) has reached maximum client count: %{public}u",
+            callingUid, MAX_CLIENTS_PER_APP);
+        return MIDI_STATUS_TOO_MANY_CLIENTS;
+    }
     do {
         if (currentClientId_ >= MAX_CLIENTID) {
             currentClientId_ = 0;
@@ -150,7 +170,12 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
     });
     object->AddDeathRecipient(deathRecipient_);
     clients_.emplace(clientId, std::move(midiClient));
-    MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u", clientId);
+
+    // Store UID in client resource info and add to app client map
+    clientResourceInfo_[clientId].uid = callingUid;
+    appClientMap_[callingUid].insert(clientId);
+
+    MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u, UID: %{public}u", clientId, callingUid);
     return MIDI_STATUS_OK;
 }
 
@@ -185,6 +210,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
         MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
+    auto &resourceInfo = clientResourceInfo_[clientId];
     auto it = deviceClientContexts_.find(deviceId);
     if (it != deviceClientContexts_.end()) {
         CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) == it->second->clients.end(),
@@ -197,6 +223,14 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
             "Client added to existing device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
         return MIDI_STATUS_OK;
     }
+
+    // Check device count limit for this client
+    if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+            clientId, MAX_DEVICES_PER_CLIENT);
+        return MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
+    }
+
     CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == MIDI_STATUS_OK,
         MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "Open device failed: deviceId=%{public}" PRId64,
@@ -204,6 +238,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     std::unordered_set<int32_t> clients = {static_cast<int32_t>(clientId)};
     auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(clients));
     deviceClientContexts_.emplace(deviceId, std::move(context));
+    resourceInfo.openDevices.insert(deviceId);
     MIDI_INFO_LOG("Device opened successfully: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
     return MIDI_STATUS_OK;
 }
@@ -346,11 +381,21 @@ int32_t MidiServiceController::OpenInputPort(
         MIDI_INFO_LOG("connect inputport success");
         return MIDI_STATUS_OK;
     }
+
+    // Check port count limit for this client
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
+
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
     auto ret = deviceManager_->OpenInputPort(inputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open input port fail!");
 
     inputConnection->AddClientConnection(clientId, deviceId, buffer);
+    resourceInfo.openPortCount++;
 
     inputPortConnections.emplace(portIndex, std::move(inputConnection));
     MIDI_INFO_LOG("OpenInputPort Success");
@@ -388,12 +433,21 @@ int32_t MidiServiceController::OpenOutputPort(
         return MIDI_STATUS_OK;
     }
 
+    // Check port count limit for this client
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
+
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open output port fail!");
     // start events handle thread of output port
     outputConnection->Start();
     outputConnection->AddClientConnection(clientId, deviceId, buffer);
+    resourceInfo.openPortCount++;
     outputPortConnections.emplace(portIndex, std::move(outputConnection));
     MIDI_INFO_LOG("OpenOutputPort Success");
     return MIDI_STATUS_OK;
@@ -444,6 +498,12 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
             auto ret = deviceManager_->CloseInputPort(deviceId, portIndex);
             CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
             inputPortConnections.erase(inputPort);
+
+            // Decrement port count when port is fully closed
+            auto &resourceInfo = clientResourceInfo_[clientId];
+            if (resourceInfo.openPortCount > 0) {
+                resourceInfo.openPortCount--;
+            }
         }
     }
     return MIDI_STATUS_OK;
@@ -467,8 +527,14 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
         outputPort->second->RemoveClientConnection(clientId);
         if (outputPort->second->IsEmptyClientConections()) {
             auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
-            CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
+            CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close output port fail!");
             outputPortConnections.erase(outputPort);
+
+            // Decrement port count when port is fully closed
+            auto &resourceInfo = clientResourceInfo_[clientId];
+            if (resourceInfo.openPortCount > 0) {
+                resourceInfo.openPortCount--;
+            }
         }
     }
     return MIDI_STATUS_OK;
@@ -498,6 +564,11 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 
     ClosePortforDevice(clientId, deviceId, it->second);
     clients.erase(clientIt);
+
+    // Remove device from client's resource tracking
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    resourceInfo.openDevices.erase(deviceId);
+
     MIDI_INFO_LOG("Client removed from device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
     CHECK_AND_RETURN_RET(clients.empty(), MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
@@ -550,6 +621,22 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
         }
         ++deviceIt;
     }
+
+    // Clean up client resource tracking
+    auto resourceInfoIt = clientResourceInfo_.find(clientId);
+    if (resourceInfoIt != clientResourceInfo_.end()) {
+        uint32_t uid = resourceInfoIt->second.uid;
+        // Remove client from app client map
+        auto appIt = appClientMap_.find(uid);
+        if (appIt != appClientMap_.end()) {
+            appIt->second.erase(clientId);
+            if (appIt->second.empty()) {
+                appClientMap_.erase(appIt);
+            }
+        }
+        clientResourceInfo_.erase(resourceInfoIt);
+    }
+
     clients_.erase(it);
     MIDI_INFO_LOG("Client destroyed: %{public}u", clientId);
     CHECK_AND_RETURN_RET(clients_.empty(), MIDI_STATUS_OK);
