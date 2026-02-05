@@ -534,4 +534,4 @@ HWTEST_F(MidiServiceControllerUnitTest, DestroyClient001, TestSize.Level0)
     EXPECT_CALL(*rawMockDriver_, CloseDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
     int32_t ret = controller_->DestroyMidiClient(clientId_);
     EXPECT_EQ(ret, MIDI_STATUS_OK);
-} 
+}
