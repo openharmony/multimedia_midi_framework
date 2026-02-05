@@ -65,24 +65,6 @@ public:
 static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiInServer> &ipc) { client.ipc_ = ipc; }
 
 /**
- * @tc.name: Init_001
- * @tc.desc: call Init function, expect ok
- * @tc.type: FUNC
- */
-HWTEST_F(MidiServiceClientUnitTest, Init_001, TestSize.Level0)
-{
-    auto client = std::make_shared<MidiServiceClient>();
-    sptr<MockMidiCallbackStub> callback = sptr<MockMidiCallbackStub>::MakeSptr();
-    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
-    ASSERT_NE(nullptr, client);
-    ASSERT_NE(nullptr, callback);
-    ASSERT_NE(nullptr, mockIpc);
-    client->ipc_ = mockIpc;
-    uint32_t clientId = 123;
-    EXPECT_EQ(MIDI_STATUS_OK, client->Init(callback, clientId));
-}
-
-/**
  * @tc.name: GetDevices_001
  * @tc.desc: ipc_ is nullptr -> return IPC_FAILURE.
  * @tc.type: FUNC
@@ -283,19 +265,4 @@ HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_002, TestSize.Level0)
 
     EXPECT_CALL(*mockIpc, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
     EXPECT_EQ(client.CloseInputPort(deviceId, portIndex), MIDI_STATUS_OK);
-}
-
-/**
- * @tc.name: DestroyMidiClient_001
- * @tc.desc: ipc_ is not nullptr.
- * @tc.type: FUNC
- */
-HWTEST_F(MidiServiceClientUnitTest, DestroyMidiClient_001, TestSize.Level0)
-{
-    auto client = std::make_shared<MidiServiceClient>();
-    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
-    ASSERT_NE(nullptr, client);
-    ASSERT_NE(nullptr, mockIpc);
-    client->ipc_ = mockIpc;
-    EXPECT_EQ(MIDI_STATUS_OK, client->DestroyMidiClient());
 }

@@ -15,6 +15,14 @@
 
 #ifndef MIDI_DEVICE_MANANGER_H
 #define MIDI_DEVICE_MANANGER_H
+
+// Enable test helper methods when building unit tests
+#ifdef UNIT_TEST_SUPPORT
+#define MIDI_TEST_VISIBLE
+#else
+#define MIDI_TEST_VISIBLE
+#endif
+
 #include <vector>
 #include <unordered_map>
 #include "midi_device_connection.h"
@@ -64,6 +72,30 @@ public:
     DeviceInformation GetDeviceForDeviceId(int64_t deviceId);
     int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex);
 
+#ifdef UNIT_TEST_SUPPORT
+    /**
+     * @brief Test helper: Inject a mock driver for testing purposes
+     * @param type The device type (USB, BLE, etc.)
+     * @param driver The mock driver to inject
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    void InjectDriverForTest(DeviceType type, std::unique_ptr<MidiDeviceDriver> driver);
+
+    /**
+     * @brief Test helper: Clear all internal state for test isolation
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    void ClearStateForTest();
+
+    /**
+     * @brief Test helper: Check if a driver ID mapping exists
+     * @param driverId The driver device ID to check
+     * @return true if mapping exists, false otherwise
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    bool HasDriverMappingForTest(int64_t driverId) const;
+#endif
+
 private:
     int64_t GenerateDeviceId();
     int64_t GetOrCreateDeviceId(int64_t driverDeviceId, DeviceType type);
@@ -82,7 +114,7 @@ private:
     std::atomic<int64_t> nextDeviceId_{1000};
     std::mutex devicesMutex_;
     std::mutex driversMutex_;
-    std::mutex mappingMutex_;
+    mutable std::mutex mappingMutex_;
 };
 } // namespace MIDI
 } // namespace OHOS

@@ -32,14 +32,14 @@ public:
         manager_ = std::make_unique<MidiDeviceManager>();
         mockUsbDriver_ = std::make_unique<MockMidiDeviceDriver>();
         rawUsbDriver_ = mockUsbDriver_.get();
-        manager_->drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::move(mockUsbDriver_));
+        // Use test helper to inject mock driver
+        manager_->InjectDriverForTest(DeviceType::DEVICE_TYPE_USB, std::move(mockUsbDriver_));
     }
 
     void TearDown() override
     {
-        manager_->drivers_.clear();
-        manager_->devices_.clear();
-        manager_->driverIdToMidiId_.clear();
+        // Use test helper to clear state
+        manager_->ClearStateForTest();
     }
 
     DeviceInformation CreateDriverDeviceInfo(int64_t driverId, std::string name)
@@ -52,7 +52,7 @@ public:
         return info;
     }
 
-private:
+protected:
     std::unique_ptr<MidiDeviceManager> manager_;
     std::unique_ptr<MockMidiDeviceDriver> mockUsbDriver_;
     MockMidiDeviceDriver *rawUsbDriver_ = nullptr;
@@ -94,7 +94,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level0)
     EXPECT_EQ(devices[0].driverDeviceId, driverId);
     EXPECT_NE(devices[0].deviceId, 0);
 
-    EXPECT_TRUE(manager_->driverIdToMidiId_.count(driverId));
+    EXPECT_TRUE(manager_->HasDriverMappingForTest(driverId));
 }
 
 /**
@@ -212,7 +212,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level0)
     auto currentDevices = manager_->GetDevices();
     EXPECT_TRUE(currentDevices.empty());
 
-    EXPECT_EQ(manager_->driverIdToMidiId_.count(driverId), 0);
+    EXPECT_FALSE(manager_->HasDriverMappingForTest(driverId));
 
     EXPECT_CALL(*rawUsbDriver_, OpenDevice(_)).Times(0);
     EXPECT_NE(manager_->OpenDevice(oldGlobalId), MIDI_STATUS_OK);
@@ -227,7 +227,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level0)
 {
     auto mockBleDriver = std::make_unique<MockMidiDeviceDriver>();
     MockMidiDeviceDriver *rawBleDriver = mockBleDriver.get();
-    manager_->drivers_.emplace(DeviceType::DEVICE_TYPE_BLE, std::move(mockBleDriver));
+    manager_->InjectDriverForTest(DeviceType::DEVICE_TYPE_BLE, std::move(mockBleDriver));
 
     int64_t usbDriverId = 10;
     int64_t bleDriverId = 20;
