@@ -13,9 +13,9 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 ## 系统架构
 
 <div align="center">
-  <img src="figures/zh-cn_image_midi_framework.png" alt="服务按需启动与生命周期管理流程图" />
+  <img src="figures/zh-cn_image_midi_framework.png" alt="MIDI框架系统架构图" />
   <br>
-  <b>图 1</b> 服务按需启动与生命周期管理流程图
+  <b>图 1</b> MIDI框架系统架构图
 </div>
 
 ### 模块功能说明
@@ -374,4 +374,4 @@ void MIDIDemo() {
 [drivers_interface](https://gitcode.com/openharmony/drivers_interface)<br>
 [drivers_peripheral](https://gitcode.com/openharmony/drivers_peripheral)<br>
 [alsa-libs](https://gitcode.com/openharmony/third_party_alsa-lib)<br>
-**[midi_framework](https://gitcode.com/openharmony/midi_framework-sig)**
+**[midi_framework](https://gitcode.com/openharmony/multimedia_midi_framework)**
