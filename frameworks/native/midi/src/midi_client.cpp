@@ -50,15 +50,15 @@ static bool ConvertToDeviceInformation(
 
     auto it = deviceInfo.find(DEVICE_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceId error");
-    outInfo.midiDeviceId = std::stoll(it->second);
+    outInfo.midiDeviceId = StringToNum(it->second);
 
     it = deviceInfo.find(DEVICE_TYPE);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceType error");
-    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(std::stoi(it->second));
+    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(StringToNum(it->second));
 
     it = deviceInfo.find(MIDI_PROTOCOL);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "protocol error");
-    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(std::stoi(it->second));
+    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(StringToNum(it->second));
 
     it = deviceInfo.find(PRODUCT_NAME);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productName error");
@@ -115,10 +115,10 @@ static bool ConvertToPortInformation(
     auto it = portInfo.find(PORT_INDEX);
     CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "port index error");
 
-    outInfo.portIndex = static_cast<uint32_t>(std::stoll(it->second));
+    outInfo.portIndex = static_cast<uint32_t>(StringToNum(it->second));
     it = portInfo.find(DIRECTION);
     CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "direction error");
-    outInfo.direction = static_cast<OH_MIDIPortDirection>(std::stoi(it->second));
+    outInfo.direction = static_cast<OH_MIDIPortDirection>(StringToNum(it->second));
 
     it = portInfo.find(PORT_NAME);
     CHECK_AND_RETURN_RET_LOG(it != portInfo.end() && !it->second.empty(), false, "port name error");
@@ -422,7 +422,7 @@ MidiOutputPort::~MidiOutputPort()
     MIDI_INFO_LOG("OutputPort destroy");
 }
 
-MidiClientPrivate::MidiClientPrivate() : ipc_(std::make_shared<MidiServiceClient>())
+MidiClientPrivate::MidiClientPrivate() : ipc_(std::make_shared<MidiServiceClient>()), clientId_(0)
 {
     MIDI_INFO_LOG("MidiClientPrivate created");
 }

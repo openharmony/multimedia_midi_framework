@@ -46,7 +46,7 @@ public:
 
     virtual int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) = 0;
 
-    virtual int32_t HanleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) = 0;
+    virtual int32_t HandleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) = 0;
 };
 
 } // namespace MIDI

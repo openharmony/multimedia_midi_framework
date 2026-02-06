@@ -74,7 +74,7 @@ const ClientConnectionInServer::PendingEvent* ClientConnectionInServer::PeekPend
 bool ClientConnectionInServer::PopPendingTop(PendingEvent& out)
 {
     if (pending_.empty()) return false;
-    out = std::move(const_cast<PendingEvent&>(pending_.top()));
+    out = pending_.top();
     pending_.pop();
     return true;
 }

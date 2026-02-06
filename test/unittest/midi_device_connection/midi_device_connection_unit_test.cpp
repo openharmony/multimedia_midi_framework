@@ -129,30 +129,30 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseClients_001, TestSize
 
     DeviceConnectionBase deviceConnectionBase(deviceConnectionInfo);
 
-    EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConections());
+    EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConnections());
 
     std::shared_ptr<MidiSharedRing> clientRingBuffer;
     EXPECT_EQ(MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(100, 999, clientRingBuffer));
     ASSERT_NE(nullptr, clientRingBuffer);
-    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConections());
+    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConnections());
 
     // Add another client
     std::shared_ptr<MidiSharedRing> anotherClientRingBuffer;
     EXPECT_EQ(MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(200, 888, anotherClientRingBuffer));
     ASSERT_NE(nullptr, anotherClientRingBuffer);
-    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConections());
+    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConnections());
 
     // Remove unknown id should not crash and not empty
     deviceConnectionBase.RemoveClientConnection(300);
-    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConections());
+    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConnections());
 
     // Remove first client
     deviceConnectionBase.RemoveClientConnection(100);
-    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConections());
+    EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConnections());
 
     // Remove second client -> empty
     deviceConnectionBase.RemoveClientConnection(200);
-    EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConections());
+    EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConnections());
 
     // GetInfo interface coverage
     const auto &returnedInfo = deviceConnectionBase.GetInfo();

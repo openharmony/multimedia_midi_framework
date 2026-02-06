@@ -34,6 +34,7 @@ public:
     virtual ~MidiServer() = default;
     void OnDump() override;
     void OnStart() override;
+    void OnStop() override;
     int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
                                  uint32_t &clientId) override;
 
