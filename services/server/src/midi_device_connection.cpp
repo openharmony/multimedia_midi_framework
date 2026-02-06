@@ -98,7 +98,7 @@ bool DeviceConnectionBase::HasClientConnection(uint32_t clientId) const
         });
 }
 
-bool DeviceConnectionBase::IsEmptyClientConections()
+bool DeviceConnectionBase::IsEmptyClientConnections()
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     return clients_.empty();
@@ -147,6 +147,7 @@ int32_t DeviceConnectionForOutput::AddClientConnection(
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     int fd = dup(notifyEventFd_.Get());
+    CHECK_AND_RETURN_RET(fd >= 0, MIDI_STATUS_UNKNOWN_ERROR);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
     CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "creat client connection fail");
     CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer(fd) == MIDI_STATUS_OK,
@@ -214,12 +215,15 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
 
     int tfd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (tfd < 0) {
+        notifyEventFd_.Reset(-1);
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
     timerFd_.Reset(tfd);
 
     int epfd = ::epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0) {
+        timerFd_.Reset(-1);
+        notifyEventFd_.Reset(-1);
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
     epollFd_.Reset(epfd);
@@ -236,6 +240,9 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
     evTimer.data.u64 = kEpollTagTimerFd;
     if (::epoll_ctl(epollFd_.Get(), EPOLL_CTL_ADD, timerFd_.Get(), &evTimer) !=
         0) {  // todo: timer epoll maybe no need, one fd enough?
+        epollFd_.Reset(-1);
+        timerFd_.Reset(-1);
+        notifyEventFd_.Reset(-1);
         return MIDI_STATUS_UNKNOWN_ERROR;
     }
 
@@ -274,7 +281,6 @@ void DeviceConnectionForOutput::ThreadMain()
             }
             break;
         }
-
         DrainEventFd();
         DrainTimerFd();
 
@@ -372,10 +378,11 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
     payloadWords.resize(payloadWordCount);
 
     if (payloadBytes > 0) {
-        (void)memcpy_s(payloadWords.data(),
+        auto ret = memcpy_s(payloadWords.data(),
                        payloadBytes,
                        ringEvent.payloadPtr,
                        payloadBytes);
+        CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
     }
 
     const bool enqueued = clientConnection.EnqueueNonRealtime(std::move(payloadWords), dueTime, ringEvent.timestamp);
@@ -450,9 +457,10 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
     MidiEventInner cachedEvent {};
     cachedEvent.timestamp = timestamp;
     cachedEvent.length = payloadWordCount;
-    cachedEvent.data = payloadBuffer.data();
+    cachedEvent.data = nullptr; 
 
     sendCachePayloadBuffers_.push_back(std::move(payloadBuffer));
+    cachedEvent.data = sendCachePayloadBuffers_.back().data();
     sendCache_.push_back(cachedEvent);
 
     currentSendCacheBytes_ += payloadBytes;
@@ -490,7 +498,7 @@ void DeviceConnectionForOutput::FlushSendCacheToDriver()
         return;
     }
     CHECK_AND_RETURN_LOG(info_.driver != nullptr, "driver is null!");
-    info_.driver->HanleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
+    info_.driver->HandleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
     sendCache_.clear();
     sendCachePayloadBuffers_.clear();
     currentSendCacheBytes_ = 0;

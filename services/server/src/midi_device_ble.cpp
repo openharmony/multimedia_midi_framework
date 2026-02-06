@@ -632,7 +632,7 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex,
+int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
@@ -652,7 +652,7 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
     for (auto midiEvent : list) {
         // Validate data pointer before use
-        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "HanleUmpInput: midiEvent.data is nullptr");
+        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "HandleUmpInput: midiEvent.data is nullptr");
         std::vector<uint8_t> midi1Buffer;
         ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
         CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
@@ -661,7 +661,7 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
         CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
             payloadLen, payload) == 0, "write characteristic failed");
     }
-    MIDI_DEBUG_LOG("HanleUmpInput completed: deviceId=%{public}" PRId64 ", processed %{public}zu events",
+    MIDI_DEBUG_LOG("HandleUmpInput completed: deviceId=%{public}" PRId64 ", processed %{public}zu events",
         deviceId, list.size());
     return 0;
 }

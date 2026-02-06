@@ -107,7 +107,7 @@ int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
 }
 
 
-int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex,
+int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");

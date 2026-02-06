@@ -492,7 +492,7 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         inputPort->second->RemoveClientConnection(clientId);
-        if (inputPort->second->IsEmptyClientConections()) {
+        if (inputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseInputPort(deviceId, portIndex);
             CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
             inputPortConnections.erase(inputPort);
@@ -523,7 +523,7 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
         outputPort->second->RemoveClientConnection(clientId);
-        if (outputPort->second->IsEmptyClientConections()) {
+        if (outputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
             CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close output port fail!");
             outputPortConnections.erase(outputPort);
