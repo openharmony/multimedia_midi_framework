@@ -39,6 +39,7 @@ namespace {
     constexpr size_t HEAD_STR_LEN = 2;
     constexpr size_t TAIL_STR_LEN = 5;
     constexpr size_t WIDE_LEN = 2;
+    static constexpr uint32_t BASE_TEN = 10;
 } // namespace
 
 int64_t ClockTime::GetCurNano()

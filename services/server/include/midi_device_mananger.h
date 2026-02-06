@@ -115,6 +115,7 @@ private:
     std::mutex devicesMutex_;
     std::mutex driversMutex_;
     mutable std::mutex mappingMutex_;
+    std::mutex initMutex_;
 };
 } // namespace MIDI
 } // namespace OHOS

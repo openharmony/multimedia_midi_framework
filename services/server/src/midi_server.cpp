@@ -31,6 +31,7 @@ void MidiServer::OnStart()
     controller_ = MidiServiceController::GetInstance();
     CHECK_AND_RETURN_LOG(controller_ != nullptr,
         "Failed to get MidiServiceController instance");
+    controller_->Init();
     auto result = Publish(this);
     CHECK_AND_RETURN_LOG(result,
         "Failed to publish MIDI service to SAMgr");

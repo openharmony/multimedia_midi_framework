@@ -79,6 +79,7 @@ int64_t MidiDeviceManager::GetOrCreateDeviceId(int64_t driverDeviceId, DeviceTyp
 void MidiDeviceManager::Init()
 {
     MIDI_INFO_LOG("Initialize");
+    std::lock_guard<std::mutex> lock(initMutex_);
     CHECK_AND_RETURN_LOG(eventSubscriber_ == nullptr, "feventSubscriber_ already exists");
 #ifndef MIDI_TEST_DISABLE_EVENT_SUBSCRIPTION
     std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
@@ -167,7 +168,7 @@ void MidiDeviceManager::UpdateDevices()
     {
         std::lock_guard<std::mutex> lock(devicesMutex_);
         oldDevices = std::move(devices_);
-        devices_ = std::move(newDevices);
+        devices_ = newDevices;
     }
 
     CompareDevices(oldDevices, newDevices);  // todo 优化
@@ -287,7 +288,7 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 
 int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCallback callback)
 {
-    MIDI_INFO_LOG("MidiDeviceManager::OpenBleDevice %{public}s", GetEncryptStr(deviceAddr).c_str());
+    MIDI_INFO_LOG("MidiDeviceManager::OpenBleDevice %{public}s", GetEncryptStr(address).c_str());
     auto driver = GetDriverForDeviceType(DEVICE_TYPE_BLE);
     if (!driver) {
         return MIDI_STATUS_UNKNOWN_ERROR;
@@ -340,8 +341,6 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
 {
     int64_t driverDeviceId = devInfo.driverDeviceId;
     int64_t midiDeviceId = 0;
-    bool exists = false;
-    DeviceInformation foundInfo;
     {
         std::lock_guard<std::mutex> mapLock(mappingMutex_);
         auto it = driverIdToMidiId_.find(driverDeviceId);

@@ -53,7 +53,7 @@ int32_t MidiInServer::OpenDevice(int64_t deviceId)
 
 int32_t MidiInServer::OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object)
 {
-    MIDI_INFO_LOG("address : %{public}s", GetEncryptStr(deviceAddr).c_str());
+    MIDI_INFO_LOG("address : %{public}s", GetEncryptStr(address).c_str());
     return MidiServiceController::GetInstance()->OpenBleDevice(clientId_, address, object);
 }
 

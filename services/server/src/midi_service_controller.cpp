@@ -62,7 +62,6 @@ MidiServiceController::MidiServiceController()
     : unloadDelayTime_(UNLOAD_DELAY_DEFAULT_TIME_IN_MS)  // Default: 60 seconds (production)
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
-    deviceManager_->Init();  // Initialize immediately to avoid race condition
 }
 
 MidiServiceController::~MidiServiceController()
@@ -73,6 +72,11 @@ MidiServiceController::~MidiServiceController()
     }
     clients_.clear();
 }
+
+ void MidiServiceController::Init() 
+ {
+    deviceManager_->Init(); 
+ }
 
 std::shared_ptr<MidiServiceController> MidiServiceController::GetInstance()
 {
@@ -262,7 +266,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         auto ctxIt = deviceClientContexts_.find(deviceId);
         if (ctxIt != deviceClientContexts_.end()) {
             MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
-                GetEncryptStr(deviceAddr).c_str(), deviceId);
+                GetEncryptStr(address).c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
             std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
@@ -279,10 +283,10 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
 
     if (!isFirstRequest) {
         MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.",
-            GetEncryptStr(deviceAddr).c_str(), clientId);
+            GetEncryptStr(address).c_str(), clientId);
         return MIDI_STATUS_OK;
     }
-    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(deviceAddr).c_str());
+    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(address).c_str());
 
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
@@ -307,7 +311,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
     const std::map<int32_t, std::string> &deviceInfo)
 {
     MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
-                GetEncryptStr(deviceAddr).c_str(), success, deviceId);
+                GetEncryptStr(address).c_str(), success, deviceId);
 
     std::list<PendingBleConnection> waitingClients;
 
@@ -319,7 +323,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
             pendingBleConnections_.erase(it);
         } else {
             MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)",
-                GetEncryptStr(deviceAddr).c_str());
+                GetEncryptStr(address).c_str());
         }
 
         if (success) {
@@ -699,7 +703,7 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
     std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
-    std::vector<std::shared_ptr<MidiListenerCallback>> clientsToNotify;
+    std::vector<sptr<MidiInServer>> clientsToNotify;
 
     {
         std::lock_guard lock(lock_);
@@ -730,7 +734,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
 
 void MidiServiceController::NotifyError(int32_t code)
 {
-    std::vector<std::shared_ptr<MidiListenerCallback>> clientsToNotify;
+    std::vector<sptr<MidiInServer>> clientsToNotify;
     {
         std::lock_guard lock(lock_);
         clientsToNotify.reserve(clients_.size());

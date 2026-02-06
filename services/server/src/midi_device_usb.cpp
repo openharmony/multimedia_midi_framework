@@ -30,13 +30,13 @@ static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceI
 {
     std::vector<PortInformation> portInfos;
     for (const auto &port : device.ports) {
-        CHECK_AND_CONTINUE_LOG(port.direction == PORT_DIRECTION_INPUT || port.direction ==PORT_DIRECTION_OUTPUT,
-            "Invalid port direction: %{public}d", port.direction);
+        CHECK_AND_CONTINUE_LOG(port.direction == static_cast<int32_t>(PORT_DIRECTION_INPUT) || port.direction ==
+            static_cast<int32_t>(PORT_DIRECTION_OUTPUT), "Invalid port direction: %{public}d", port.direction);
         PortInformation portInfo;
         portInfo.portId = port.portId;
         portInfo.name = port.name;
-        portInfo.direction = (PortDirection)port.direction;
-        portInfo.transportProtocol = (TransportProtocol)device.protocol;
+        portInfo.direction = static_cast<PortDirection>(port.direction);
+        portInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
         portInfos.push_back(portInfo);
     }
     return portInfos;
@@ -47,15 +47,16 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
     std::vector<MidiDeviceInfo> deviceList;
     std::vector<DeviceInformation> deviceInfos;
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, deviceInfos, "midiHdi_ is nullptr");
-    midiHdi_->GetDeviceList(deviceList);
+    auto ret = midiHdi_->GetDeviceList(deviceList);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, deviceInfos, "GetDeviceList failed: %{public}d", ret);
     for (const auto &device : deviceList) {
-        CHECK_AND_CONTINUE_LOG(device.protocol == PROTOCOL_1_0 || device.protocol == PROTOCOL_2_0,
-            "Invalid MIDI protocol: %{public}d", device.protocol);
+
+        CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(PROTOCOL_1_0) || device.protocol ==
+            static_cast<int32_t>(PROTOCOL_2_0), "Invalid MIDI protocol: %{public}d", device.protocol);
         DeviceInformation devInfo;
         devInfo.driverDeviceId = device.deviceId;
         devInfo.deviceType = DEVICE_TYPE_USB;
-        devInfo.transportProtocol = (TransportProtocol)device.protocol;
+        devInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
         devInfo.productName = device.productName;
         devInfo.vendorName = device.vendorName;
         devInfo.portInfos = ConvertToDeviceInformation(device);
