@@ -60,8 +60,7 @@ static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector
 {
     // Validate input parameters to prevent nullptr dereference
     if (umpData == nullptr || count == 0 || count > MAX_UMP_PACKETS) {
-        MIDI_ERR_LOG("ConvertUmpToMidi1: Invalid input parameters - umpData=%{public}p, count=%{public}zu",
-            static_cast<const void*>(umpData), count);
+        MIDI_ERR_LOG("ConvertUmpToMidi1: Invalid input parameters");
         return;
     }
 
