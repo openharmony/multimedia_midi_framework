@@ -12,7 +12,9 @@
     "component": {
         "name": "midi_framework",
         "subsystem": "multimedia",
-        "syscap": [],
+        "syscap": [
+            "SystemCapability.Multimedia.Audio.MIDI"
+        ],
         "features": [],
         "adapted_system_type": [
             "standard",

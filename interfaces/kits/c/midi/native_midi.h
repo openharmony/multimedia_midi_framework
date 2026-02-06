@@ -19,7 +19,7 @@
  * @brief Provide the definition of the C interface for the MIDI module.
  *
  * @since 24
- * @version 1.0
+ * @version 6.1
  */
 /**
  * @file native_midi.h
@@ -33,8 +33,9 @@
  * @syscap SystemCapability.Multimedia.Audio.MIDI
  * @kit AudioKit
  * @since 24
- * @version 1.0
+ * @version 6.1
  */
+
 #ifndef NATIVE_MIDI_H
 #define NATIVE_MIDI_H
 
@@ -47,12 +48,23 @@ extern "C" {
 /**
  * @brief Create MIDI client instance
  *
+ * @note **Resource Management & Best Practices**:
+ * MIDI is a delay-sensitive system service. To ensure real-time performance (QoS)
+ * and system stability, the service enforces the following limits:
+ * 1. **System-wide limit**: A global maximum number of active MIDI clients allowed.
+ * 2. **Per-Application limit**: A maximum number of MIDI clients allowed per App UID.
+ *
+ * Applications are **strongly recommended** to maintain a single `OH_MIDIClient`
+ * instance throughout their lifecycle and use it to manage multiple devices/ports.
+ *
  * @param client Pointer to receive the new client handle.
  * @param callbacks Callback structure for system events.
  * @param userData User context to be passed to callbacks.
  * @return {@link #MIDI_STATUS_OK} if execution succeeds,
  * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if client is nullptr.
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * or {@link #MIDI_STATUS_TOO_MANY_CLIENTS} if creation failed due to resource limits.
+ * This occurs if the calling application exceeded its per-UID quota or the system is busy.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData);
@@ -64,6 +76,9 @@ OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks c
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
  * or {@link #MIDI_STATUS_INVALID_CLIENT} if client is NULL or invalid.
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @note Destroying client automatically closes all devices and ports (anti-failure mechanism).
+ * It is recommended to close resources in reverse order (ports→devices→client) for code clarity,
+ * but this is not a mandatory requirement.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client);
@@ -142,6 +157,9 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
  * {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if the service is unreachable.
  * @note This function triggers a BLE scan and connection process which may take time.
  * Ensure the application has the necessary Bluetooth permissions.
+ * @warning If Bluetooth permission is denied, the callback will be invoked with
+ * opened=false and device=NULL. The application should check the 'opened' parameter
+ * before attempting to use the device handle.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback,
@@ -149,6 +167,8 @@ OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *device
 
 /**
  * @brief Close MIDI device
+ *
+ * @note Closing a device automatically closes all opened ports on that device.
  *
  * @param device Target device handle.
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
@@ -214,10 +234,9 @@ OH_MIDIStatusCode OH_MIDIGetPortInfos(OH_MIDIClient *client,
  * @param userData Context pointer passed to the callback.
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
  * or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- * or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if port is opened by this client.
  * or {@link #MIDI_STATUS_INVALID_PORT} if portindex is invalid or not a input port.
- * or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if port is already opened.
- * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if inputHandler is nullptr.
+ * or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if port is already opened by this client.
+ * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if callback is nullptr.
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
@@ -231,9 +250,8 @@ OH_MIDIStatusCode OH_MIDIOpenInputPort(
  * @param descriptor Port index and protocol configuration.
  * @return {@link #MIDI_STATUS_OK} if execution succeeds.
  * or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- * or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if port is opened by this client.
  * or {@link #MIDI_STATUS_INVALID_PORT} if portindex is invalid or not a output port.
- * or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if port is already opened.
+ * or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if port is already opened by this client.
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */

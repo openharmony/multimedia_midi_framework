@@ -19,7 +19,7 @@
  * @brief Provide the definition of the C interface for the MIDI module.
  *
  * @since 24
- * @version 1.0
+ * @version 6.1
  */
 /**
  * @file native_midi_base.h
@@ -30,7 +30,7 @@
  * @syscap SystemCapability.Multimedia.Audio.MIDI
  * @kit AudioKit
  * @since 24
- * @version 1.0
+ * @version 6.1
  */
 #ifndef NATIVE_MIDI_BASE_H
 #define NATIVE_MIDI_BASE_H
@@ -87,14 +87,14 @@ typedef enum {
 
     /**
      * @error Send buffer is transiently full.
-     * Indicates that the shared memory buffer currently lacks space
-     * The application should wait briefly or retry later.
+     * Indicates that the shared memory buffer currently lacks space.
      * Returned by non-blocking send when message cannot fit in the buffer.
+     * Retry the operation with a short delay (recommended: 10ms).
      */
     MIDI_STATUS_WOULD_BLOCK,
 
     /**
-     * @error Operation can not be handle in a resonable time.
+     * @error Operation can not be handled in a reasonable time.
      */
     MIDI_STATUS_TIMEOUT,
 
@@ -119,6 +119,12 @@ typedef enum {
      * @error The client has already opened this port.
      */
     MIDI_STATUS_PORT_ALREADY_OPEN,
+
+    /**
+     * @error The system-wide or per-application limit for MIDI clients has been reached.
+     * The application should wait or release other resources before retrying.
+     */
+    MIDI_STATUS_TOO_MANY_CLIENTS,
 
     /**
      * @error The MIDI system service has died or disconnected.
@@ -356,9 +362,14 @@ typedef void (*OH_OnMIDIDeviceChange)(
 /**
  * @brief Callback for receiving MIDI data (Batch Processing)
  *
- * @note The callback is invoked on a high-priority thread.
- * @note The 'events' array and its data pointers are transient and valid ONLY
- * for the duration of this callback. If you need to keep the data, copy it.
+ * @warning **CRITICAL: Memory Safety**
+ * The 'events' array and all data pointers within are **transient and ONLY valid
+ * during this callback**. Accessing these pointers after the callback returns
+ * causes **undefined behavior** (crashes, memory corruption).
+ * You MUST copy any data you need to keep.
+ *
+ * @warning This callback is invoked on a high-priority system thread.
+ * Do **not** perform blocking operations, heavy computation, or I/O.
  *
  * @param userData User context provided during port opening.
  * @param events Pointer to the array of MIDI events received.
