@@ -73,10 +73,10 @@ MidiServiceController::~MidiServiceController()
     clients_.clear();
 }
 
- void MidiServiceController::Init() 
- {
-    deviceManager_->Init(); 
- }
+void MidiServiceController::Init()
+{
+    deviceManager_->Init();
+}
 
 std::shared_ptr<MidiServiceController> MidiServiceController::GetInstance()
 {

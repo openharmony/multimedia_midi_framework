@@ -50,7 +50,6 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
     auto ret = midiHdi_->GetDeviceList(deviceList);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, deviceInfos, "GetDeviceList failed: %{public}d", ret);
     for (const auto &device : deviceList) {
-
         CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(PROTOCOL_1_0) || device.protocol ==
             static_cast<int32_t>(PROTOCOL_2_0), "Invalid MIDI protocol: %{public}d", device.protocol);
         DeviceInformation devInfo;
