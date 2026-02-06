@@ -378,10 +378,7 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
     payloadWords.resize(payloadWordCount);
 
     if (payloadBytes > 0) {
-        auto ret = memcpy_s(payloadWords.data(),
-                       payloadBytes,
-                       ringEvent.payloadPtr,
-                       payloadBytes);
+        auto ret = memcpy_s(payloadWords.data(), payloadBytes, ringEvent.payloadPtr, payloadBytes);
         CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
     }
 
@@ -457,7 +454,7 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
     MidiEventInner cachedEvent {};
     cachedEvent.timestamp = timestamp;
     cachedEvent.length = payloadWordCount;
-    cachedEvent.data = nullptr; 
+    cachedEvent.data = nullptr;
 
     sendCachePayloadBuffers_.push_back(std::move(payloadBuffer));
     cachedEvent.data = sendCachePayloadBuffers_.back().data();
