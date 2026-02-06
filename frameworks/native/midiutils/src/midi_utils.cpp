@@ -143,6 +143,14 @@ std::string DumpMidiEvents(const std::vector<MidiEventInner>& events)
     return out.str();
 }
 
+long StringToNum(const std::string &str)
+{
+    char *endptr;
+    long num = strtol(str.c_str(), &endptr, BASE_TEN);
+    CHECK_AND_RETURN_RET_LOG(endptr != nullptr && *endptr == '\0', 0,
+        "trans str \"%{public}s\" to num failed", str.c_str());
+    return num;
+}
 // ====== UniqueFd ======
 UniqueFd::~UniqueFd()
 {

@@ -19,7 +19,7 @@
 #include "midi_service_controller.h"
 #include "midi_device_mananger.h"
 #include "midi_device_usb.h"
- #include "midi_device_ble.h"
+#include "midi_device_ble.h"
 #include "midi_log.h"
 
 namespace OHOS {
