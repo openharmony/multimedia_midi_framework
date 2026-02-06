@@ -29,6 +29,7 @@ std::string BytesToString(uint32_t value);
 std::string DumpOneEvent(uint64_t ts, size_t len, const uint32_t *data);
 std::string DumpMidiEvents(const std::vector<MidiEvent>& events);
 std::string DumpMidiEvents(const std::vector<MidiEventInner>& events);
+long StringToNum(const std::string &str);
 
 class ClockTime {
 public:

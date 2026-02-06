@@ -30,11 +30,13 @@ static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceI
 {
     std::vector<PortInformation> portInfos;
     for (const auto &port : device.ports) {
+        CHECK_AND_CONTINUE_LOG(port.direction == static_cast<int32_t>(PORT_DIRECTION_INPUT) || port.direction ==
+            static_cast<int32_t>(PORT_DIRECTION_OUTPUT), "Invalid port direction: %{public}d", port.direction);
         PortInformation portInfo;
         portInfo.portId = port.portId;
         portInfo.name = port.name;
-        portInfo.direction = (PortDirection)port.direction;
-        portInfo.transportProtocol = (TransportProtocol)device.protocol;
+        portInfo.direction = static_cast<PortDirection>(port.direction);
+        portInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
         portInfos.push_back(portInfo);
     }
     return portInfos;
@@ -45,12 +47,15 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
     std::vector<MidiDeviceInfo> deviceList;
     std::vector<DeviceInformation> deviceInfos;
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, deviceInfos, "midiHdi_ is nullptr");
-    midiHdi_->GetDeviceList(deviceList);
-    for (auto device : deviceList) {
+    auto ret = midiHdi_->GetDeviceList(deviceList);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, deviceInfos, "GetDeviceList failed: %{public}d", ret);
+    for (const auto &device : deviceList) {
+        CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(PROTOCOL_1_0) || device.protocol ==
+            static_cast<int32_t>(PROTOCOL_2_0), "Invalid MIDI protocol: %{public}d", device.protocol);
         DeviceInformation devInfo;
         devInfo.driverDeviceId = device.deviceId;
         devInfo.deviceType = DEVICE_TYPE_USB;
-        devInfo.transportProtocol = (TransportProtocol)device.protocol;
+        devInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
         devInfo.productName = device.productName;
         devInfo.vendorName = device.vendorName;
         devInfo.portInfos = ConvertToDeviceInformation(device);
@@ -102,7 +107,7 @@ int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
 }
 
 
-int32_t UsbMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex,
+int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
@@ -126,6 +131,7 @@ int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi:
     events.reserve(messages.size());
     MIDI_DEBUG_LOG("[server]: get midi events from hdi");
     for (auto &message : messages) {
+        CHECK_AND_CONTINUE_LOG(!message.data.empty(), "Received MIDI message with empty data, skipping");
         MidiEventInner event = {
             .timestamp = message.timestamp,
             .length = message.data.size(),
@@ -133,6 +139,7 @@ int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi:
         };
         events.emplace_back(event);
     }
+    CHECK_AND_RETURN_RET(!events.empty(), 0);
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(events).c_str());
     callback_(events);
     return 0;

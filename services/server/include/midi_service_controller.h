@@ -60,6 +60,21 @@ struct PendingBleConnection {
 
 class MidiServiceController : public std::enable_shared_from_this<MidiServiceController> {
 public:
+    // Resource limits
+    static constexpr uint32_t MAX_CLIENTS = 8;           // Maximum number of clients
+    static constexpr uint32_t MAX_CLIENTS_PER_APP = 2;    // Maximum clients per application (UID)
+    static constexpr uint32_t MAX_DEVICES_PER_CLIENT = 16; // Maximum devices per client
+    static constexpr uint32_t MAX_PORTS_PER_CLIENT = 64;   // Maximum ports per client
+
+private:
+    // Helper structure to track resource usage per client
+    struct ClientResourceInfo {
+        uint32_t uid;                                    // Application UID that owns this client
+        std::unordered_set<int64_t> openDevices;  // List of opened device IDs
+        uint32_t openPortCount = 0;               // Total opened port count (input + output)
+    };
+
+public:
     MidiServiceController();
     ~MidiServiceController();
     static std::shared_ptr<MidiServiceController> GetInstance();
@@ -122,6 +137,12 @@ private:
     void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
         const std::map<int32_t, std::string> &deviceInfo);
 
+    // Helper functions for DestroyMidiClient
+    void CollectDevicesForClientDestruction(uint32_t clientId,
+        std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean);
+    void CleanupDeviceForClient(uint32_t clientId, int64_t deviceId);
+    void CleanupClientResources(uint32_t clientId, uint32_t clientUid);
+
     void ScheduleUnloadTask();
     void CancelUnloadTask();
     int32_t CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
@@ -133,6 +154,12 @@ private:
 
     // Map Address -> List of waiting clients
     std::unordered_map<std::string, std::list<PendingBleConnection>> pendingBleConnections_;
+
+    // Track resource usage per client
+    std::unordered_map<uint32_t, ClientResourceInfo> clientResourceInfo_;
+
+    // Track clients per application (UID) for per-app limit enforcement
+    std::unordered_map<uint32_t, std::unordered_set<uint32_t>> appClientMap_;  // UID -> clientIds
 
     std::shared_ptr<MidiDeviceManager> deviceManager_;
     static std::atomic<uint32_t> currentClientId_;

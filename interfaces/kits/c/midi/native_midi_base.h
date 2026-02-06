@@ -99,6 +99,11 @@ typedef enum {
     MIDI_STATUS_TIMEOUT,
 
     /**
+     * @error The system has reached the maximum number of clients allowed.
+     */
+    MIDI_STATUS_TOO_MANY_CLIENTS,
+
+    /**
      * @error The client has reached the maximum number of open devices allowed.
      * To open a new device, the client must close an existing one first.
      */

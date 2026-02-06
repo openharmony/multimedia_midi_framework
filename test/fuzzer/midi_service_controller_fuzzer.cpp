@@ -99,7 +99,6 @@ void DestroyMidiClient(FuzzedDataProvider &fdp)
 void MidiServiceControllerInit()
 {
     midiServiceController_ = MidiServiceController::GetInstance();
-    midiServiceController_->Init();
 }
 
 void MidiServiceControllerTest(FuzzedDataProvider &fdp)
