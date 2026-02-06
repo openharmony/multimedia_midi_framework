@@ -25,7 +25,11 @@ ohos_unittest("midi_service_controller_unit_test") {
   cflags = [
     "-Wall",
     "-Werror",
-    "-fno-access-control",
+  ]
+
+  defines = [
+    "UNIT_TEST_SUPPORT",
+    "MIDI_TEST_DISABLE_EVENT_SUBSCRIPTION",
   ]
 
   include_dirs = [

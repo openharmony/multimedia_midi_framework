@@ -84,7 +84,7 @@ ohos_shared_library("midi_service") {
 
   cflags_cc = [ "-std=c++20" ]
 
-  defines = []
+  defines = [ "UNIT_TEST_SUPPORT" ]
   subsystem_name = "multimedia"
   part_name = "midi_framework"
 }

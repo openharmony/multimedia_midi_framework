@@ -31,8 +31,11 @@
 
 namespace OHOS {
 namespace MIDI {
+namespace {
+constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
+constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_MS = 60 * 1000;
+}
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
-static constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
 static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device)
 {
     std::map<int32_t, std::string> deviceInfo;
@@ -56,6 +59,7 @@ DeviceClientContext::~DeviceClientContext()
 }
 
 MidiServiceController::MidiServiceController()
+    : unloadDelayTime_(UNLOAD_DELAY_DEFAULT_TIME_IN_MS)  // Default: 60 seconds (production)
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
     deviceManager_->Init();  // Initialize immediately to avoid race condition
@@ -100,9 +104,9 @@ void MidiServiceController::ScheduleUnloadTask()
     }
 
     unloadThread_ = std::thread([this]() {
-        MIDI_INFO_LOG("Unload timer started. Waiting for 60s...");
+        MIDI_INFO_LOG("Unload timer started. Waiting for %{public}" PRId64 " ms...", unloadDelayTime_);
         std::unique_lock<std::mutex> lk(unloadMutex_);
-        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(UNLOAD_DELAY_TIME)) == std::cv_status::timeout) {
+        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_)) == std::cv_status::timeout) {
             CHECK_AND_RETURN(isUnloadPending_);
             MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
             auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
@@ -740,5 +744,44 @@ void MidiServiceController::NotifyError(int32_t code)
         client->NotifyError(code);
     }
 }
+
+#ifdef UNIT_TEST_SUPPORT
+void MidiServiceController::ClearStateForTest()
+{
+    // Cancel any pending unload task before clearing state
+    CancelUnloadTask();
+
+    // Wait for unload thread to complete (immediate in test mode since UNLOAD_DELAY_TIME = 0)
+    if (unloadThread_.joinable()) {
+        unloadThread_.join();
+    }
+
+    std::lock_guard<std::mutex> lock(lock_);
+    deviceClientContexts_.clear();
+    activeBleDevices_.clear();
+    pendingBleConnections_.clear();
+    clients_.clear();
+    if (deviceManager_) {
+        deviceManager_->ClearStateForTest();
+    }
+    currentClientId_.store(0);
+}
+
+bool MidiServiceController::HasDeviceContextForTest(int64_t deviceId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    return deviceClientContexts_.find(deviceId) != deviceClientContexts_.end();
+}
+
+bool MidiServiceController::HasClientForDeviceForTest(int64_t deviceId, uint32_t clientId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        return false;
+    }
+    return it->second->clients.find(static_cast<int32_t>(clientId)) != it->second->clients.end();
+}
+#endif
 }  // namespace MIDI
 }  // namespace OHOS
