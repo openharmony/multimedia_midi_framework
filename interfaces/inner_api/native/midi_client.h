@@ -29,6 +29,7 @@ public:
     virtual OH_MIDIStatusCode ClosePort(uint32_t portIndex);
     virtual OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
                                     uint32_t eventCount, uint32_t *eventsWritten);
+    virtual OH_MIDIStatusCode SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize);
     virtual OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex);
 };
 

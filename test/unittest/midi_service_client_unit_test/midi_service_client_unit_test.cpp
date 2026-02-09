@@ -41,6 +41,7 @@ public:
     MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, (std::vector<std::map<int32_t, std::string>> &)), (override));
     MOCK_METHOD(int32_t, OpenInputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, OpenOutputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
+    MOCK_METHOD(int32_t, FlushOutputPort, (int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, CloseInputPort, (int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, CloseOutputPort, (int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, DestroyMidiClient, (), (override));

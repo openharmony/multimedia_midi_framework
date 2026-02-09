@@ -78,5 +78,12 @@ bool ClientConnectionInServer::PopPendingTop(PendingEvent& out)
     pending_.pop();
     return true;
 }
+
+void ClientConnectionInServer::Flush()
+{
+    std::priority_queue<PendingEvent, std::vector<PendingEvent>, PendingGreater> emptyPending;
+    pending_.swap(emptyPending);
+    sharedRingBuffer_->Flush();
+}
 } // namespace MIDI
 } // namespace OHOS

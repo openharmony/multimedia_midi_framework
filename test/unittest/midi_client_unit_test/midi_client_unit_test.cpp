@@ -109,6 +109,7 @@ public:
         ((std::shared_ptr<MidiSharedRing>)&buffer, int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenOutputPort,
         ((std::shared_ptr<MidiSharedRing>)&buffer, int64_t deviceId, uint32_t portIndex), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, FlushOutputPort, (int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(OH_MIDIStatusCode, CloseInputPort, (int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(OH_MIDIStatusCode, CloseOutputPort, (int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(OH_MIDIStatusCode, DestroyMidiClient, (), (override));
@@ -519,4 +520,81 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartReceiverThread_002, TestSize.Lev
     EXPECT_FALSE(inputPort.StartReceiverThread());
 
     EXPECT_TRUE(inputPort.StopReceiverThread());
+}
+
+/**
+ * @tc.name: MidiOutputPort_SendSysEx_001
+ * @tc.desc: test one packet case
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_001, TestSize.Level0)
+{
+    MidiOutputPort outputPort(MIDI_PROTOCOL_2_0);
+    std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
+    ASSERT_NE(localRing, nullptr);
+
+    outputPort.GetRingBuffer() = localRing;
+    uint32_t portIndex = 0;
+    uint8_t data[] = {0xF0, 0x01, 0x02, 0x03, 0xF7};
+    uint32_t byteSize = sizeof(data);
+
+    std::vector<MidiEvent> midiEvents;
+    std::vector<std::vector<uint32_t>> payloadBuffers;
+
+    EXPECT_EQ(MIDI_STATUS_OK, outputPort.SendSysEx(portIndex, data, byteSize));
+    localRing->DrainToBatch(midiEvents, payloadBuffers, 0);
+    EXPECT_EQ(midiEvents.size(), 1);
+    EXPECT_EQ(midiEvents[0].data[0] & 0xFF, 0xF0);
+    EXPECT_EQ(midiEvents[0].data[1] & 0xFF, 0x02);
+}
+
+/**
+ * @tc.name: MidiOutputPort_SendSysEx_002
+ * @tc.desc: test time out case
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_002, TestSize.Level1)
+{
+    MidiOutputPort outputPort(MIDI_PROTOCOL_2_0);
+    std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
+    ASSERT_NE(localRing, nullptr);
+
+    outputPort.GetRingBuffer() = localRing;
+    uint32_t portIndex = 0;
+    const uint32_t largeSize = 1024 * 10;
+    uint8_t data[largeSize];
+    std::fill_n(data, largeSize, 0x01);
+
+    EXPECT_EQ(MIDI_STATUS_TIMEOUT, outputPort.SendSysEx(portIndex, data, largeSize));
+}
+
+/**
+ * @tc.name: MidiOutputPort_SendSysEx_003
+ * @tc.desc: test muti packets case
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_003, TestSize.Level0)
+{
+    MidiOutputPort outputPort(MIDI_PROTOCOL_2_0);
+    std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
+    ASSERT_NE(localRing, nullptr);
+
+    outputPort.GetRingBuffer() = localRing;
+    uint32_t portIndex = 0;
+    uint32_t byteSize = 8;
+    uint8_t data[byteSize];
+    for (uint32_t i = 0; i < byteSize; ++i) {
+        data[i] = i + 1;
+    }
+
+    std::vector<MidiEvent> midiEvents;
+    std::vector<std::vector<uint32_t>> payloadBuffers;
+
+    EXPECT_EQ(MIDI_STATUS_OK, outputPort.SendSysEx(portIndex, data, byteSize));
+    localRing->DrainToBatch(midiEvents, payloadBuffers, 0);
+    EXPECT_EQ(midiEvents.size(), 2);
+    EXPECT_EQ(midiEvents[0].data[0] & 0xFF, 0x01);
+    EXPECT_EQ(midiEvents[0].data[1] & 0xFF, 0x03);
+    EXPECT_EQ((midiEvents[0].data[0] >> 20) & 0xF, 0x01);
+    EXPECT_EQ((midiEvents[1].data[0] >> 20) & 0xF, 0x03);
 }
