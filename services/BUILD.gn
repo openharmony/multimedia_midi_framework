@@ -49,6 +49,7 @@ ohos_shared_library("midi_service") {
     "server/src/midi_listener_callback.cpp",
     "server/src/midi_server.cpp",
     "server/src/midi_service_controller.cpp",
+    "server/src/midi_permission.cpp",
     "server/src/midi_client_connection.cpp",
     "server/src/midi_device_connection.cpp",
   ]
@@ -80,6 +81,7 @@ ohos_shared_library("midi_service") {
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
     "usb_manager:usbsrv_client",
+    "access_token:libaccesstoken_sdk",
   ]
 
   cflags_cc = [ "-std=c++20" ]

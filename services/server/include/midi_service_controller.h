@@ -143,6 +143,9 @@ private:
     void CleanupDeviceForClient(uint32_t clientId, int64_t deviceId);
     void CleanupClientResources(uint32_t clientId, uint32_t clientUid);
 
+    // Helper function to check if a device is a Bluetooth device
+    bool IsBluetoothDevice(int64_t deviceId) const;
+
     void ScheduleUnloadTask();
     void CancelUnloadTask();
     int32_t CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);

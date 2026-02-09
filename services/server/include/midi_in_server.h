@@ -36,10 +36,14 @@ public:
     int32_t DestroyMidiClient() override;
     void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo);
     void NotifyError(int32_t code);
+    void UpdateBluetoothPermission();
+
+    bool IsBluetoothDevice(const std::map<int32_t, std::string> &deviceInfo) const;
 
 private:
     uint32_t clientId_;
     std::shared_ptr<MidiServiceCallback> callback_;
+    bool hasBluetoothPermission_;
 };
 } // namespace MIDI
 } // namespace OHOS

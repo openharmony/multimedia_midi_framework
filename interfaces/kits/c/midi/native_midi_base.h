@@ -132,6 +132,12 @@ typedef enum {
     MIDI_STATUS_SERVICE_DIED,
 
     /**
+     * @error Permission denied.
+     * The application does not have the required permission to perform the operation.
+     */
+    MIDI_STATUS_PERMISSION_DENIED,
+
+    /**
      * @error Unknown system error.
      */
     MIDI_STATUS_UNKNOWN_ERROR = -1

@@ -26,6 +26,7 @@
 #include "midi_utils.h"
 #include "imidi_device_open_callback.h"
 #include "midi_listener_callback.h"
+#include "midi_permission.h"
 #include "ipc_skeleton.h"
 #include <chrono>
 
@@ -208,6 +209,16 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevicePort
     return ret;
 }
 
+bool MidiServiceController::IsBluetoothDevice(int64_t deviceId) const
+{
+    for (const auto &[address, devId] : activeBleDevices_) {
+        if (devId == deviceId) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 {
     std::lock_guard lock(lock_);
@@ -215,7 +226,16 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
         MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
+
     auto &resourceInfo = clientResourceInfo_[clientId];
+
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            MIDI_STATUS_PERMISSION_DENIED,
+            "Bluetooth permission denied for device: deviceId=%{public}" PRId64,
+            deviceId);
+    }
+
     auto it = deviceClientContexts_.find(deviceId);
     if (it != deviceClientContexts_.end()) {
         CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) == it->second->clients.end(),
@@ -646,9 +666,6 @@ void MidiServiceController::CleanupDeviceForClient(uint32_t clientId, int64_t de
 
 void MidiServiceController::CleanupClientResources(uint32_t clientId, uint32_t clientUid)
 {
-    if (clientUid == 0) {
-        return;
-    }
     auto appIt = appClientMap_.find(clientUid);
     if (appIt != appClientMap_.end()) {
         appIt->second.erase(clientId);

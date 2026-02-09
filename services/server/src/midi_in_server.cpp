@@ -18,12 +18,16 @@
 
 #include "midi_log.h"
 #include "midi_service_controller.h"
+#include "midi_permission.h"
+#include "midi_utils.h"
 namespace OHOS {
 namespace MIDI {
 MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback)
 {
     clientId_ = id;
     callback_ = callback;
+    hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission();
+    MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, hasBluetoothPermission:%{public}d", clientId_, hasBluetoothPermission_);
 }
 
 MidiInServer::~MidiInServer()
@@ -31,10 +35,20 @@ MidiInServer::~MidiInServer()
     MIDI_INFO_LOG("~MidiInServer clientId:%{public}u", clientId_);
 }
 
-int32_t MidiInServer::GetDevices(
-    std::vector<std::map<int32_t, std::string>> &devices)  // todo 增加传结构体，为其实现序列化和返序列化
+int32_t MidiInServer::GetDevices(std::vector<std::map<int32_t, std::string>> &devices)
 {
     devices = MidiServiceController::GetInstance()->GetDevices();
+    UpdateBluetoothPermission();
+    if (hasBluetoothPermission_) {
+        return MIDI_STATUS_OK;
+    }
+    auto endIter = std::remove_if(devices.begin(), devices.end(),
+        [this](const std::map<int32_t, std::string> &device) {
+            return IsBluetoothDevice(device);
+        });
+    devices.erase(endIter, devices.end());
+
+    MIDI_INFO_LOG("Filtered BLE devices, remaining count: %{public}zu", devices.size());
     return MIDI_STATUS_OK;
 }
 
@@ -47,12 +61,16 @@ int32_t MidiInServer::GetDevicePorts(int64_t deviceId, std::vector<std::map<int3
 int32_t MidiInServer::OpenDevice(int64_t deviceId)
 {
     MIDI_INFO_LOG("OpenDevice");
-
     return MidiServiceController::GetInstance()->OpenDevice(clientId_, deviceId);
 }
 
 int32_t MidiInServer::OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object)
 {
+    
+    if (!MidiPermissionManager::VerifyBluetoothPermission()) {
+        MIDI_ERR_LOG("Bluetooth permission verification failed");
+        return MIDI_STATUS_PERMISSION_DENIED;
+    }
     MIDI_INFO_LOG("address : %{public}s", GetEncryptStr(address).c_str());
     return MidiServiceController::GetInstance()->OpenBleDevice(clientId_, address, object);
 }
@@ -95,6 +113,11 @@ int32_t MidiInServer::DestroyMidiClient()
 void MidiInServer::NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo)
 {
     CHECK_AND_RETURN(callback_ != nullptr);
+
+    if (!hasBluetoothPermission_ && IsBluetoothDevice(deviceInfo)) {
+        MIDI_INFO_LOG("Filtered BLE device change notification, no permission");
+        return;
+    }
     callback_->NotifyDeviceChange(change, deviceInfo);
 }
 
@@ -102,6 +125,21 @@ void MidiInServer::NotifyError(int32_t code)
 {
     CHECK_AND_RETURN(callback_ != nullptr);
     callback_->NotifyError(code);
+}
+
+void MidiInServer::UpdateBluetoothPermission()
+{
+    hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission();
+    MIDI_INFO_LOG("UpdateBluetoothPermission: clientId:%{public}u, hasBluetoothPermission:%{public}d", clientId_, hasBluetoothPermission_);
+}
+
+bool MidiInServer::IsBluetoothDevice(const std::map<int32_t, std::string> &deviceInfo) const
+{
+    auto it = deviceInfo.find(DEVICE_TYPE);
+    if (it == deviceInfo.end()) {
+        return false;
+    }
+    return StringToNum(it->second) == DEVICE_TYPE_BLE;
 }
 
 }  // namespace MIDI
