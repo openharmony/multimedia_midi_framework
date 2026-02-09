@@ -71,6 +71,7 @@ ohos_shared_library("midi_service") {
 
   external_deps = [
     "ability_base:want",
+    "access_token:libaccesstoken_sdk",
     "bluetooth:btframework",
     "common_event_service:cesfwk_innerkits",
     "c_utils:utils",
@@ -81,7 +82,6 @@ ohos_shared_library("midi_service") {
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
     "usb_manager:usbsrv_client",
-    "access_token:libaccesstoken_sdk",
   ]
 
   cflags_cc = [ "-std=c++20" ]
