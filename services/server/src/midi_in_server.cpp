@@ -27,7 +27,8 @@ MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> cal
     clientId_ = id;
     callback_ = callback;
     hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission();
-    MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, hasBluetoothPermission:%{public}d", clientId_, hasBluetoothPermission_);
+    MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, hasBluetoothPermission:%{public}d",
+        clientId_, hasBluetoothPermission_);
 }
 
 MidiInServer::~MidiInServer()
@@ -66,7 +67,6 @@ int32_t MidiInServer::OpenDevice(int64_t deviceId)
 
 int32_t MidiInServer::OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object)
 {
-    
     if (!MidiPermissionManager::VerifyBluetoothPermission()) {
         MIDI_ERR_LOG("Bluetooth permission verification failed");
         return MIDI_STATUS_PERMISSION_DENIED;
@@ -130,7 +130,8 @@ void MidiInServer::NotifyError(int32_t code)
 void MidiInServer::UpdateBluetoothPermission()
 {
     hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission();
-    MIDI_INFO_LOG("UpdateBluetoothPermission: clientId:%{public}u, hasBluetoothPermission:%{public}d", clientId_, hasBluetoothPermission_);
+    MIDI_INFO_LOG("UpdateBluetoothPermission: clientId:%{public}u, hasBluetoothPermission:%{public}d",
+        clientId_, hasBluetoothPermission_);
 }
 
 bool MidiInServer::IsBluetoothDevice(const std::map<int32_t, std::string> &deviceInfo) const
