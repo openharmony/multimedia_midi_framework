@@ -43,6 +43,7 @@ struct DeviceCtx {
     UmpInputCallback inputCallback{nullptr};
     // The callback to Manager
     BleDriverCallback deviceCallback{nullptr};
+    std::string deviceName;
     bool initialCallbackCalled{false}; // Prevent double callbacks
 };
 

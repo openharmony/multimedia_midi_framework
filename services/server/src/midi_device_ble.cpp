@@ -22,6 +22,7 @@
 #include "midi_utils.h"
 #include "midi_device_ble.h"
 #include "ump_processor.h"
+#include "bluetooth_host.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -138,18 +139,18 @@ static int64_t GetCurNano()
 }
 
 
-static std::vector<PortInformation> GetPortInfo()
+static std::vector<PortInformation> GetPortInfo(cosnt std::string deviceName)
 {
     std::vector<PortInformation> portInfos;
     PortInformation out{};
     out.portId = 0;
-    out.name = "BLE-MIDI Out";
+    out.name = deviceName + " Out";
     out.direction = PORT_DIRECTION_OUTPUT;
     out.transportProtocol = PROTOCOL_1_0;
     portInfos.push_back(out);
     PortInformation in{};
     in.portId = 1;
-    in.name =  "BLE-MIDI In";
+    in.name =  deviceName + " In";
     in.direction = PORT_DIRECTION_INPUT;
     in.transportProtocol = PROTOCOL_1_0;
     portInfos.push_back(in);
@@ -168,9 +169,9 @@ static void NotifyManager(DeviceCtx &d, bool success)
     devInfo.deviceType = DEVICE_TYPE_BLE;
     devInfo.transportProtocol = PROTOCOL_1_0;
     devInfo.address = d.address;
-    devInfo.productName = "";
+    devInfo.productName = d.deviceName;
     devInfo.vendorName = "";
-    devInfo.portInfos = GetPortInfo();
+    devInfo.portInfos = GetPortInfo(d.deviceName);
     cb(success, devInfo);
 }
 
@@ -357,6 +358,11 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         d.notifyEnabled = true;
         MIDI_INFO_LOG("BLE MIDI Device Fully Online. Notifying Manager.");
         // Copy device context before unlock to avoid dangling reference
+        std::string deviceName = "";
+        int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+            d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(deviceName);
+        d.deviceName = deviceName;
+        MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, deviceName.c_str());
         DeviceCtx device = it->second;
         lock.unlock();
         // SUCCESS! This is the only place we confirm the device is open.
