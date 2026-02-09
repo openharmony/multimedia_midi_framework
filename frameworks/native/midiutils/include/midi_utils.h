@@ -63,33 +63,6 @@ inline uint8_t GetSysexStatus(uint32_t pktIndex, uint32_t totalPkts)
     return SYSEX7_CONTINUE;
 }
 
-std::array<uint32_t, SYSEX7_WORD_COUNT> PackSysEx7Ump64(uint8_t group, uint8_t status,
-                                               const uint8_t* bytes, uint8_t nbytes)
-{
-    uint8_t b[MAX_PACKET_BYTES] = {0,0,0,0,0,0};
-    for (uint8_t i = 0; i < nbytes; ++i) {
-        b[i] = bytes[i];
-    }
-
-    uint32_t w0 = 0;
-    w0 |= (UMP_TYPE_3 & UMP_MASK) << SYSEX7_WORD0_TYPE_SHIFT;
-    w0 |= (group & UMP_MASK) << SYSEX7_WORD0_GROUP_SHIFT;
-    w0 |= (status & UMP_MASK) << SYSEX7_WORD0_STATUS_SHIFT;
-    w0 |= (static_cast<uint32_t>(nbytes) & UMP_MASK) << SYSEX7_WORD0_BYTES_NUM_SHIFT;
-
-    // word1 store b0, b1:word0[0:7] ->b0, word0[8:15] -> b1
-    for (uint32_t i = 0; i < SYSEX7_WORD_COUNT; ++i) {
-        w0 |= (static_cast<uint32_t>(b[i]) << (i * BITS_PER_BYTE));
-    }
-
-    // word1 store b2..b5
-    uint32_t w1 = 0;
-    for (uint32_t i = SYSEX7_WORD_COUNT; i < MAX_PACKET_BYTES; ++i) {
-        w1 |= (static_cast<uint32_t>(b[i]) << ((i - SYSEX7_WORD_COUNT)  * BITS_PER_BYTE));
-    }
-    return {w0, w1};
-}
-
 void CloseFd(int fd);
 std::string GetEncryptStr(const std::string &str);
 std::string BytesToString(uint32_t value);
@@ -97,6 +70,9 @@ std::string DumpOneEvent(uint64_t ts, size_t len, const uint32_t *data);
 std::string DumpMidiEvents(const std::vector<MidiEvent>& events);
 std::string DumpMidiEvents(const std::vector<MidiEventInner>& events);
 long StringToNum(const std::string &str);
+
+std::array<uint32_t, SYSEX7_WORD_COUNT> PackSysEx7Ump64(uint8_t group, uint8_t status,
+    const uint8_t* bytes, uint8_t nbytes);
 
 class ClockTime {
 public:
