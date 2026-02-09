@@ -139,7 +139,7 @@ static int64_t GetCurNano()
 }
 
 
-static std::vector<PortInformation> GetPortInfo(cosnt std::string deviceName)
+static std::vector<PortInformation> GetPortInfo(const std::string &deviceName)
 {
     std::vector<PortInformation> portInfos;
     PortInformation out{};
@@ -478,9 +478,9 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
         devInfo.deviceType = DEVICE_TYPE_BLE;
         devInfo.transportProtocol = PROTOCOL_1_0;
         devInfo.address = d.address;
-        devInfo.productName = "";
+        devInfo.productName = d.deviceName;
         devInfo.vendorName = "";
-        devInfo.portInfos = GetPortInfo();
+        devInfo.portInfos = GetPortInfo(d.deviceName);
         deviceInfos.push_back(devInfo);
         connectedCount++;
     }
