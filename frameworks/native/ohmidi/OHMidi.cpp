@@ -47,7 +47,8 @@ OH_MIDIStatusCode OH_MIDIGetDeviceCount(OH_MIDIClient *client, size_t *count)
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
     CHECK_AND_RETURN_RET_LOG(count != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
 
-    return midiclient->GetDevices(nullptr, count);
+    midiclient->GetDevices(nullptr, count);
+    return MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode OH_MIDIGetDeviceInfos(OH_MIDIClient *client,
@@ -178,14 +179,20 @@ OH_MIDIStatusCode OH_MIDISend(
 
 OH_MIDIStatusCode OH_MIDISendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize)
 {
-    (void)portIndex;
-    (void)data;
-    (void)byteSize;
+    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
+    CHECK_AND_RETURN_RET_LOG(data != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
+    OH_MIDIStatusCode ret = midiDevice->SendSysEx(portIndex, data, byteSize);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "send falid");
     return MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode OH_MIDIFlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex)
 {
-    (void)portIndex;
+    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
+
+    OH_MIDIStatusCode ret = midiDevice->FlushOutputPort(portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "ClosePort failed");
     return MIDI_STATUS_OK;
 }

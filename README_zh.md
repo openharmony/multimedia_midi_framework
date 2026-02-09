@@ -27,7 +27,7 @@ midi_framework 部件是一个可选系统能力，应用需要通过 SystemCapa
 
 * **框架层**
   * **MIDI 客户端实例管理**: 负责对外提供 `OH_MIDIClientCreate/Destroy` 等接口，维护客户端上下文，并负责向系统申请或释放 MIDI 服务资源。
-  * **MIDI 设备连接管理**: 负责 `OH_MIDIOpen/CloseDevice` 及 `OH_MIDIGetDevices` 等接口，处理设备的逻辑连接与状态查询。
+  * **MIDI 设备连接管理**: 负责 `OH_MIDIOpen/CloseDevice` 及 `OH_MIDIGetDeviceInfos` 等接口，处理设备的逻辑连接与状态查询。
   * **MIDI 端口管理与数据传输**: 负责 `OH_MIDIOpenInput/OutputPort` 等接口，建立应用与服务间的数据传输通道。
 
 * **系统服务层 (Midi Server)**

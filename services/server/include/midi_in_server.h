@@ -31,6 +31,7 @@ public:
     int32_t CloseDevice(int64_t deviceId) override;
     int32_t OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex) override;
     int32_t OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex) override;
+    int32_t FlushOutputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t DestroyMidiClient() override;

@@ -90,6 +90,8 @@ public:
     // todo: maybe not needed
     void SetPerClientMaxPendingEvents(size_t maxPendingEvents);
     void SetMaxSendCacheBytes(size_t maxSendCacheBytes);
+
+    void FlushClientCache(uint32_t clientId);
     
 private:
     // worker loop

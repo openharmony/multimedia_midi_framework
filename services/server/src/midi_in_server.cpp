@@ -70,6 +70,12 @@ int32_t MidiInServer::OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, in
     return MidiServiceController::GetInstance()->OpenOutputPort(clientId_, buffer, deviceId, portIndex);
 }
 
+int32_t MidiInServer::FlushOutputPort(int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "] flush portIndex[%{public}u]", deviceId, portIndex);
+    return MidiServiceController::GetInstance()->FlushOutputPort(clientId_, deviceId, portIndex);
+}
+
 int32_t MidiInServer::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
