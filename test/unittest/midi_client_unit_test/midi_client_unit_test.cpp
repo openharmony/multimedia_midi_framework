@@ -191,14 +191,16 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[0].productName, "Mock_Piano");
-    EXPECT_STREQ(infoArray[0].vendorName, "MockVendor_1");
+    EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
+    EXPECT_EQ(infoArray[0].vendorId, 0);
+    EXPECT_EQ(infoArray[0].productId, 0);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[1].productName, "Mock_Drum");
-    EXPECT_STREQ(infoArray[1].vendorName, "MockVendor_2");
+    EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
+    EXPECT_EQ(infoArray[1].vendorId, 0);
+    EXPECT_EQ(infoArray[1].productId, 0);
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 
@@ -250,14 +252,16 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[0].productName, "Mock_Piano");
-    EXPECT_STREQ(infoArray[0].vendorName, "MockVendor_1");
+    EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
+    EXPECT_EQ(infoArray[0].vendorId, 0);
+    EXPECT_EQ(infoArray[0].productId, 0);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[1].productName, "Mock_Drum");
-    EXPECT_STREQ(infoArray[1].vendorName, "MockVendor_2");
+    EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
+    EXPECT_EQ(infoArray[1].vendorId, 0);
+    EXPECT_EQ(infoArray[1].productId, 0);
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 
@@ -363,7 +367,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
             buffer = MidiSharedRing::CreateFromLocal(256);
-            return (buffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_UNKNOWN_ERROR;
+            return (buffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_SYSTEM_ERROR;
         }));
 
     EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(MIDI_STATUS_OK));

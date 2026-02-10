@@ -230,7 +230,7 @@ HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_002, TestSize.Level0)
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &outBuffer, int64_t, uint32_t) {
             outBuffer = MidiSharedRing::CreateFromLocal(256);
-            return (outBuffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_UNKNOWN_ERROR;
+            return (outBuffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_SYSTEM_ERROR;
         }));
 
     EXPECT_EQ(client.OpenInputPort(buffer, deviceId, portIndex), MIDI_STATUS_OK);

@@ -50,7 +50,7 @@ static void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_
 {
     (void)userData;
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
-        cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId << ", Name=" << info.productName << endl;
+        cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId << ", Name=" << info.deviceName << endl;
     } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
         cout << "[Hotplug] Device Disconnected: ID=" << info.midiDeviceId << endl;
     }
@@ -157,7 +157,7 @@ static int RunMidiDemo()
 
     // 默认操作第一个设备
     int64_t targetDeviceId = devices[0].midiDeviceId;
-    cout << "Opening Device: " << devices[0].productName << " (ID: " << targetDeviceId << ")" << endl;
+    cout << "Opening Device: " << devices[0].deviceName << " (ID: " << targetDeviceId << ")" << endl;
 
     OH_MIDIDevice *device = nullptr;
     if (OH_MIDIOpenDevice(client, targetDeviceId, &device) != MIDI_STATUS_OK || !device) {

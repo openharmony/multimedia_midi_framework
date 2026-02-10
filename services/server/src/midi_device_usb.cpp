@@ -66,7 +66,7 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
 
 int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->OpenDevice(deviceId);
 }
 
@@ -77,32 +77,32 @@ int32_t UsbMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
 
 int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->CloseDevice(deviceId);
 }
 
 int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback cb)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     auto usbCallback = sptr<UsbDriverCallback>::MakeSptr(cb);
     return midiHdi_->OpenInputPort(deviceId, portIndex, usbCallback);
 }
 
 int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->CloseInputPort(deviceId, portIndex);
 }
 
 int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->OpenOutputPort(deviceId, portIndex);
 }
 
 int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     return midiHdi_->CloseOutputPort(deviceId, portIndex);
 }
 
@@ -110,7 +110,7 @@ int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
 int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiHdi_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
     std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> messages;
     for (auto &event: list) {
         OHOS::HDI::Midi::V1_0::MidiMessage msg;
@@ -120,7 +120,7 @@ int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
         }
         messages.emplace_back(msg);
     }
-    
+
     int32_t ret = midiHdi_->SendMidiMessages(deviceId, portIndex, messages);
     return ret;
 }

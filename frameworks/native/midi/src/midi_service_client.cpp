@@ -31,7 +31,7 @@ namespace MIDI {
 static OH_MIDIStatusCode GetMidiStatusCode(int32_t statusCode)
 {
     auto ret = (OH_MIDIStatusCode)statusCode;
-    return (ret >= MIDI_STATUS_UNKNOWN_ERROR && ret <= MIDI_STATUS_SERVICE_DIED) ? ret :
+    return (ret >= MIDI_STATUS_SYSTEM_ERROR && ret <= MIDI_STATUS_SERVICE_DIED) ? ret :
         MIDI_STATUS_GENERIC_IPC_FAILURE;
 }
 
@@ -91,7 +91,7 @@ OH_MIDIStatusCode MidiServiceClient::OpenBleDevice(std::string address, sptr<Mid
     auto ret = ipc_->OpenBleDevice(address, callback);
     return GetMidiStatusCode(ret);
 }
- 	 
+
 OH_MIDIStatusCode MidiServiceClient::CloseDevice(int64_t deviceId)
 {
     std::lock_guard lock(lock_);

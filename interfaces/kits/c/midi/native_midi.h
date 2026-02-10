@@ -154,16 +154,18 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
  * @return {@link #MIDI_STATUS_OK} if the connection request was successfully dispatched.
  * {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
  * {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceAddr or callback is nullptr.
+ * {@link #MIDI_STATUS_PERMISSION_DENIED} if Bluetooth permission is missing.
  * {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if the service is unreachable.
  * @note This function triggers a BLE scan and connection process which may take time.
- * Ensure the application has the necessary Bluetooth permissions.
  * @warning If Bluetooth permission is denied, the callback will be invoked with
  * opened=false and device=NULL. The application should check the 'opened' parameter
  * before attempting to use the device handle.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback,
-    void *userData);
+OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client,
+                                      const char *deviceAddr,
+                                      OH_MIDIOnDeviceOpened callback,
+                                      void *userData);
 
 /**
  * @brief Close MIDI device
