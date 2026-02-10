@@ -60,21 +60,29 @@ static bool ConvertToDeviceInformation(
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "protocol error");
     outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(StringToNum(it->second));
 
-    it = deviceInfo.find(PRODUCT_NAME);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productName error");
+    it = deviceInfo.find(DEVICE_NAME);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceName error");
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.productName, sizeof(outInfo.productName), it->second.c_str(), it->second.length()) ==
+        strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName), it->second.c_str(), it->second.length()) ==
             MIDI_STATUS_OK,
         false,
-        "copy productName failed");
+        "copy deviceName failed");
 
-    it = deviceInfo.find(VENDOR_NAME);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorName error");
+    it = deviceInfo.find(PRODUCT_ID);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productId error");
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.vendorName, sizeof(outInfo.vendorName), it->second.c_str(), it->second.length()) ==
+        strncpy_s(outInfo.productId, sizeof(outInfo.productId), it->second.c_str(), it->second.length()) ==
             MIDI_STATUS_OK,
         false,
-        "copy vendorName failed");
+        "copy productId failed");
+
+    it = deviceInfo.find(VENDOR_ID);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorId error");
+    CHECK_AND_RETURN_RET_LOG(
+        strncpy_s(outInfo.vendorId, sizeof(outInfo.vendorId), it->second.c_str(), it->second.length()) ==
+            MIDI_STATUS_OK,
+        false,
+        "copy vendorId failed");
     it = deviceInfo.find(ADDRESS);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
     CHECK_AND_RETURN_RET_LOG(

@@ -57,8 +57,9 @@ public:
         DeviceInformation info;
         info.driverDeviceId = driverId;
         info.deviceType = DeviceType::DEVICE_TYPE_USB;
-        info.productName = name;
-        info.vendorName = "Test";
+        info.deviceName = name;
+        info.productId = "1234";
+        info.vendorId = "5678";
         info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
 
         // Port info
@@ -135,8 +136,9 @@ HWTEST_F(MidiServiceControllerUnitTest, GetDevices001, TestSize.Level0)
     EXPECT_EQ(result[0][DEVICE_ID], std::to_string(deviceId));
     EXPECT_EQ(result[0][DEVICE_TYPE], std::to_string(DeviceType::DEVICE_TYPE_USB));
     EXPECT_EQ(result[0][MIDI_PROTOCOL], std::to_string(TransportProtocol::PROTOCOL_1_0));
-    EXPECT_EQ(result[0][PRODUCT_NAME], "Yamaha Keyboard");
-    EXPECT_EQ(result[0][VENDOR_NAME], "Test");
+    EXPECT_EQ(result[0][DEVICE_NAME], "Yamaha Keyboard");
+    EXPECT_EQ(result[0][PRODUCT_ID], "1234");
+    EXPECT_EQ(result[0][VENDOR_ID], "5678");
 }
 
 /**

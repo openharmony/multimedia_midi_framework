@@ -47,7 +47,9 @@ public:
         DeviceInformation info;
         info.driverDeviceId = driverId;
         info.deviceType = DeviceType::DEVICE_TYPE_USB;
-        info.productName = name;
+        info.deviceName = name;
+        info.productId = "1234";
+        info.vendorId = "5678";
         info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
         return info;
     }
@@ -90,7 +92,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level0)
     auto devices = manager_->GetDevices();
     ASSERT_EQ(devices.size(), 1);
 
-    EXPECT_EQ(devices[0].productName, prodName);
+    EXPECT_EQ(devices[0].productId, prodName);
     EXPECT_EQ(devices[0].driverDeviceId, driverId);
     EXPECT_NE(devices[0].deviceId, 0);
 
@@ -247,9 +249,9 @@ HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level0)
     bool foundUsb = false;
     bool foundBle = false;
     for (auto &d : allDevices) {
-        if (d.deviceType == DeviceType::DEVICE_TYPE_USB && d.productName == "USB Piano")
+        if (d.deviceType == DeviceType::DEVICE_TYPE_USB && d.productId == "USB Piano")
             foundUsb = true;
-        if (d.deviceType == DeviceType::DEVICE_TYPE_BLE && d.productName == "BLE Guitar")
+        if (d.deviceType == DeviceType::DEVICE_TYPE_BLE && d.productId == "BLE Guitar")
             foundBle = true;
     }
     EXPECT_TRUE(foundUsb);

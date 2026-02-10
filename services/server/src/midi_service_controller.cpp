@@ -41,15 +41,13 @@ static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation
 {
     std::map<int32_t, std::string> deviceInfo;
 
-    // Convert numeric IDs to strings
     deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
     deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
     deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
-
-    // Direct string assignments
+    deviceInfo[DEVICE_NAME] = device.deviceName;
+    deviceInfo[PRODUCT_ID] = device.productId;
+    deviceInfo[VENDOR_ID] = device.vendorId;
     deviceInfo[ADDRESS] = device.address;
-    deviceInfo[PRODUCT_NAME] = device.productName;
-    deviceInfo[VENDOR_NAME] = device.vendorName;
 
     return deviceInfo;
 }

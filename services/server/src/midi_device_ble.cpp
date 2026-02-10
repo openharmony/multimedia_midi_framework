@@ -169,8 +169,9 @@ static void NotifyManager(DeviceCtx &d, bool success)
     devInfo.deviceType = DEVICE_TYPE_BLE;
     devInfo.transportProtocol = PROTOCOL_1_0;
     devInfo.address = d.address;
-    devInfo.productName = d.deviceName;
-    devInfo.vendorName = "";
+    devInfo.deviceName = d.deviceName;
+    devInfo.productId = "";
+    devInfo.vendorId = "";
     devInfo.portInfos = GetPortInfo(d.deviceName);
     cb(success, devInfo);
 }
@@ -257,6 +258,19 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
         CHECK_AND_RETURN_RET(std::toupper(cu) == std::toupper(cc), false);
     }
     return true;
+}
+
+static void GetDeviceInfo(DeviceCtx &d)
+{
+    int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+            d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
+    MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, d.deviceName.c_str());
+    err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+            d.address, Bluetooth::BT_TRANSPORT_BLE).GetProductId(d.productId);
+    MIDI_INFO_LOG("err: %{public}d, productId: %{private}s", err, d.productId.c_str());
+    err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+            d.address, Bluetooth::BT_TRANSPORT_BLE).GetVendorId(d.vendorId);
+    MIDI_INFO_LOG("err: %{public}d, vendorId: %{private}s", err, d.vendorId.c_str());
 }
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
@@ -358,11 +372,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         d.notifyEnabled = true;
         MIDI_INFO_LOG("BLE MIDI Device Fully Online. Notifying Manager.");
         // Copy device context before unlock to avoid dangling reference
-        std::string deviceName = "";
-        int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
-            d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(deviceName);
-        d.deviceName = deviceName;
-        MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, deviceName.c_str());
+        GetDeviceInfo(d);
         DeviceCtx device = it->second;
         lock.unlock();
         // SUCCESS! This is the only place we confirm the device is open.
@@ -374,6 +384,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         g_cleanupDeviceAndNotifyFailure(lock, clientId);
     }
 }
+
 static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)
 {
     UmpProcessor processor;
@@ -478,8 +489,9 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
         devInfo.deviceType = DEVICE_TYPE_BLE;
         devInfo.transportProtocol = PROTOCOL_1_0;
         devInfo.address = d.address;
-        devInfo.productName = d.deviceName;
-        devInfo.vendorName = "";
+        devInfo.deviceName = d.deviceName;
+        devInfo.productId = "";
+        devInfo.vendorId = "";
         devInfo.portInfos = GetPortInfo(d.deviceName);
         deviceInfos.push_back(devInfo);
         connectedCount++;
