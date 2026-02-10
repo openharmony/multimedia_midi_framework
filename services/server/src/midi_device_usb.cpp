@@ -111,6 +111,7 @@ int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
     std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> messages;
     for (auto &event: list) {
         OHOS::HDI::Midi::V1_0::MidiMessage msg;

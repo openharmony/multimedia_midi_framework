@@ -29,6 +29,7 @@ namespace OHOS {
 namespace MIDI {
 namespace {
     constexpr uint32_t MAX_EVENTS_NUMS = 1000;
+    constexpr uint32_t PORT_GROUP_RANGE = 16;
 }  // namespace
 class MidiClientCallback : public MidiCallbackStub {
 public:
@@ -237,11 +238,24 @@ OH_MIDIStatusCode MidiDevicePrivate::Send(uint32_t portIndex, OH_MIDIEvent *even
     return (OH_MIDIStatusCode)outputPort->Send(events, eventCount, eventsWritten);
 }
 
-OH_MIDIStatusCode MidiDevicePrivate::FlushOutputPort(uint32_t portIndex)
+OH_MIDIStatusCode MidiDevicePrivate::SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize)
 {
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
     auto iter = outputPortsMap_.find(portIndex);
-    CHECK_AND_RETURN_RET(iter != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT);
+    CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT, "invalid port");
+    auto outputPort = iter->second;
+    return (OH_MIDIStatusCode)outputPort->SendSysEx(portIndex, data, byteSize);
+}
+
+OH_MIDIStatusCode MidiDevicePrivate::FlushOutputPort(uint32_t portIndex)
+{
+    std::lock_guard<std::mutex> lock(outputPortsMutex_);
+    auto ipc = ipc_.lock();
+    auto iter = outputPortsMap_.find(portIndex);
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT, "invalid port");
+    auto ret = ipc->FlushOutputPort(deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open outputport fail");
     return MIDI_STATUS_OK;
 }
 
@@ -409,6 +423,90 @@ int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(innerEvents).c_str());
     auto ret = ringBuffer_->TryWriteEvents(innerEvents.data(), eventCount, eventsWritten);
     return GetStatusCode(ret);
+}
+
+void MidiOutputPort::PrepareSysExPackets(
+    uint8_t group, uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
+    SysExPacketData &packetData)
+{
+    packetData.innerEvents.clear();
+    packetData.payloadWords.clear();
+    packetData.innerEvents.resize(totalPkts);
+    packetData.payloadWords.resize(totalPkts);
+
+    for (uint32_t i = 0; i < totalPkts; ++i) {
+        const uint32_t offset = i * MAX_PACKET_BYTES;
+        const uint32_t remain = byteSize - offset;
+        const uint8_t nbytes = static_cast<uint8_t>(std::min<uint32_t>(MAX_PACKET_BYTES, remain));
+        const uint8_t status = GetSysexStatus(i, totalPkts);
+
+        packetData.payloadWords[i] = PackSysEx7Ump64(group, status, data + offset, nbytes);
+
+        packetData.innerEvents[i] = MidiEventInner{0, 2, packetData.payloadWords[i].data()}; // 2 words
+    }
+}
+
+int32_t MidiOutputPort::SendSysExPackets(const std::vector<MidiEventInner> &innerEvents,
+    uint32_t pktCount, const std::chrono::steady_clock::time_point &start)
+{
+    uint32_t writtenInBatch = 0;
+
+    while (writtenInBatch < pktCount) {
+        if (std::chrono::steady_clock::now() - start > MAX_TIMEOUT_MS) {
+            return MIDI_STATUS_TIMEOUT;
+        }
+
+        uint32_t writtenThis = 0;
+        MidiStatusCode ret = ringBuffer_->TryWriteEvents(innerEvents.data() + writtenInBatch,
+            pktCount - writtenInBatch, &writtenThis);
+
+        writtenInBatch += writtenThis;
+
+        if (writtenInBatch == pktCount) {
+            break;
+        }
+        
+        CHECK_AND_RETURN_RET(ret == MidiStatusCode::WOULD_BLOCK, GetStatusCode(ret));
+
+        if (writtenThis == 0) {
+            FutexCode wret = ringBuffer_->WaitForSpace(WAIT_SLICE_NS,
+                sizeof(ShmMidiEventHeader) + SYSEX7_WORD_COUNT * sizeof(uint32_t));
+            if (wret == FUTEX_TIMEOUT) {
+                continue;
+            }
+            if (wret != FUTEX_SUCCESS) {
+                return MIDI_STATUS_UNKNOWN_ERROR;
+            }
+        }
+        continue;
+    }
+
+    return MIDI_STATUS_OK;
+}
+
+int32_t MidiOutputPort::SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize)
+{
+    CHECK_AND_RETURN_RET_LOG(data, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "parameter is nullptr");
+    CHECK_AND_RETURN_RET_LOG(byteSize > 0, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "byteSize is invalid");
+    CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
+    CHECK_AND_RETURN_RET_LOG(ringBuffer_ != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "ringBuffer_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(portIndex < PORT_GROUP_RANGE, MIDI_STATUS_INVALID_PORT, "portIndex out of range");
+
+    const uint8_t group = static_cast<uint8_t>(portIndex & 0x0F);
+    const uint32_t totalPkts = (byteSize + (MAX_PACKET_BYTES - 1)) / MAX_PACKET_BYTES;
+
+    if (totalPkts == 0) {
+        return MIDI_STATUS_OK; // No data to send
+    }
+
+    SysExPacketData packetData;
+
+    PrepareSysExPackets(group, data, byteSize, totalPkts, packetData);
+
+    const auto start = std::chrono::steady_clock::now();
+
+    return SendSysExPackets(packetData.innerEvents, totalPkts, start);
 }
 
 std::shared_ptr<MidiSharedRing> &MidiOutputPort::GetRingBuffer()

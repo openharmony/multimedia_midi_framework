@@ -299,8 +299,8 @@ void DeviceConnectionForOutput::HandleWakeupOnce()
 // ---------------- Step1: drain ring ----------------
 void DeviceConnectionForOutput::DrainAllClientsRings()
 {
-    const auto clientsSnapshot = SnapshotClients();
-    for (const auto &clientConnection : clientsSnapshot) {
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    for (const auto &clientConnection : clients_) {
         if (!clientConnection) {
             continue;
         }
@@ -394,11 +394,11 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
 // ---------------- Step2: collect due from per-client heaps ----------------
 void DeviceConnectionForOutput::CollectDueEventsFromClientHeaps()
 {
-    const auto clientsSnapshot = SnapshotClients();  // todo: make clientsSnapshot be clientsSnapshot_
+    std::lock_guard<std::mutex> lock(clientsMutex_);
     auto now = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point earliestDueTime {};
 
-    while (auto earliestClient = FindClientWithEarliestDue(clientsSnapshot, earliestDueTime)) {
+    while (auto earliestClient = FindClientWithEarliestDue(clients_, earliestDueTime)) {
         if (earliestDueTime > now) {
             break;
         }
@@ -509,12 +509,11 @@ void DeviceConnectionForOutput::SendToDriver(MidiEventInner event)
 // ---------------- Step4: timerfd ----------------
 void DeviceConnectionForOutput::UpdateNextTimer()
 {
-    const auto clientsSnapshot = SnapshotClients();
-
+    std::lock_guard<std::mutex> lock(clientsMutex_);
     bool hasDue = false;
     std::chrono::steady_clock::time_point earliestDueTime{};
 
-    for (const auto &clientConnection : clientsSnapshot) {
+    for (const auto &clientConnection : clients_) {
         if (!clientConnection) {
             continue;
         }
@@ -541,5 +540,15 @@ void DeviceConnectionForOutput::UpdateNextTimer()
 
     (void)::timerfd_settime(timerFd_.Get(), 0, &newValue, nullptr);
 }
+
+void DeviceConnectionForOutput::FlushClientCache(uint32_t clientId)
+{
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    for (auto client: clients_) {
+        CHECK_AND_CONTINUE(client->GetClientId() == clientId);
+        client->Flush();
+    }
+}
+
 }  // namespace MIDI
 }  // namespace OHOS

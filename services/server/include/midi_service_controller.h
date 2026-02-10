@@ -89,6 +89,7 @@ public:
         uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
     int32_t OpenOutputPort(
         uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
+    int32_t FlushOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t CloseOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t DestroyMidiClient(uint32_t clientId);

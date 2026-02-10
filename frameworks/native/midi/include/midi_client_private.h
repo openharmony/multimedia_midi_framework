@@ -32,6 +32,11 @@
 namespace OHOS {
 namespace MIDI {
 
+struct SysExPacketData {
+    std::vector<MidiEventInner> innerEvents;
+    std::vector<std::array<uint32_t, SYSEX7_WORD_COUNT >> payloadWords;
+};
+
 class MidiClientCallback;
 class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
 public:
@@ -74,8 +79,14 @@ public:
     MidiOutputPort(OH_MIDIProtocol protocol);
     ~MidiOutputPort();
     int32_t Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
+    int32_t SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize);
     std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 private:
+    void PrepareSysExPackets(uint8_t group, uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
+            SysExPacketData &packetData);
+    int32_t SendSysExPackets(const std::vector<MidiEventInner> &innerEvents, uint32_t pktCount,
+            const std::chrono::steady_clock::time_point &start);
+
     std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
     OH_MIDIProtocol protocol_;
 };
@@ -91,6 +102,7 @@ public:
     OH_MIDIStatusCode ClosePort(uint32_t portIndex) override;
     OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
                             uint32_t eventCount, uint32_t *eventsWritten) override;
+    OH_MIDIStatusCode SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
 
 private:

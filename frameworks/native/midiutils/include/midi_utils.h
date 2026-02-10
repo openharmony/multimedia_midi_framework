@@ -16,12 +16,52 @@
 #ifndef MIDI_UTILS_H
 #define MIDI_UTILS_H
 
+#include <array>
 #include "midi_info.h"
 
 namespace OHOS {
 namespace MIDI {
 
 const uint64_t MIDI_NS_PER_SECOND = 1000000000;
+
+// ============ UMP SysEx7 (Type 3, 64-bit) packing ============
+constexpr uint32_t MAX_PACKET_BYTES = 6;
+constexpr uint32_t UMP_TYPE_3 = 0x3;
+constexpr uint32_t UMP_MASK = 0xF;
+
+// 0: complete, 1: start, 2: continue, 3: end
+constexpr uint8_t SYSEX7_COMPLETE  = 0;
+constexpr uint8_t SYSEX7_START     = 1;
+constexpr uint8_t SYSEX7_CONTINUE  = 2;
+constexpr uint8_t SYSEX7_END       = 3;
+
+constexpr uint32_t SYSEX7_WORD0_TYPE_SHIFT      = 28;
+constexpr uint32_t SYSEX7_WORD0_GROUP_SHIFT     = 24;
+constexpr uint32_t SYSEX7_WORD0_STATUS_SHIFT    = 20;
+constexpr uint32_t SYSEX7_WORD0_BYTES_NUM_SHIFT = 16;
+
+constexpr uint32_t SYSEX7_WORD_COUNT = 2;
+constexpr uint32_t BITS_PER_BYTE = 8;
+
+constexpr uint32_t PACKETS_BATCH_NUM = 256;
+
+constexpr int64_t WAIT_SLICE_NS = 2 * 1000 * 1000; // 2ms
+
+constexpr auto MAX_TIMEOUT_MS = std::chrono::milliseconds(2000);
+
+inline uint8_t GetSysexStatus(uint32_t pktIndex, uint32_t totalPkts)
+{
+    if (totalPkts == 1) {
+        return SYSEX7_COMPLETE;
+    }
+    if (pktIndex == 0) {
+        return SYSEX7_START;
+    }
+    if (pktIndex + 1 == totalPkts) {
+        return SYSEX7_END;
+    }
+    return SYSEX7_CONTINUE;
+}
 
 void CloseFd(int fd);
 std::string GetEncryptStr(const std::string &str);
@@ -30,6 +70,9 @@ std::string DumpOneEvent(uint64_t ts, size_t len, const uint32_t *data);
 std::string DumpMidiEvents(const std::vector<MidiEvent>& events);
 std::string DumpMidiEvents(const std::vector<MidiEventInner>& events);
 long StringToNum(const std::string &str);
+
+std::array<uint32_t, SYSEX7_WORD_COUNT> PackSysEx7Ump64(uint8_t group, uint8_t status,
+    const uint8_t* bytes, uint8_t nbytes);
 
 class ClockTime {
 public:

@@ -127,6 +127,14 @@ OH_MIDIStatusCode MidiServiceClient::OpenOutputPort(std::shared_ptr<MidiSharedRi
     return GetMidiStatusCode(ret);
 }
 
+OH_MIDIStatusCode MidiServiceClient::FlushOutputPort(int64_t deviceId, uint32_t portIndex)
+{
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    auto ret = ipc_->FlushOutputPort(deviceId, portIndex);
+    return GetMidiStatusCode(ret);
+}
+
 OH_MIDIStatusCode MidiServiceClient::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     std::lock_guard lock(lock_);

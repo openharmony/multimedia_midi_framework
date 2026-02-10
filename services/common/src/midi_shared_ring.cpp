@@ -387,6 +387,19 @@ FutexCode MidiSharedRing::WaitFor(int64_t timeoutInNs, const std::function<bool(
     return FutexTool::FutexWait(GetFutex(), timeoutInNs, [&pred]() { return pred(); });
 }
 
+FutexCode MidiSharedRing::WaitForSpace(int64_t timeoutInNs, uint32_t neededBytes)
+{
+    CHECK_AND_RETURN_RET_LOG(controler_ != nullptr, FUTEX_INVALID_PARAMS, "controler_ is null");
+    CHECK_AND_RETURN_RET_LOG(neededBytes > 0, FUTEX_INVALID_PARAMS, "neededBytes invalid");
+
+    auto pred = [this, neededBytes]() -> bool {
+        uint32_t r = controler_->readPosition.load();
+        uint32_t w = controler_->writePosition.load();
+        return RingFree(r, w, capacity_) >= neededBytes;
+    };
+    return FutexTool::FutexWait(GetFutex(), timeoutInNs, pred);
+}
+
 void MidiSharedRing::WakeFutex(uint32_t wakeVal)
 {
     if (controler_) {
@@ -491,6 +504,7 @@ void MidiSharedRing::CommitRead(const PeekedEvent &ev)
         end = 0;
     }
     controler_->readPosition.store(end);
+    WakeFutex(); // wake who is waiting to write data
 }
 
 void MidiSharedRing::DrainToBatch(
@@ -516,6 +530,14 @@ void MidiSharedRing::DrainToBatch(
         CommitRead(peekedEvent);
         ++count;
     }
+}
+
+void MidiSharedRing::Flush()
+{
+    MIDI_INFO_LOG("reset data cache");
+    controler_->readPosition.store(0);
+    controler_->writePosition.store(0);
+    memset_s(GetDataBase(), GetCapacity(), 0, GetCapacity());
 }
 
 //==================== Private Helpers (All <= 50 lines) ====================//

@@ -79,6 +79,7 @@ public:
     int GetEventFd() const;
 
     FutexCode WaitFor(int64_t timeoutInNs, const std::function<bool(void)> &pred);
+    FutexCode WaitForSpace(int64_t timeoutInNs, uint32_t neededBytes);
     void NotifyConsumer(uint32_t wakeVal = IS_READY);
     bool IsEmpty() const;
     ControlHeader *GetControlHeader() const;
@@ -101,6 +102,7 @@ public:
     void CommitRead(const PeekedEvent &event);
     void DrainToBatch(std::vector<MidiEvent> &outEvents, std::vector<std::vector<uint32_t>> &outPayloadBuffers,
         uint32_t maxEvents = 0);
+    void Flush();
 
 private:
     bool ValidateOneEvent(const MidiEventInner &event) const;

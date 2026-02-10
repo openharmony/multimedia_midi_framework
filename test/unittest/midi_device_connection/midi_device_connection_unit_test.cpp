@@ -350,5 +350,59 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_003, TestSize.L
     }
 }
 
+/**
+ * @tc.name   : Test DeviceConnectionForOutput Flush
+ * @tc.number : DeviceConnectionForOutput_004
+ * @tc.desc   : expect flushing client cache success
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_004, TestSize.Level1)
+{
+    DeviceConnectionInfo deviceConnectionInfo{};
+    deviceConnectionInfo.driver = nullptr;
+    deviceConnectionInfo.deviceId = 4;
+    deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;
+    deviceConnectionInfo.portIndex = 0;
+
+    DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
+
+    ASSERT_EQ(MIDI_STATUS_OK, outputConnection.Start());
+
+    std::shared_ptr<MidiSharedRing> clientRingBuffer;
+    uint32_t clientId = 10;
+    int64_t deviceHandle = 1234;
+
+    ASSERT_EQ(MIDI_STATUS_OK, outputConnection.AddClientConnection(clientId, deviceHandle, clientRingBuffer));
+    ASSERT_NE(nullptr, clientRingBuffer);
+
+    uint32_t dummyWord = 0x12345678;
+    MidiEventInner realtimeEmptyPayload{};
+    realtimeEmptyPayload.timestamp = 0;
+    realtimeEmptyPayload.length = 0;
+    realtimeEmptyPayload.data = &dummyWord;
+
+    std::vector<uint32_t> realtimeLargePayloadWords{0x11111111, 0x22222222, 0x33333333}; // 12 bytes
+    MidiEventInner realtimeLargePayload = MakeMidiEventInner(0, realtimeLargePayloadWords);
+
+    std::vector<uint32_t> nonRealtimePayloadWords{0xAAAAAAAA, 0xBBBBBBBB}; // 8 bytes
+    MidiEventInner nonRealtimeEvent = MakeMidiEventInner(1 /* 1ns delay */, nonRealtimePayloadWords);
+
+    // Write events into ring
+    ASSERT_EQ(MidiStatusCode::OK, clientRingBuffer->TryWriteEvent(realtimeEmptyPayload, true));
+    ASSERT_EQ(MidiStatusCode::OK, clientRingBuffer->TryWriteEvent(realtimeLargePayload, true));
+    ASSERT_EQ(MidiStatusCode::OK, clientRingBuffer->TryWriteEvent(nonRealtimeEvent, true));
+
+    EXPECT_EQ(clientRingBuffer->IsEmpty(), false);
+
+    // Wake worker via notify eventfd
+    const int notifyEventFileDescriptor = outputConnection.GetNotifyEventFdForClients();
+    ASSERT_GE(notifyEventFileDescriptor, 0);
+
+    const uint64_t one = 1;
+    ASSERT_EQ(sizeof(one), static_cast<size_t>(::write(notifyEventFileDescriptor, &one, sizeof(one))));
+
+    outputConnection.FlushClientCache(clientId);
+    EXPECT_EQ(clientRingBuffer->GetReadPosition(), 0);
+    EXPECT_EQ(clientRingBuffer->GetWritePosition(), 0);
+}
 } // namespace MIDI
 } // namespace OHOS

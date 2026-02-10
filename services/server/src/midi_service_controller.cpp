@@ -459,6 +459,32 @@ int32_t MidiServiceController::OpenOutputPort(
     return MIDI_STATUS_OK;
 }
 
+int32_t MidiServiceController::FlushOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG(
+        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
+        MIDI_STATUS_INVALID_CLIENT,
+        "Client not found: %{public}u",
+        clientId);
+    auto it = deviceClientContexts_.find(deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
+        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        "device %{public}" PRId64 "not opened",
+        deviceId);
+    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+        "client %{public}u doesn't open device %{public}" PRId64,
+        clientId,
+        deviceId);
+    auto &outputPortConnections = it->second->outputDeviceconnections_;
+    auto outputPort = outputPortConnections.find(portIndex);
+    if (outputPort != outputPortConnections.end()) {
+        outputPort->second->FlushClientCache(clientId);
+    }
+    return MIDI_STATUS_OK;
+}
 
 int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
