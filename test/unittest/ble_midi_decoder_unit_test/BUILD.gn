@@ -27,7 +27,11 @@ ohos_unittest("ble_midi_decoder_unittest") {
     "-fno-access-control",
   ]
 
+  include_dirs = [ "${midi_framework_root}/services/common/include" ]
+
   sources = [ "ble_midi_decoder_unit_test.cpp" ]
+
+  deps = [ "../../../services/common:midi_common" ]
 
   external_deps = [
     "c_utils:utils",

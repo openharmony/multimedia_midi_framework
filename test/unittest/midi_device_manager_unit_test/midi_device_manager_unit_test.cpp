@@ -82,8 +82,8 @@ HWTEST_F(MidiDeviceManagerUnitTest, GetDevices001, TestSize.Level0)
 HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level0)
 {
     int64_t driverId = 101;
-    std::string prodName = "Test Piano";
-    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, prodName)};
+    std::string deviceName = "Test Piano";
+    std::vector<DeviceInformation> driverDevs = {CreateDriverDeviceInfo(driverId, deviceName)};
 
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices()).WillOnce(Return(driverDevs));
 
@@ -92,7 +92,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level0)
     auto devices = manager_->GetDevices();
     ASSERT_EQ(devices.size(), 1);
 
-    EXPECT_EQ(devices[0].productId, prodName);
+    EXPECT_EQ(devices[0].deviceName, deviceName);
     EXPECT_EQ(devices[0].driverDeviceId, driverId);
     EXPECT_NE(devices[0].deviceId, 0);
 
@@ -249,9 +249,9 @@ HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level0)
     bool foundUsb = false;
     bool foundBle = false;
     for (auto &d : allDevices) {
-        if (d.deviceType == DeviceType::DEVICE_TYPE_USB && d.productId == "USB Piano")
+        if (d.deviceType == DeviceType::DEVICE_TYPE_USB && d.deviceName == "USB Piano")
             foundUsb = true;
-        if (d.deviceType == DeviceType::DEVICE_TYPE_BLE && d.productId == "BLE Guitar")
+        if (d.deviceType == DeviceType::DEVICE_TYPE_BLE && d.deviceName == "BLE Guitar")
             foundBle = true;
     }
     EXPECT_TRUE(foundUsb);

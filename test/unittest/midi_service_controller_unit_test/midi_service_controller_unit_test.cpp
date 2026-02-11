@@ -397,6 +397,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort003, TestSize.Level0)
     std::shared_ptr<MidiSharedRing> buffer2;
     ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
     EXPECT_EQ(ret, MIDI_STATUS_UNKNOWN_ERROR);
+    controller_->DestroyMidiClient(clientId2);
 }
 
 /**

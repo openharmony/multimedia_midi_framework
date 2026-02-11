@@ -98,8 +98,8 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
             HDI::Midi::V1_0::MidiDeviceInfo device{};
             device.deviceId = expectedDeviceId;
             device.protocol = HDI::Midi::V1_0::MIDI_PROTOCOL_1_0;
-            device.productId = "TestProduct";
-            device.vendorId = "TestVendor";
+            device.productName = "TestProduct";
+            device.vendorName = "TestVendor";
 
             HDI::Midi::V1_0::MidiPortInfo port0{};
             port0.portId = expectedPortId0;

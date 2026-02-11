@@ -193,13 +193,13 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[0].productId, "Mock_Piano");
+    EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
     EXPECT_STREQ(infoArray[0].vendorId, "MockVendor_1");
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[1].productId, "Mock_Drum");
+    EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
     EXPECT_STREQ(infoArray[1].vendorId, "MockVendor_2");
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
@@ -245,6 +245,23 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(status, MIDI_STATUS_INSUFFICIENT_RESULT_SPACE);
     EXPECT_EQ(numDevices, 2);
 
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
+        infos.push_back({{DEVICE_ID, "1001"},
+            {DEVICE_TYPE, "0"},
+            {MIDI_PROTOCOL, "1"},
+            {DEVICE_NAME, "Mock_Piano"},
+            {PRODUCT_ID, "1234"},
+            {VENDOR_ID, "MockVendor_1"},
+            {ADDRESS, ""}});
+        infos.push_back({{DEVICE_ID, "1002"},
+            {DEVICE_TYPE, "1"},
+            {MIDI_PROTOCOL, "1"},
+            {DEVICE_NAME, "Mock_Drum"},
+            {PRODUCT_ID, "5678"},
+            {VENDOR_ID, "MockVendor_2"},
+            {ADDRESS, "aabbcc"}});
+        return MIDI_STATUS_OK;
+    }));
     OH_MIDIDeviceInformation infoArray[2];
     status = client->GetDevices(infoArray, &numDevices);
 
@@ -254,13 +271,13 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[0].productId, "Mock_Piano");
+    EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
     EXPECT_STREQ(infoArray[0].vendorId, "MockVendor_1");
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[1].productId, "Mock_Drum");
+    EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
     EXPECT_STREQ(infoArray[1].vendorId, "MockVendor_2");
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
