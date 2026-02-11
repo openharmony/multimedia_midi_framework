@@ -23,6 +23,7 @@ group("midi_demo_test") {
 group("midi_unit_test") {
   testonly = true
   deps = [
+    "unittest/ble_midi_decoder_unit_test:ble_midi_decoder_unittest",
     "unittest/common:midi_common_unittest",
     "unittest/midi_client_connection:midi_client_connection_unittest",
     "unittest/midi_client_unit_test:midi_client_unit_test",

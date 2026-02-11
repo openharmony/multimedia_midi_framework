@@ -53,6 +53,11 @@ namespace {
     constexpr size_t MAX_UMP_PACKETS = 128;
     // Application UUID for BLE MIDI (standard Bluetooth MIDI UUID)
     static constexpr const char *BLE_MIDI_APP_UUID = "00000000-0000-0000-0000-000000000001";
+    
+    // BLE MIDI Packet Constants
+    constexpr uint8_t BLE_MIDI_TIMESTAMP_HIGH_MASK = 0xC0;
+    constexpr uint8_t BLE_MIDI_TIMESTAMP_HIGH_SHIFT = 6;
+    constexpr uint8_t BLE_MIDI_BYTE_MASK = 0x7F;
 }
 
 static std::atomic<BleMidiTransportDeviceDriver*> instance;
@@ -385,6 +390,130 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
     }
 }
 
+static std::vector<uint8_t> DecodeBleMidi(const uint8_t* src, size_t srcLen)
+{
+    std::vector<uint8_t> midi1;
+    if (srcLen < 2) {
+        MIDI_ERR_LOG("DecodeBleMidi: Invalid BLE MIDI packet length: %{public}zu", srcLen);
+        return midi1;
+    }
+
+    // BLE MIDI Packet Format:
+    // Header (2 bytes):
+    //   Byte 0: [HighTimestamp(2bit) | Reserved(6bit)]
+    //   Byte 1: LowTimestamp(8bit)
+    // Data bytes:
+    //   Each byte: [HighTimestamp(2bit) | MIDI_Byte(6bit)]
+    //
+    // Standard BLE MIDI encoding (per Apple spec):
+    //   Status bytes are right-shifted by 1: 0xF0 -> 0x78, 0xF7 -> 0x7B
+    //   Data bytes keep value in lower 6 bits
+    //
+    // Non-standard BLE MIDI (some devices):
+    //   Status bytes are NOT encoded: 0xF0 stays as 0xF0
+    //   Only time bits are in high 2 bits
+    //
+    // Auto-detection: Check if we see values >= 0x80 in data
+    //   If yes, it's non-standard (direct encoding)
+    //   If no and we see 0x80-0xBF, it's standard (encoded)
+
+    bool isStandardEncoding = true;
+    uint8_t headerTimeBits = (src[0] >> BLE_MIDI_TIMESTAMP_HIGH_SHIFT) & 0x03;
+
+    size_t i = 2;
+    while (i < srcLen) {
+        uint8_t byte = src[i];
+        uint8_t timeBits = (byte >> BLE_MIDI_TIMESTAMP_HIGH_SHIFT) & 0x03;
+        uint8_t low6Bits = byte & BLE_MIDI_BYTE_MASK;
+
+        // Detect encoding format on first pass
+        if (isStandardEncoding && byte >= 0x80 && byte < 0xC0) {
+            // Raw status byte (0x80-0xBF) found -> non-standard encoding
+            isStandardEncoding = false;
+            MIDI_INFO_LOG("Detected non-standard BLE MIDI encoding (direct MIDI byte stream)");
+        }
+
+        // Decode based on format
+        uint8_t midiByte;
+        if (isStandardEncoding && low6Bits >= 0x80) {
+            // Standard BLE: Decode encoded status byte
+            midiByte = (low6Bits << 1) | 0x01;
+        } else {
+            // Non-standard BLE or data byte: Use directly
+            midiByte = low6Bits;
+        }
+
+        // Check for new packet boundary
+        if (midiByte >= 0x80 && timeBits == headerTimeBits) {
+            // New packet header detected
+            i++;
+            if (i >= srcLen) break;
+            // Skip low timestamp byte
+            i++;
+            continue;
+        }
+
+        midi1.push_back(midiByte);
+        i++;
+    }
+
+    return midi1;
+}
+
+    // BLE MIDI Packet Format (per Apple MIDI over Bluetooth LE spec):
+    // Header (2 bytes):
+    //   Byte 0: [HighTimestamp(2bit) | Reserved(6bit)]
+    //   Byte 1: LowTimestamp(8bit)
+    // Data bytes:
+    //   Status bytes: [HighTimestamp(2bit) | Status(6bit, bits 0-5 of status)]
+    //   Data bytes: [HighTimestamp(2bit) | Data(6bit, bits 0-5 of data)]
+    //
+    // IMPORTANT: MIDI status bytes in BLE are encoded as:
+    //   Full status byte is reconstructed by: (status_raw_byte >> 1)
+    //   Example: 0xF0 (11110000) in standard MIDI becomes 0x78 (01111000) in BLE
+    //   When decoding: 0x78 << 1 | 0x01 = 0xF0 (restore the LSB which is always 0 for status)
+    //
+    // TimeBits increment for each byte (0->1->2->3->0)
+    // When wraps to initial value and byte is a status byte, new packet starts
+
+    size_t i = 2;
+    while (i < srcLen) {
+        uint8_t byte = src[i];
+        uint8_t timeBits = (byte >> BLE_MIDI_TIMESTAMP_HIGH_SHIFT) & 0x03;
+
+        // Extract MIDI byte
+        uint8_t low6Bits = byte & BLE_MIDI_BYTE_MASK;
+        uint8_t midiByte;
+
+        // BLE MIDI encoding: status bytes are right-shifted by 1 (dropping the 0 LSB)
+        // Data bytes keep their value in lower 6 bits
+        if (low6Bits >= 0x80) {
+            // This is a BLE-encoded status byte (0x80-0xBF maps to 0xF0-0xFF)
+            // Reconstruct: shift left by 1 and set the 0 LSB
+            midiByte = (low6Bits << 1) | 0x01;
+        } else {
+            // Data byte: just use the 6-bit value directly
+            midiByte = low6Bits;
+        }
+
+        // Check for new packet header:
+        uint8_t headerTimeBits = (src[0] >> BLE_MIDI_TIMESTAMP_HIGH_SHIFT) & 0x03;
+        if (midiByte >= 0x80 && timeBits == headerTimeBits) {
+            // New packet detected
+            i++;
+            if (i >= srcLen) break;
+            // Skip next byte (low timestamp of new packet header)
+            i++;
+            continue;
+        }
+
+        midi1.push_back(midiByte);
+        i++;
+    }
+
+    return midi1;
+}
+
 static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)
 {
     UmpProcessor processor;
@@ -422,15 +551,32 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
         }
     }
     CHECK_AND_RETURN(cb != nullptr);
-    std::ostringstream midiStream;
+    
+    // Log raw BLE MIDI data
+    std::ostringstream bleStream;
     for (size_t i = 0; i < srcLen; i++) {
-        midiStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
+        bleStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
             static_cast<uint32_t>(src[i]) << " ";
     }
-    MIDI_INFO_LOG("midiStream 1.0: %{public}s", midiStream.str().c_str());
-    std::vector<MidiEventInner> events;
-    std::vector<uint32_t> midi2 = ParseUmpData(src, srcLen);
+    MIDI_INFO_LOG("BLE MIDI raw: %{public}s", bleStream.str().c_str());
+    
+    // Step 1: Decode BLE MIDI to standard MIDI 1.0 byte stream
+    std::vector<uint8_t> midi1Data = DecodeBleMidi(src, srcLen);
+    CHECK_AND_RETURN_LOG(!midi1Data.empty(), "Failed to decode BLE MIDI data");
+    
+    // Log decoded MIDI 1.0 data
+    std::ostringstream midi1Stream;
+    for (size_t i = 0; i < midi1Data.size(); i++) {
+        midi1Stream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
+            static_cast<uint32_t>(midi1Data[i]) << " ";
+    }
+    MIDI_INFO_LOG("MIDI 1.0 decoded: %{public}s", midi1Stream.str().c_str());
+    
+    // Step 2: Convert MIDI 1.0 to UMP
+    std::vector<uint32_t> midi2 = ParseUmpData(midi1Data.data(), midi1Data.size());
     CHECK_AND_RETURN_LOG(!midi2.empty(), "Failed to parse UMP data");
+    
+    std::vector<MidiEventInner> events;
     MidiEventInner event = {
         .timestamp = GetCurNano(),
         .length = midi2.size(),
