@@ -233,7 +233,6 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     callbacks.onDeviceChange =
         [](void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo) {};
     callbacks.onError = [](void *userData, OH_MIDIStatusCode code) {
-
     };
     void *userData = nullptr;
     client->Init(callbacks, userData);

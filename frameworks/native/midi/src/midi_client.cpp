@@ -148,8 +148,7 @@ static int32_t GetStatusCode(MidiStatusCode code)
     }
 }
 
-MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData,
-    std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange)
+MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData)
     : callbacks_(callbacks), userData_(userData)
 {}
 
