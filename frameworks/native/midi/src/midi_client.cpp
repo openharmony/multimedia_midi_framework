@@ -32,14 +32,12 @@ namespace {
 }  // namespace
 class MidiClientCallback : public MidiCallbackStub {
 public:
-    MidiClientCallback(OH_MIDICallbacks callbacks, void *userData,
-        std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange);
+    MidiClientCallback(OH_MIDICallbacks callbacks, void *userData);
     ~MidiClientCallback() = default;
     int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override;
     int32_t NotifyError(int32_t code) override;
     OH_MIDICallbacks callbacks_;
     void *userData_;
-    std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange_;
 };
 
 static bool ConvertToDeviceInformation(
@@ -152,7 +150,7 @@ static int32_t GetStatusCode(MidiStatusCode code)
 
 MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData,
     std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange)
-    : callbacks_(callbacks), userData_(userData), deviceChange_(deviceChange)
+    : callbacks_(callbacks), userData_(userData)
 {}
 
 int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo)
@@ -163,7 +161,6 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<in
     OH_MIDIDeviceInformation info;
     bool ret = ConvertToDeviceInformation(deviceInfo, info);
     CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_UNKNOWN_ERROR, "ConvertToDeviceInformation failed");
-    deviceChange_(static_cast<OH_MIDIDeviceChangeAction>(change), info);
 
     callbacks_.onDeviceChange(userData_, static_cast<OH_MIDIDeviceChangeAction>(change), info);
     return 0;
@@ -443,55 +440,29 @@ MidiClientPrivate::~MidiClientPrivate()
 OH_MIDIStatusCode MidiClientPrivate::Init(OH_MIDICallbacks callbacks, void *userData)
 {
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
-    callback_ = sptr<MidiClientCallback>::MakeSptr(callbacks,
-        userData,
-        [this](OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info) { this->DeviceChange(change, info); });
+    callback_ = sptr<MidiClientCallback>::MakeSptr(callbacks, userData);
     auto ret = ipc_->Init(callback_, clientId_);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<std::map<int32_t, std::string>> deviceInfos;
-    ret = ipc_->GetDevices(deviceInfos);
-    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    for (auto deviceInfo : deviceInfos) {
-        OH_MIDIDeviceInformation info;
-        bool ret = ConvertToDeviceInformation(deviceInfo, info);
-        CHECK_AND_CONTINUE_LOG(ret, "ConvertToDeviceInformation failed");
-        deviceInfos_.push_back(info);
-    }
     return MIDI_STATUS_OK;
-}
-
-void MidiClientPrivate::DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    MIDI_INFO_LOG("DeviceChange: %{public}d", change);
-    if (change == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
-        deviceInfos_.push_back(info);
-        return;
-    }
-    for (auto it = deviceInfos_.begin(); it != deviceInfos_.end();) {
-        if (it->midiDeviceId == info.midiDeviceId) {
-            it = deviceInfos_.erase(it);
-            break;
-        } else {
-            it++;
-        }
-    }
 }
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (*numDevices < deviceInfos_.size()) {
-        *numDevices = deviceInfos_.size();
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    
+    std::vector<std::map<int32_t, std::string>> deviceInfos;
+    auto ret = ipc_->GetDevices(deviceInfos);
+    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
+    if (*numDevices < deviceInfos.size()) {
+        *numDevices = deviceInfos.size();
         return MIDI_STATUS_INSUFFICIENT_RESULT_SPACE;
     }
-
-    *numDevices = deviceInfos_.size();
+    *numDevices = deviceInfos.size();
     CHECK_AND_RETURN_RET(*numDevices != 0, MIDI_STATUS_OK);
     CHECK_AND_RETURN_RET(infos != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
-    for (size_t i = 0; i < *numDevices; i++) {
-        infos[i] = deviceInfos_[i];
+    for (size_t i = 0; i < deviceInfos.size(); i++) {
+        bool convRet = ConvertToDeviceInformation(deviceInfos[i], infos[i]);
+        CHECK_AND_CONTINUE_LOG(convRet, "ConvertToDeviceInformation failed");
     }
     return MIDI_STATUS_OK;
 }
@@ -518,7 +489,6 @@ OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address, OH_MIDIO
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::map<int32_t, std::string>> portInfos;
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);
