@@ -243,7 +243,6 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     // Should return insufficient space and update numDevices to required size
     EXPECT_EQ(status, MIDI_STATUS_INSUFFICIENT_RESULT_SPACE);
     EXPECT_EQ(numDevices, 2);
-
     EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
         infos.push_back({{DEVICE_ID, "1001"},
             {DEVICE_TYPE, "0"},
