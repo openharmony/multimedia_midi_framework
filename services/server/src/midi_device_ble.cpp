@@ -263,14 +263,14 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
 static void GetDeviceInfo(DeviceCtx &d)
 {
     int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
-            d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
     MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, d.deviceName.c_str());
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
-            d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(d.productId);
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(d.productId);
     MIDI_INFO_LOG("err: %{public}d, productId: %{private}s", err, d.productId.c_str());
     uint16_t vendorId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
-            d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
     d.vendorId = std::to_string(vendorId);
     MIDI_INFO_LOG("err: %{public}d, vendorId: %{private}s", err, d.vendorId.c_str());
 }
