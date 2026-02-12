@@ -19,7 +19,6 @@
  * @brief Provide the definition of the C interface for the MIDI module.
  *
  * @since 24
- * @version 6.1
  */
 /**
  * @file native_midi_base.h
@@ -30,7 +29,6 @@
  * @syscap SystemCapability.Multimedia.Audio.MIDI
  * @kit AudioKit
  * @since 24
- * @version 6.1
  */
 #ifndef NATIVE_MIDI_BASE_H
 #define NATIVE_MIDI_BASE_H
@@ -46,42 +44,57 @@ extern "C" {
 
 /**
  * @brief MIDI status code enumeration
+ *
  * @since 24
  */
 typedef enum {
     /**
      * @error Operation successful.
+     *
+     * @since 24
      */
     MIDI_STATUS_OK = 0,
 
     /**
      * @error Invalid parameter (e.g., null pointer).
+     *
+     * @since 24
      */
     MIDI_STATUS_GENERIC_INVALID_ARGUMENT = 35500001,
 
     /**
      * @error IPC communication failure.
+     *
+     * @since 24
      */
     MIDI_STATUS_GENERIC_IPC_FAILURE = 35500002,
 
     /**
      * @error Insufficient result space.
      * Returned when the buffer provided by the caller is too small to hold the result.
+     *
+     * @since 24
      */
     MIDI_STATUS_INSUFFICIENT_RESULT_SPACE = 35500003,
 
     /**
      * @error Invalid client handle.
+     *
+     * @since 24
      */
     MIDI_STATUS_INVALID_CLIENT = 35500004,
 
     /**
      * @error Invalid device handle.
+     *
+     * @since 24
      */
     MIDI_STATUS_INVALID_DEVICE_HANDLE = 35500005,
 
     /**
      * @error Invalid port index.
+     *
+     * @since 24
      */
     MIDI_STATUS_INVALID_PORT = 35500006,
 
@@ -90,39 +103,53 @@ typedef enum {
      * Indicates that the shared memory buffer currently lacks space.
      * Returned by non-blocking send when message cannot fit in the buffer.
      * Retry the operation with a short delay (recommended: 10ms).
+     *
+     * @since 24
      */
     MIDI_STATUS_WOULD_BLOCK = 35500007,
 
     /**
      * @error Operation can not be handled in a reasonable time.
+     *
+     * @since 24
      */
     MIDI_STATUS_TIMEOUT = 35500008,
 
     /**
      * @error The client has reached the maximum number of open devices allowed.
      * To open a new device, the client must close an existing one first.
+     *
+     * @since 24
      */
     MIDI_STATUS_TOO_MANY_OPEN_DEVICES = 35500009,
 
     /**
      * @error The client has reached the maximum number of open ports allowed.
      * To open a new port, the client must close an existing one first.
+     *
+     * @since 24
      */
     MIDI_STATUS_TOO_MANY_OPEN_PORTS = 35500010,
 
     /**
      * @error The client has already opened this device.
+     *
+     * @since 24
      */
     MIDI_STATUS_DEVICE_ALREADY_OPEN = 35500011,
 
     /**
      * @error The client has already opened this port.
+     *
+     * @since 24
      */
     MIDI_STATUS_PORT_ALREADY_OPEN = 35500012,
 
     /**
      * @error The system-wide or per-application limit for MIDI clients has been reached.
      * The application should wait or release other resources before retrying.
+     *
+     * @since 24
      */
     MIDI_STATUS_TOO_MANY_CLIENTS = 35500013,
 
@@ -130,33 +157,44 @@ typedef enum {
      * @error Permission denied.
      * Returned when the application attempts to perform an operation
      * without the required permission (e.g., Bluetooth for BLE devices).
+     *
+     * @since 24
      */
     MIDI_STATUS_PERMISSION_DENIED = 35500014,
 
     /**
      * @error The MIDI system service has died or disconnected.
      * The client must be destroyed and recreated.
+     *
+     * @since 24
      */
     MIDI_STATUS_SERVICE_DIED = 35500015,
 
     /**
-     * @error Unknown system error.
+     * @error System-level error such as insufficient memory or system service failure.
+     *
+     * @since 24
      */
     MIDI_STATUS_SYSTEM_ERROR = 35500100
 } OH_MIDIStatusCode;
 
 /**
  * @brief Port direction enumeration
+ *
  * @since 24
  */
 typedef enum {
     /**
      * @brief Input port (Device -> Host).
+     *
+     * @since 24
      */
     MIDI_PORT_DIRECTION_INPUT = 0,
 
     /**
      * @brief Output port (Host -> Device).
+     *
+     * @since 24
      */
     MIDI_PORT_DIRECTION_OUTPUT = 1
 } OH_MIDIPortDirection;
@@ -173,22 +211,21 @@ typedef enum {
 typedef enum {
     /**
      * @brief Legacy MIDI 1.0 Semantics.
-     *
      * Behavior:
      * - The service expects UMP packets strictly compatible with MIDI 1.0.
      * - **MT 0x0**: Utility Messages (e.g., JR Timestamps).
      * - **MT 0x1**: System Real Time and System Common Messages.
      * - **MT 0x2**: MIDI 1.0 Channel Voice Messages (32-bit).
      * - **MT 0x3**: Data Messages (64-bit) used for SysEx (7-bit payload).
-     *
      * - If the target hardware is MIDI 1.0: The service converts UMP back to Byte Stream (F0...F7).
      * - If the target hardware is MIDI 2.0: The service sends these packets as-is (encapsulated MIDI 1.0).
+     *
+     * @since 24
      */
     MIDI_PROTOCOL_1_0 = 1,
 
     /**
      * @brief MIDI 2.0 Semantics.
-     *
      * Behavior:
      * - The service expects UMP packets leveraging MIDI 2.0 features.
      * - **MT 0x4**: MIDI 2.0 Channel Voice Messages (64-bit, high resolution).
@@ -196,33 +233,62 @@ typedef enum {
      * - **MT 0xD**: Flex Data Messages (128-bit, e.g., Text, Lyrics).
      * - **MT 0xF**: UMP Stream Messages (128-bit, Endpoint Discovery, Function Blocks).
      * - **MT 0x3 / MT 0x5**: Data Messages (64-bit or 128-bit).
-     *
      * @note Fallback Policy: If this protocol is requested but the hardware only supports MIDI 1.0,
      * the service will perform "Best-Effort" translation (e.g., downscaling 32-bit velocity
      * to 7-bit, converting Type 4 back to Type 2). Some data precision or message types (like Flex Data)
      * may be lost or ignored.
+     *
+     * @since 24
      */
     MIDI_PROTOCOL_2_0 = 2
 } OH_MIDIProtocol;
 
 /**
  * @brief MIDI Device Type
- * @since 24
- */
-typedef enum { MIDI_DEVICE_TYPE_USB = 0, MIDI_DEVICE_TYPE_BLE = 1 } OH_MIDIDeviceType;
-
-/**
- * @brief Device connection state change action
+ *
  * @since 24
  */
 typedef enum {
+    /**
+     * @brief USB MIDI device.
+     *
+     * @since 24
+     */
+    MIDI_DEVICE_TYPE_USB = 0,
+
+    /**
+     * @brief Bluetooth Low Energy MIDI device.
+     *
+     * @since 24
+     */
+    MIDI_DEVICE_TYPE_BLE = 1
+} OH_MIDIDeviceType;
+
+/**
+ * @brief Device connection state change action
+ *
+ * @since 24
+ */
+typedef enum {
+    /**
+     * @brief Device connected.
+     *
+     * @since 24
+     */
     MIDI_DEVICE_CHANGE_ACTION_CONNECTED = 0,
+
+    /**
+     * @brief Device disconnected.
+     *
+     * @since 24
+     */
     MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED = 1
 } OH_MIDIDeviceChangeAction;
 
 /**
  * @brief MIDI Event Structure (Universal)
  * Designed to handle both raw Byte Stream (MIDI 1.0) and UMP.
+ *
  * @since 24
  */
 typedef struct {
@@ -230,18 +296,24 @@ typedef struct {
      * @brief Timestamp in nanoseconds.
      * Base time obtained via clock_gettime(CLOCK_MONOTONIC, &time)
      * 0 indicates "send immediately".
+     *
+     * @since 24
      */
     uint64_t timestamp;
 
     /**
      * @brief Number of 32-bit words in the packet.
      * e.g., 1 for Type 2/4 (64-bit messages use 2 words)
+     *
+     * @since 24
      */
     size_t length;
 
     /**
      * @brief Pointer to UMP data (Must be 4-byte aligned).
      * This contains the raw UMP words (uint32_t).
+     *
+     * @since 24
      */
     uint32_t *data;
 } OH_MIDIEvent;
@@ -249,44 +321,60 @@ typedef struct {
 /**
  * @brief Device Information
  * Used for enumeration and display.
+ *
  * @since 24
  */
 typedef struct {
     /**
      * @brief Unique identifier for the MIDI device.
+     *
+     * @since 24
      */
     int64_t midiDeviceId;
 
     /**
      * @brief Type of the device (USB, BLE, etc.).
+     *
+     * @since 24
      */
     OH_MIDIDeviceType deviceType;
 
     /**
      * @brief The native protocol supported by the hardware.
+     *
      * - If MIDI_PROTOCOL_1_0: The device is a legacy device or currently configured as such.
      * - If MIDI_PROTOCOL_2_0: The device supports MIDI 2.0 features.
      * @note Applications can use this to decide whether to enable high-resolution UI controls.
+     *
+     * @since 24
      */
     OH_MIDIProtocol nativeProtocol;
 
     /**
      * @brief Device name.
+     *
+     * @since 24
      */
     char deviceName[256];
 
     /**
      * @brief Vendor ID.
+     *
+     * @since 24
      */
     uint64_t vendorId;
 
     /**
      * @brief Product ID.
+     *
+     * @since 24
      */
     uint64_t productId;
 
     /**
      * @brief Physical address (for BLE device).
+     *
+     * @since 24
      */
     char deviceAddress[64];
 } OH_MIDIDeviceInformation;
@@ -294,37 +382,49 @@ typedef struct {
 /**
  * @brief Port Information (Detailed)
  * Used for enumeration (contains display names).
+ *
  * @since 24
  */
 typedef struct {
     /**
      * @brief The index of the port.
+     *
+     * @since 24
      */
     uint32_t portIndex;
 
     /**
      * @brief The ID of the device this port belongs to.
+     *
+     * @since 24
      */
     int64_t deviceId;
 
     /**
      * @brief Direction of the port (Input/Output).
+     *
+     * @since 24
      */
     OH_MIDIPortDirection direction;
 
     /**
      * @brief Name of the port.
+     *
+     * @since 24
      */
     char name[64];
 } OH_MIDIPortInformation;
 
 /**
  * @brief Port Descriptor
+ *
  * @since 24
  */
 typedef struct {
     /**
      * @brief The unique ID of the port within the device (index).
+     *
+     * @since 24
      */
     uint32_t portIndex;
 
@@ -346,17 +446,23 @@ typedef struct {
      * - App sends UMP Type 4 (MIDI 2.0 Voice).
      * - Service **Down-converts** Type 4 to Type 2 (e.g., clipping Velocity, dropping Per-Note data).
      * - **Warning**: Data precision will be lost. Advanced messages may be dropped.
+     *
+     * @since 24
      */
     OH_MIDIProtocol protocol;
 } OH_MIDIPortDescriptor;
 
 /**
  * @brief Declare the midi client
+ *
+ * @since 24
  */
 typedef struct OH_MIDIClientStruct OH_MIDIClient;
 
 /**
  * @brief Declare the midi device
+ *
+ * @since 24
  */
 typedef struct OH_MIDIDeviceStruct OH_MIDIDevice;
 
@@ -366,6 +472,7 @@ typedef struct OH_MIDIDeviceStruct OH_MIDIDevice;
  * @param userData User context provided during client creation.
  * @param action Device change action (Connected/Disconnected).
  * @param deviceInfo Information of the changed device.
+ *
  * @since 24
  */
 typedef void (*OH_OnMIDIDeviceChange)(
@@ -386,6 +493,7 @@ typedef void (*OH_OnMIDIDeviceChange)(
  * @param userData User context provided during port opening.
  * @param events Pointer to the array of MIDI events received.
  * @param eventCount The number of events in the array.
+ *
  * @since 24
  */
 typedef void (*OH_OnMIDIReceived)(void *userData, const OH_MIDIEvent *events, size_t eventCount);
@@ -397,6 +505,7 @@ typedef void (*OH_OnMIDIReceived)(void *userData, const OH_MIDIEvent *events, si
  *
  * @param userData User context provided during client creation.
  * @param code The error code indicating the cause.
+ *
  * @since 24
  */
 typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
@@ -419,6 +528,7 @@ typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
  * Note: This object is valid ONLY within the scope of this callback.
  * If you need to persist specific attributes (e.g., ID or Name),
  * copy them using the Getter interfaces inside the callback.
+ *
  * @since 24
  */
 typedef void (*OH_MIDIOnDeviceOpened)(void *userData,
@@ -428,16 +538,21 @@ typedef void (*OH_MIDIOnDeviceOpened)(void *userData,
 
 /**
  * @brief Client callbacks structure
+ *
  * @since 24
  */
 typedef struct {
     /**
      * @brief Handler for device hotplug events.
+     *
+     * @since 24
      */
     OH_OnMIDIDeviceChange onDeviceChange;
 
     /**
      * @brief Handler for critical service errors.
+     *
+     * @since 24
      */
     OH_OnMIDIError onError;
 } OH_MIDICallbacks;

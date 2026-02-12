@@ -19,7 +19,6 @@
  * @brief Provide the definition of the C interface for the MIDI module.
  *
  * @since 24
- * @version 6.1
  */
 /**
  * @file native_midi.h
@@ -33,7 +32,6 @@
  * @syscap SystemCapability.Multimedia.Audio.MIDI
  * @kit AudioKit
  * @since 24
- * @version 6.1
  */
 
 #ifndef NATIVE_MIDI_H
