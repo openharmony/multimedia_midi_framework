@@ -163,14 +163,16 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
         infos.push_back({{DEVICE_ID, "1001"},
             {DEVICE_TYPE, "0"},
             {MIDI_PROTOCOL, "1"},
-            {PRODUCT_NAME, "Mock_Piano"},
-            {VENDOR_NAME, "MockVendor_1"},
+            {DEVICE_NAME, "Mock_Piano"},
+            {PRODUCT_ID, "1234"},
+            {VENDOR_ID, "MockVendor_1"},
             {ADDRESS, ""}});
         infos.push_back({{DEVICE_ID, "1002"},
             {DEVICE_TYPE, "1"},
             {MIDI_PROTOCOL, "1"},
-            {PRODUCT_NAME, "Mock_Drum"},
-            {VENDOR_NAME, "MockVendor_2"},
+            {DEVICE_NAME, "Mock_Drum"},
+            {PRODUCT_ID, "5678"},
+            {VENDOR_ID, "MockVendor_2"},
             {ADDRESS, "aabbcc"}});
         return MIDI_STATUS_OK;
     }));
@@ -192,14 +194,14 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[0].productName, "Mock_Piano");
-    EXPECT_STREQ(infoArray[0].vendorName, "MockVendor_1");
+    EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
+    EXPECT_STREQ(infoArray[0].vendorId, "MockVendor_1");
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[1].productName, "Mock_Drum");
-    EXPECT_STREQ(infoArray[1].vendorName, "MockVendor_2");
+    EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
+    EXPECT_STREQ(infoArray[1].vendorId, "MockVendor_2");
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 
@@ -215,14 +217,16 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
         infos.push_back({{DEVICE_ID, "1001"},
             {DEVICE_TYPE, "0"},
             {MIDI_PROTOCOL, "1"},
-            {PRODUCT_NAME, "Mock_Piano"},
-            {VENDOR_NAME, "MockVendor_1"},
+            {DEVICE_NAME, "Mock_Piano"},
+            {PRODUCT_ID, "1234"},
+            {VENDOR_ID, "MockVendor_1"},
             {ADDRESS, ""}});
         infos.push_back({{DEVICE_ID, "1002"},
             {DEVICE_TYPE, "1"},
             {MIDI_PROTOCOL, "1"},
-            {PRODUCT_NAME, "Mock_Drum"},
-            {VENDOR_NAME, "MockVendor_2"},
+            {DEVICE_NAME, "Mock_Drum"},
+            {PRODUCT_ID, "5678"},
+            {VENDOR_ID, "MockVendor_2"},
             {ADDRESS, "aabbcc"}});
         return MIDI_STATUS_OK;
     }));
@@ -230,7 +234,6 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     callbacks.onDeviceChange =
         [](void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo) {};
     callbacks.onError = [](void *userData, OH_MIDIStatusCode code) {
-
     };
     void *userData = nullptr;
     client->Init(callbacks, userData);
@@ -241,7 +244,23 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     // Should return insufficient space and update numDevices to required size
     EXPECT_EQ(status, MIDI_STATUS_INSUFFICIENT_RESULT_SPACE);
     EXPECT_EQ(numDevices, 2);
-
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
+        infos.push_back({{DEVICE_ID, "1001"},
+            {DEVICE_TYPE, "0"},
+            {MIDI_PROTOCOL, "1"},
+            {DEVICE_NAME, "Mock_Piano"},
+            {PRODUCT_ID, "1234"},
+            {VENDOR_ID, "MockVendor_1"},
+            {ADDRESS, ""}});
+        infos.push_back({{DEVICE_ID, "1002"},
+            {DEVICE_TYPE, "1"},
+            {MIDI_PROTOCOL, "1"},
+            {DEVICE_NAME, "Mock_Drum"},
+            {PRODUCT_ID, "5678"},
+            {VENDOR_ID, "MockVendor_2"},
+            {ADDRESS, "aabbcc"}});
+        return MIDI_STATUS_OK;
+    }));
     OH_MIDIDeviceInformation infoArray[2];
     status = client->GetDevices(infoArray, &numDevices);
 
@@ -251,14 +270,14 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[0].productName, "Mock_Piano");
-    EXPECT_STREQ(infoArray[0].vendorName, "MockVendor_1");
+    EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
+    EXPECT_STREQ(infoArray[0].vendorId, "MockVendor_1");
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
-    EXPECT_STREQ(infoArray[1].productName, "Mock_Drum");
-    EXPECT_STREQ(infoArray[1].vendorName, "MockVendor_2");
+    EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
+    EXPECT_STREQ(infoArray[1].vendorId, "MockVendor_2");
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 

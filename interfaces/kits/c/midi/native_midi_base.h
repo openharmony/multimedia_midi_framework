@@ -132,6 +132,12 @@ typedef enum {
     MIDI_STATUS_SERVICE_DIED,
 
     /**
+     * @error Permission denied.
+     * The application does not have the required permission to perform the operation.
+     */
+    MIDI_STATUS_PERMISSION_DENIED,
+
+    /**
      * @error Unknown system error.
      */
     MIDI_STATUS_UNKNOWN_ERROR = -1
@@ -263,14 +269,19 @@ typedef struct {
     OH_MIDIProtocol nativeProtocol;
 
     /**
-     * @brief Product name of the device.
+     * @brief Name of the device.
      */
-    char productName[256];
+    char deviceName[256];
 
     /**
-     * @brief Vendor name of the device.
+     * @brief Product id of the device.
      */
-    char vendorName[256];
+    char productId[256];
+
+    /**
+     * @brief Vendor id of the device.
+     */
+    char vendorId[256];
 
     /**
      * @brief Physical address or unique identifier.

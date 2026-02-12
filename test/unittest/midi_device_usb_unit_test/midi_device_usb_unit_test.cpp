@@ -126,8 +126,8 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
     EXPECT_EQ(expectedDeviceId, devInfo.driverDeviceId);
     EXPECT_EQ(DEVICE_TYPE_USB, devInfo.deviceType);
     EXPECT_EQ(static_cast<TransportProtocol>(expectedProtocol), devInfo.transportProtocol);
-    EXPECT_EQ("TestProduct", devInfo.productName);
-    EXPECT_EQ("TestVendor", devInfo.vendorName);
+    EXPECT_EQ("TestProduct", devInfo.productId);
+    EXPECT_EQ("TestVendor", devInfo.vendorId);
 
     ASSERT_EQ(2u, devInfo.portInfos.size());
 
