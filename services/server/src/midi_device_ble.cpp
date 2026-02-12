@@ -265,8 +265,10 @@ static void GetDeviceInfo(DeviceCtx &d)
     int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
     MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, d.deviceName.c_str());
+    uint16_t productId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
-        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(d.productId);
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(productId);
+    d.productId = std::to_string(productId);
     MIDI_INFO_LOG("err: %{public}d, productId: %{private}s", err, d.productId.c_str());
     uint16_t vendorId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
