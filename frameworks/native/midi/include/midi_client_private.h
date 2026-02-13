@@ -128,9 +128,7 @@ private:
     void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
     std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;
-    std::vector<OH_MIDIDeviceInformation> deviceInfos_;
     sptr<MidiClientCallback> callback_;
-    std::mutex mutex_;
 };
 } // namespace MIDI
 } // namespace OHOS

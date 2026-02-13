@@ -56,8 +56,9 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
         devInfo.driverDeviceId = device.deviceId;
         devInfo.deviceType = DEVICE_TYPE_USB;
         devInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
-        devInfo.productName = device.productName;
-        devInfo.vendorName = device.vendorName;
+        devInfo.deviceName = device.productName;
+        devInfo.productId = device.productName;
+        devInfo.vendorId = device.vendorName;
         devInfo.portInfos = ConvertToDeviceInformation(device);
         deviceInfos.push_back(devInfo);
     }

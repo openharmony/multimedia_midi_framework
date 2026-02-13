@@ -22,6 +22,7 @@
 #include "midi_utils.h"
 #include "midi_device_ble.h"
 #include "ump_processor.h"
+#include "bluetooth_host.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -138,18 +139,18 @@ static int64_t GetCurNano()
 }
 
 
-static std::vector<PortInformation> GetPortInfo()
+static std::vector<PortInformation> GetPortInfo(const std::string &deviceName)
 {
     std::vector<PortInformation> portInfos;
     PortInformation out{};
     out.portId = 0;
-    out.name = "BLE-MIDI Out";
+    out.name = deviceName + " Out";
     out.direction = PORT_DIRECTION_OUTPUT;
     out.transportProtocol = PROTOCOL_1_0;
     portInfos.push_back(out);
     PortInformation in{};
     in.portId = 1;
-    in.name =  "BLE-MIDI In";
+    in.name =  deviceName + " In";
     in.direction = PORT_DIRECTION_INPUT;
     in.transportProtocol = PROTOCOL_1_0;
     portInfos.push_back(in);
@@ -168,9 +169,10 @@ static void NotifyManager(DeviceCtx &d, bool success)
     devInfo.deviceType = DEVICE_TYPE_BLE;
     devInfo.transportProtocol = PROTOCOL_1_0;
     devInfo.address = d.address;
-    devInfo.productName = "";
-    devInfo.vendorName = "";
-    devInfo.portInfos = GetPortInfo();
+    devInfo.deviceName = d.deviceName;
+    devInfo.productId = d.productId;
+    devInfo.vendorId = d.vendorId;
+    devInfo.portInfos = GetPortInfo(d.deviceName);
     cb(success, devInfo);
 }
 
@@ -256,6 +258,23 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
         CHECK_AND_RETURN_RET(std::toupper(cu) == std::toupper(cc), false);
     }
     return true;
+}
+
+static void GetDeviceInfo(DeviceCtx &d)
+{
+    int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
+    MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, d.deviceName.c_str());
+    uint16_t productId = 0;
+    err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(productId);
+    d.productId = std::to_string(productId);
+    MIDI_INFO_LOG("err: %{public}d, productId: %{private}s", err, d.productId.c_str());
+    uint16_t vendorId = 0;
+    err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
+    d.vendorId = std::to_string(vendorId);
+    MIDI_INFO_LOG("err: %{public}d, vendorId: %{private}s", err, d.vendorId.c_str());
 }
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
@@ -357,6 +376,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         d.notifyEnabled = true;
         MIDI_INFO_LOG("BLE MIDI Device Fully Online. Notifying Manager.");
         // Copy device context before unlock to avoid dangling reference
+        GetDeviceInfo(d);
         DeviceCtx device = it->second;
         lock.unlock();
         // SUCCESS! This is the only place we confirm the device is open.
@@ -368,6 +388,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         g_cleanupDeviceAndNotifyFailure(lock, clientId);
     }
 }
+
 static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)
 {
     UmpProcessor processor;
@@ -405,15 +426,32 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
         }
     }
     CHECK_AND_RETURN(cb != nullptr);
-    std::ostringstream midiStream;
+    // Log raw BLE MIDI data
+    std::ostringstream bleStream;
     for (size_t i = 0; i < srcLen; i++) {
-        midiStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
+        bleStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
             static_cast<uint32_t>(src[i]) << " ";
     }
-    MIDI_INFO_LOG("midiStream 1.0: %{public}s", midiStream.str().c_str());
-    std::vector<MidiEventInner> events;
-    std::vector<uint32_t> midi2 = ParseUmpData(src, srcLen);
+    MIDI_INFO_LOG("BLE MIDI raw: %{public}s", bleStream.str().c_str());
+
+    // Step 1: Decode BLE MIDI to standard MIDI 1.0 byte stream
+    UmpProcessor processor;
+    std::vector<uint8_t> midi1Data = processor.DecodeBleMidi(src, srcLen);
+    CHECK_AND_RETURN_LOG(!midi1Data.empty(), "Failed to decode BLE MIDI data");
+
+    // Log decoded MIDI 1.0 data
+    std::ostringstream midi1Stream;
+    for (size_t i = 0; i < midi1Data.size(); i++) {
+        midi1Stream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
+            static_cast<uint32_t>(midi1Data[i]) << " ";
+    }
+    MIDI_INFO_LOG("MIDI 1.0 decoded: %{public}s", midi1Stream.str().c_str());
+    
+    // Step 2: Convert MIDI 1.0 to UMP
+    std::vector<uint32_t> midi2 = ParseUmpData(midi1Data.data(), midi1Data.size());
     CHECK_AND_RETURN_LOG(!midi2.empty(), "Failed to parse UMP data");
+    
+    std::vector<MidiEventInner> events;
     MidiEventInner event = {
         .timestamp = GetCurNano(),
         .length = midi2.size(),
@@ -472,9 +510,10 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
         devInfo.deviceType = DEVICE_TYPE_BLE;
         devInfo.transportProtocol = PROTOCOL_1_0;
         devInfo.address = d.address;
-        devInfo.productName = "";
-        devInfo.vendorName = "";
-        devInfo.portInfos = GetPortInfo();
+        devInfo.deviceName = d.deviceName;
+        devInfo.productId = d.productId;
+        devInfo.vendorId = d.vendorId;
+        devInfo.portInfos = GetPortInfo(d.deviceName);
         deviceInfos.push_back(devInfo);
         connectedCount++;
     }

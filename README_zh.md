@@ -225,7 +225,7 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation info) {
     if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         std::cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId
-                  << ", Name=" << info.productName << std::endl;
+                  << ", Name=" << info.productId << std::endl;
     } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
         std::cout << "[Hotplug] Device Disconnected: ID=" << info.midiDeviceId << std::endl;
     }

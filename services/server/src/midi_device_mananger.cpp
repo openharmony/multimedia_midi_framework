@@ -54,8 +54,9 @@ std::map<int32_t, std::string> MidiDeviceManager::ConvertDeviceInfo(const Device
     info[DEVICE_ID] = std::to_string(d.deviceId);
     info[DEVICE_TYPE] = std::to_string(d.deviceType);
     info[MIDI_PROTOCOL] = std::to_string(d.transportProtocol);
-    info[PRODUCT_NAME] = d.productName;
-    info[VENDOR_NAME] = d.vendorName;
+    info[DEVICE_NAME] = d.deviceName;
+    info[PRODUCT_ID] = d.productId;
+    info[VENDOR_ID] = d.vendorId;
     info[ADDRESS] = d.address;
     return info;
 }
@@ -189,7 +190,7 @@ void MidiDeviceManager::CompareDevices(
             MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 newDevice.deviceId,
                 newDevice.driverDeviceId,
-                newDevice.productName.c_str());
+                newDevice.productId.c_str());
         }
     }
 
@@ -203,7 +204,7 @@ void MidiDeviceManager::CompareDevices(
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 oldDevice.deviceId,
                 oldDevice.driverDeviceId,
-                oldDevice.productName.c_str());
+                oldDevice.productId.c_str());
         }
     }
     if (!removedDriverIds.empty()) {

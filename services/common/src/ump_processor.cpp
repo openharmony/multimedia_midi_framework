@@ -273,3 +273,35 @@ void UmpProcessor::DispatchSysExPacket(UmpCallback callback, uint8_t status_code
 
     callback({ w0, w1 });
 }
+
+std::vector<uint8_t> UmpProcessor::DecodeBleMidi(const uint8_t* src, size_t srcLen)
+{
+    std::vector<uint8_t> midi1;
+    if (srcLen < 1) {
+        return midi1;
+    }
+
+    bool lastByteWasTimestamp = false;
+
+    for (size_t i = 1; i < srcLen; ++i) {
+        uint8_t byte = src[i];
+
+        if (byte < 0x80) {
+            midi1.push_back(byte);
+            lastByteWasTimestamp = false;
+        } else {
+            if (byte >= 0xF8) {
+                midi1.push_back(byte);
+                continue;
+            }
+
+            if (lastByteWasTimestamp) {
+                midi1.push_back(byte);
+                lastByteWasTimestamp = false;
+            } else {
+                lastByteWasTimestamp = true;
+            }
+        }
+    }
+    return midi1;
+}
