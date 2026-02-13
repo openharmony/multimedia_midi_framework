@@ -65,7 +65,7 @@ extern "C" {
  * This occurs if the calling application exceeded its per-UID quota or the system is busy.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData);
+OH_MIDIStatusCode OH_MIDIClient_Create(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData);
 
 /**
  * @brief Destroy MIDI client and release resources
@@ -79,7 +79,7 @@ OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks c
  * but this is not a mandatory requirement.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client);
+OH_MIDIStatusCode OH_MIDIClient_Destroy(OH_MIDIClient *client);
 
 /**
  * @brief Get the number of connected MIDI devices.
@@ -94,7 +94,7 @@ OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIGetDeviceCount(OH_MIDIClient *client, size_t *count);
+OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *count);
 
 /**
  * @brief Get the information of connected MIDI devices.
@@ -117,10 +117,10 @@ OH_MIDIStatusCode OH_MIDIGetDeviceCount(OH_MIDIClient *client, size_t *count);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIGetDeviceInfos(OH_MIDIClient *client,
-                                        OH_MIDIDeviceInformation *infos,
-                                        size_t capacity,
-                                        size_t *actualNumDevices);
+OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
+                                               OH_MIDIDeviceInformation *infos,
+                                               size_t capacity,
+                                               size_t *actualNumDevices);
 
 /**
  * @brief Open MIDI device
@@ -135,7 +135,7 @@ OH_MIDIStatusCode OH_MIDIGetDeviceInfos(OH_MIDIClient *client,
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device);
+OH_MIDIStatusCode OH_MIDIClient_OpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device);
 
 /**
  * @brief Open MIDI BLE device asynchronously.
@@ -160,10 +160,10 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
  * before attempting to use the device handle.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client,
-                                       const char *deviceAddr,
-                                       OH_MIDIOnDeviceOpened callback,
-                                       void *userData);
+OH_MIDIStatusCode OH_MIDIClient_OpenBleDevice(OH_MIDIClient *client,
+                                               const char *deviceAddr,
+                                               OH_MIDIClient_OnDeviceOpened callback,
+                                               void *userData);
 
 /**
  * @brief Close MIDI device
@@ -175,7 +175,7 @@ OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client,
  * or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDICloseDevice(OH_MIDIDevice *device);
+OH_MIDIStatusCode OH_MIDIDevice_Close(OH_MIDIDevice *device);
 
 /**
  * @brief Get the number of ports for a specific MIDI device.
@@ -192,7 +192,7 @@ OH_MIDIStatusCode OH_MIDICloseDevice(OH_MIDIDevice *device);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIGetPortCount(OH_MIDIClient *client, int64_t deviceId, size_t *count);
+OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t deviceId, size_t *count);
 
 /**
  * @brief Get the port information of a specific MIDI device.
@@ -217,11 +217,11 @@ OH_MIDIStatusCode OH_MIDIGetPortCount(OH_MIDIClient *client, int64_t deviceId, s
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIGetPortInfos(OH_MIDIClient *client,
-                                      int64_t deviceId,
-                                      OH_MIDIPortInformation *infos,
-                                      size_t capacity,
-                                      size_t *actualNumPorts);
+OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
+                                             int64_t deviceId,
+                                             OH_MIDIPortInformation *infos,
+                                             size_t capacity,
+                                             size_t *actualNumPorts);
 
 /**
  * @brief Open MIDI input port (Receive Data)
@@ -240,8 +240,8 @@ OH_MIDIStatusCode OH_MIDIGetPortInfos(OH_MIDIClient *client,
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenInputPort(
-    OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor, OH_OnMIDIReceived callback, void *userData);
+OH_MIDIStatusCode OH_MIDIDevice_OpenInputPort(
+    OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor, OH_MIDIDevice_OnReceived callback, void *userData);
 
 /**
  * @brief Open MIDI output port (Send Data)
@@ -255,7 +255,7 @@ OH_MIDIStatusCode OH_MIDIOpenInputPort(
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIOpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor);
+OH_MIDIStatusCode OH_MIDIDevice_OpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor);
 
 /**
  * @brief Close MIDI input port
@@ -268,7 +268,7 @@ OH_MIDIStatusCode OH_MIDIOpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescri
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClosePort(OH_MIDIDevice *device, uint32_t portIndex);
+OH_MIDIStatusCode OH_MIDIDevice_ClosePort(OH_MIDIDevice *device, uint32_t portIndex);
 
 /**
  * @brief Send MIDI messages (Batch, Non-blocking & Atomic)
@@ -294,7 +294,7 @@ OH_MIDIStatusCode OH_MIDIClosePort(OH_MIDIDevice *device, uint32_t portIndex);
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDISend(
+OH_MIDIStatusCode OH_MIDIDevice_Send(
     OH_MIDIDevice *device, uint32_t portIndex, OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
 
 /**
@@ -322,7 +322,7 @@ OH_MIDIStatusCode OH_MIDISend(
  * or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDISendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
+OH_MIDIStatusCode OH_MIDIDevice_SendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
 
 /**
  * @brief Flush pending messages in output buffer
@@ -341,7 +341,7 @@ OH_MIDIStatusCode OH_MIDISendSysEx(OH_MIDIDevice *device, uint32_t portIndex, ui
  * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIFlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex);
+OH_MIDIStatusCode OH_MIDIDevice_FlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex);
 
 #ifdef __cplusplus
 }

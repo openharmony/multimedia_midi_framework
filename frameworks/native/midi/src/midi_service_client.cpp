@@ -31,7 +31,7 @@ namespace MIDI {
 static OH_MIDIStatusCode GetMidiStatusCode(int32_t statusCode)
 {
     auto ret = (OH_MIDIStatusCode)statusCode;
-    return (ret >= MIDI_STATUS_SYSTEM_ERROR && ret <= MIDI_STATUS_SERVICE_DIED) ? ret :
+    return (ret >= MIDI_STATUS_OK && ret < MIDI_STATUS_SYSTEM_ERROR) ? ret :
         MIDI_STATUS_GENERIC_IPC_FAILURE;
 }
 

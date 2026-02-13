@@ -21,7 +21,7 @@
 #include "midi_client.h"
 #include "midi_log.h"
 
-OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData)
+OH_MIDIStatusCode OH_MIDIClient_Create(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData)
 {
     CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "client is nullptr");
     OHOS::MIDI::MidiClient *midiclient = nullptr;
@@ -31,7 +31,7 @@ OH_MIDIStatusCode OH_MIDIClientCreate(OH_MIDIClient **client, OH_MIDICallbacks c
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client)
+OH_MIDIStatusCode OH_MIDIClient_Destroy(OH_MIDIClient *client)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "convert builder failed");
@@ -41,7 +41,7 @@ OH_MIDIStatusCode OH_MIDIClientDestroy(OH_MIDIClient *client)
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIGetDeviceCount(OH_MIDIClient *client, size_t *count)
+OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *count)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
@@ -51,7 +51,7 @@ OH_MIDIStatusCode OH_MIDIGetDeviceCount(OH_MIDIClient *client, size_t *count)
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIGetDeviceInfos(OH_MIDIClient *client,
+OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
                                         OH_MIDIDeviceInformation *infos,
                                         size_t capacity,
                                         size_t *actualNumDevices)
@@ -68,7 +68,7 @@ OH_MIDIStatusCode OH_MIDIGetDeviceInfos(OH_MIDIClient *client,
     return ret;
 }
 
-OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device)
+OH_MIDIStatusCode OH_MIDIClient_OpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
@@ -83,7 +83,7 @@ OH_MIDIStatusCode OH_MIDIOpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIOnDeviceOpened callback,
+OH_MIDIStatusCode OH_MIDIClient_OpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIClient_OnDeviceOpened callback,
     void *userData)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient*) client;
@@ -97,7 +97,7 @@ OH_MIDIStatusCode OH_MIDIOpenBleDevice(OH_MIDIClient *client, const char *device
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDICloseDevice(OH_MIDIDevice *device)
+OH_MIDIStatusCode OH_MIDIDevice_Close(OH_MIDIDevice *device)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid deivce");
@@ -107,7 +107,7 @@ OH_MIDIStatusCode OH_MIDICloseDevice(OH_MIDIDevice *device)
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIGetPortCount(OH_MIDIClient *client, int64_t deviceId, size_t *count)
+OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t deviceId, size_t *count)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
@@ -116,7 +116,7 @@ OH_MIDIStatusCode OH_MIDIGetPortCount(OH_MIDIClient *client, int64_t deviceId, s
     return midiclient->GetDevicePorts(deviceId, nullptr, count);
 }
 
-OH_MIDIStatusCode OH_MIDIGetPortInfos(OH_MIDIClient *client,
+OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
                                       int64_t deviceId,
                                       OH_MIDIPortInformation *infos,
                                       size_t capacity,
@@ -134,8 +134,8 @@ OH_MIDIStatusCode OH_MIDIGetPortInfos(OH_MIDIClient *client,
     return ret;
 }
 
-OH_MIDIStatusCode OH_MIDIOpenInputPort(
-    OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor, OH_OnMIDIReceived callback, void *userData)
+OH_MIDIStatusCode OH_MIDIDevice_OpenInputPort(
+    OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor, OH_MIDIDevice_OnReceived callback, void *userData)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
@@ -147,7 +147,7 @@ OH_MIDIStatusCode OH_MIDIOpenInputPort(
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIOpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor)
+OH_MIDIStatusCode OH_MIDIDevice_OpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
@@ -157,7 +157,7 @@ OH_MIDIStatusCode OH_MIDIOpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescri
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIClosePort(OH_MIDIDevice *device, uint32_t portIndex)
+OH_MIDIStatusCode OH_MIDIDevice_ClosePort(OH_MIDIDevice *device, uint32_t portIndex)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
@@ -167,7 +167,7 @@ OH_MIDIStatusCode OH_MIDIClosePort(OH_MIDIDevice *device, uint32_t portIndex)
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDISend(
+OH_MIDIStatusCode OH_MIDIDevice_Send(
     OH_MIDIDevice *device, uint32_t portIndex, OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
@@ -177,7 +177,7 @@ OH_MIDIStatusCode OH_MIDISend(
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDISendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize)
+OH_MIDIStatusCode OH_MIDIDevice_SendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
@@ -187,7 +187,7 @@ OH_MIDIStatusCode OH_MIDISendSysEx(OH_MIDIDevice *device, uint32_t portIndex, ui
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIFlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex)
+OH_MIDIStatusCode OH_MIDIDevice_FlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");

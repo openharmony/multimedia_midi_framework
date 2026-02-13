@@ -85,7 +85,7 @@ static bool ConvertToDeviceInformation(
     return true;
 }
 MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-    OH_MIDIOnDeviceOpened callback, void *userData)
+    OH_MIDIClient_OnDeviceOpened callback, void *userData)
     : ipc_(midiServiceInterface), callback_(callback), userData_(userData)
 {
 }
@@ -187,7 +187,7 @@ OH_MIDIStatusCode MidiDevicePrivate::CloseDevice()
 }
 
 OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descriptor,
-    OH_OnMIDIReceived callback, void *userData)
+    OH_MIDIDevice_OnReceived callback, void *userData)
 {
     std::lock_guard<std::mutex> lock(inputPortsMutex_);
     auto ipc = ipc_.lock();
@@ -252,7 +252,7 @@ OH_MIDIStatusCode MidiDevicePrivate::FlushOutputPort(uint32_t portIndex)
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
     auto ipc = ipc_.lock();
     auto iter = outputPortsMap_.find(portIndex);
-    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT, "invalid port");
     auto ret = ipc->FlushOutputPort(deviceId_, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open outputport fail");
@@ -284,7 +284,7 @@ OH_MIDIStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
     return MIDI_STATUS_OK;
 }
 
-MidiInputPort::MidiInputPort(OH_OnMIDIReceived callback, void *userData, OH_MIDIProtocol protocol)
+MidiInputPort::MidiInputPort(OH_MIDIDevice_OnReceived callback, void *userData, OH_MIDIProtocol protocol)
     : callback_(callback), userData_(userData), protocol_(protocol)
 {
     MIDI_INFO_LOG("InputPort created");
@@ -475,7 +475,7 @@ int32_t MidiOutputPort::SendSysExPackets(const std::vector<MidiEventInner> &inne
                 continue;
             }
             if (wret != FUTEX_SUCCESS) {
-                return MIDI_STATUS_UNKNOWN_ERROR;
+                return MIDI_STATUS_SYSTEM_ERROR;
             }
         }
         continue;
@@ -597,7 +597,7 @@ OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **m
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address, OH_MIDIOnDeviceOpened callback, void *userData)
+OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback, void *userData)
 {
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto deivceOpenCallback = sptr<MidiClientDeviceOpenCallback>::MakeSptr(ipc_, callback, userData);

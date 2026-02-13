@@ -83,7 +83,7 @@ static void SendMidiNote(OH_MIDIDevice *device, int8_t portIndex)
     event.data = noteOnMsg;
 
     uint32_t written = 0;
-    int ret = OH_MIDISend(device, portIndex, &event, 1, &written);
+    int ret = OH_MIDIDevice_Send(device, portIndex, &event, 1, &written);
     if (ret == MIDI_STATUS_OK) {
         cout << "[Tx] Note On sent to port " << static_cast<int>(portIndex) << endl;
     } else {
@@ -94,7 +94,7 @@ static void SendMidiNote(OH_MIDIDevice *device, int8_t portIndex)
 
     uint32_t noteOffMsg[1] = {NOTE_OFF_MSG};
     event.data = noteOffMsg;
-    OH_MIDISend(device, portIndex, &event, 1, &written);
+    OH_MIDIDevice_Send(device, portIndex, &event, 1, &written);
     cout << "[Tx] Note Off sent to port " << static_cast<int>(portIndex) << endl;
 }
 
@@ -102,26 +102,26 @@ static void SendMidiNote(OH_MIDIDevice *device, int8_t portIndex)
 static void SetupPorts(OH_MIDIClient *client, OH_MIDIDevice *device, int64_t deviceId, vector<int> &outOpenedPorts)
 {
     size_t portCount = 0;
-    OH_MIDIGetPortCount(client, deviceId, &portCount);
+    OH_MIDIClient_GetPortCount(client, deviceId, &portCount);
     if (portCount == 0) {
         return;
     }
 
     vector<OH_MIDIPortInformation> ports(portCount);
     size_t actualNumPorts = 0;
-    OH_MIDIGetPortInfos(client, deviceId, ports.data(), portCount, &actualNumPorts);
+    OH_MIDIClient_GetPortInfos(client, deviceId, ports.data(), portCount, &actualNumPorts);
 
     for (size_t i = 0; i < actualNumPorts; ++i) {
         const auto &port = ports[i];
         OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_VERSION};
 
         if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
-            if (OH_MIDIOpenInputPort(device, desc, OnMidiReceived, nullptr) == MIDI_STATUS_OK) {
+            if (OH_MIDIDevice_OpenInputPort(device, desc, OnMidiReceived, nullptr) == MIDI_STATUS_OK) {
                 cout << "Input Port " << port.portIndex << " opened (Listening...)" << endl;
                 outOpenedPorts.push_back(port.portIndex);
             }
         } else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
-            if (OH_MIDIOpenOutputPort(device, desc) == MIDI_STATUS_OK) {
+            if (OH_MIDIDevice_OpenOutputPort(device, desc) == MIDI_STATUS_OK) {
                 cout << "Output Port " << port.portIndex << " opened." << endl;
                 outOpenedPorts.push_back(port.portIndex);
                 SendMidiNote(device, port.portIndex);
@@ -138,31 +138,31 @@ static int RunMidiDemo()
     OH_MIDIClient *client = nullptr;
     OH_MIDICallbacks callbacks = {OnDeviceChange, OnError};
 
-    if (OH_MIDIClientCreate(&client, callbacks, nullptr) != MIDI_STATUS_OK) {
+    if (OH_MIDIClient_Create(&client, callbacks, nullptr) != MIDI_STATUS_OK) {
         cout << "Failed to create MIDI client." << endl;
         return -1;
     }
 
     size_t devCount = 0;
-    OH_MIDIGetDeviceCount(client, &devCount);
+    OH_MIDIClient_GetDeviceCount(client, &devCount);
     if (devCount == 0) {
         cout << "No MIDI devices found." << endl;
-        OH_MIDIClientDestroy(client);
+        OH_MIDIClient_Destroy(client);
         return 0;
     }
 
     vector<OH_MIDIDeviceInformation> devices(devCount);
     size_t actualNumDevices = 0;
-    OH_MIDIGetDeviceInfos(client, devices.data(), devCount, &actualNumDevices);
+    OH_MIDIClient_GetDeviceInfos(client, devices.data(), devCount, &actualNumDevices);
 
     // 默认操作第一个设备
     int64_t targetDeviceId = devices[0].midiDeviceId;
     cout << "Opening Device: " << devices[0].deviceName << " (ID: " << targetDeviceId << ")" << endl;
 
     OH_MIDIDevice *device = nullptr;
-    if (OH_MIDIOpenDevice(client, targetDeviceId, &device) != MIDI_STATUS_OK || !device) {
+    if (OH_MIDIClient_OpenDevice(client, targetDeviceId, &device) != MIDI_STATUS_OK || !device) {
         cout << "Failed to open device." << endl;
-        OH_MIDIClientDestroy(client);
+        OH_MIDIClient_Destroy(client);
         return -1;
     }
 
@@ -175,10 +175,10 @@ static int RunMidiDemo()
 
     cout << "Cleaning up..." << endl;
     for (int portIndex : openedPorts) {
-        OH_MIDIClosePort(device, portIndex);
+        OH_MIDIDevice_ClosePort(device, portIndex);
     }
-    OH_MIDICloseDevice(device);
-    OH_MIDIClientDestroy(client);
+    OH_MIDIDevice_Close(device);
+    OH_MIDIClient_Destroy(client);
 
     cout << "MIDI Demo End." << endl;
     return 0;

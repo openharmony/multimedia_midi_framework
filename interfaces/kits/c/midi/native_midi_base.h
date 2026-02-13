@@ -475,7 +475,7 @@ typedef struct OH_MIDIDeviceStruct OH_MIDIDevice;
  *
  * @since 24
  */
-typedef void (*OH_OnMIDIDeviceChange)(
+typedef void (*OH_MIDICallback_OnDeviceChange)(
     void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo);
 
 /**
@@ -496,7 +496,7 @@ typedef void (*OH_OnMIDIDeviceChange)(
  *
  * @since 24
  */
-typedef void (*OH_OnMIDIReceived)(void *userData, const OH_MIDIEvent *events, size_t eventCount);
+typedef void (*OH_MIDIDevice_OnReceived)(void *userData, const OH_MIDIEvent *events, size_t eventCount);
 
 /**
  * @brief Callback for handling client-level errors
@@ -508,7 +508,7 @@ typedef void (*OH_OnMIDIReceived)(void *userData, const OH_MIDIEvent *events, si
  *
  * @since 24
  */
-typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
+typedef void (*OH_MIDICallback_OnError)(void *userData, OH_MIDIStatusCode code);
 
 /**
  * @brief Callback for asynchronous BLE device connection result.
@@ -516,13 +516,13 @@ typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
  * This callback is invoked when the BLE connection attempt finishes, either successfully
  * or with a failure.
  *
- * @param userData The user context pointer passed to {@link OH_MIDIOpenBLEDevice}.
+ * @param userData The user context pointer passed to {@link OH_MIDIClient_OpenBleDevice}.
  * @param opened Indicates whether the connection was successful.
  * true: Connection established, device handle is valid.
  * false: Connection failed, device handle is NULL.
  * @param device The handle of the connected device.
  * If opened is true, the application MUST close this handle using
- * {@link OH_MIDICloseDevice} when it is no longer needed.
+ * {@link OH_MIDIDevice_Close} when it is no longer needed.
  * If opened is false, this parameter is NULL.
  * @param info The information of the connected device.
  * Note: This object is valid ONLY within the scope of this callback.
@@ -531,10 +531,10 @@ typedef void (*OH_OnMIDIError)(void *userData, OH_MIDIStatusCode code);
  *
  * @since 24
  */
-typedef void (*OH_MIDIOnDeviceOpened)(void *userData,
-                                      bool opened,
-                                      OH_MIDIDevice *device,
-                                      OH_MIDIDeviceInformation info);
+typedef void (*OH_MIDIClient_OnDeviceOpened)(void *userData,
+                                             bool opened,
+                                             OH_MIDIDevice *device,
+                                             OH_MIDIDeviceInformation info);
 
 /**
  * @brief Client callbacks structure
@@ -547,14 +547,14 @@ typedef struct {
      *
      * @since 24
      */
-    OH_OnMIDIDeviceChange onDeviceChange;
+    OH_MIDICallback_OnDeviceChange onDeviceChange;
 
     /**
      * @brief Handler for critical service errors.
      *
      * @since 24
      */
-    OH_OnMIDIError onError;
+    OH_MIDICallback_OnError onError;
 } OH_MIDICallbacks;
 
 #ifdef __cplusplus

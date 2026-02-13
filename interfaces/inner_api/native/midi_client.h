@@ -24,7 +24,7 @@ public:
     virtual ~MidiDevice() = default;
     virtual OH_MIDIStatusCode CloseDevice();
     virtual OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
-                                                OH_OnMIDIReceived callback, void *userData);
+                                                OH_MIDIDevice_OnReceived callback, void *userData);
     virtual OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor);
     virtual OH_MIDIStatusCode ClosePort(uint32_t portIndex);
     virtual OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
@@ -40,7 +40,7 @@ public:
     virtual OH_MIDIStatusCode Init(OH_MIDICallbacks callbacks, void *userData);
     virtual OH_MIDIStatusCode GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices);
     virtual OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice);
-    virtual OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIOnDeviceOpened callback, void *userData);
+    virtual OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback, void *userData);
     virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts);
     virtual OH_MIDIStatusCode DestroyMidiClient();
 };

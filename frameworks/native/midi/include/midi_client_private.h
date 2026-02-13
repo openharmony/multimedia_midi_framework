@@ -41,18 +41,18 @@ class MidiClientCallback;
 class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
 public:
     MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-        OH_MIDIOnDeviceOpened callback, void *userData);
+        OH_MIDIClient_OnDeviceOpened callback, void *userData);
     ~MidiClientDeviceOpenCallback() = default;
     int32_t NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo) override;
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
-    OH_MIDIOnDeviceOpened callback_;
+    OH_MIDIClient_OnDeviceOpened callback_;
     void *userData_;
 };
     
 class MidiInputPort {
 public:
-    MidiInputPort(OH_OnMIDIReceived callback, void *userData, OH_MIDIProtocol protocol);
+    MidiInputPort(OH_MIDIDevice_OnReceived callback, void *userData, OH_MIDIProtocol protocol);
     ~MidiInputPort();
     std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 
@@ -67,7 +67,7 @@ private:
     bool ShouldWakeForReadOrExit() const;
 
     std::atomic<bool> running_ = false;
-    OH_OnMIDIReceived callback_ = nullptr;
+    OH_MIDIDevice_OnReceived callback_ = nullptr;
     std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
     std::thread receiverThread_;
     void *userData_ = nullptr;
@@ -97,7 +97,7 @@ public:
     virtual ~MidiDevicePrivate();
     OH_MIDIStatusCode CloseDevice() override;
     OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
-                                    OH_OnMIDIReceived callback, void *userData) override;
+                                    OH_MIDIDevice_OnReceived callback, void *userData) override;
     OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor) override;
     OH_MIDIStatusCode ClosePort(uint32_t portIndex) override;
     OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
@@ -121,7 +121,7 @@ public:
     OH_MIDIStatusCode Init(OH_MIDICallbacks callbacks, void *userData) override;
     OH_MIDIStatusCode GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices) override;
     OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
-    OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIOnDeviceOpened callback, void *userData) override;
+    OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback, void *userData) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
 private:
