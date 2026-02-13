@@ -69,19 +69,12 @@ static bool ConvertToDeviceInformation(
 
     it = deviceInfo.find(PRODUCT_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productId error");
-    CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.productId, sizeof(outInfo.productId), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
-        false,
-        "copy productId failed");
+    outInfo.productId = StringToNum(it->second);
 
     it = deviceInfo.find(VENDOR_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorId error");
-    CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.vendorId, sizeof(outInfo.vendorId), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
-        false,
-        "copy vendorId failed");
+    outInfo.vendorId = StringToNum(it->second);
+
     it = deviceInfo.find(ADDRESS);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
     CHECK_AND_RETURN_RET_LOG(
@@ -89,10 +82,6 @@ static bool ConvertToDeviceInformation(
             MIDI_STATUS_OK,
         false,
         "copy deviceAddress failed");
-
-    // vendorId and productId are temporarily set to 0
-    outInfo.vendorId = 0;
-    outInfo.productId = 0;
 
     return true;
 }
@@ -165,7 +154,7 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<in
 
     OH_MIDIDeviceInformation info;
     bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_UNKNOWN_ERROR, "ConvertToDeviceInformation failed");
+    CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
 
     callbacks_.onDeviceChange(userData_, static_cast<OH_MIDIDeviceChangeAction>(change), info);
     return 0;
@@ -541,7 +530,7 @@ MidiClientPrivate::~MidiClientPrivate()
 
 OH_MIDIStatusCode MidiClientPrivate::Init(OH_MIDICallbacks callbacks, void *userData)
 {
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     callback_ = sptr<MidiClientCallback>::MakeSptr(callbacks, userData);
     auto ret = ipc_->Init(callback_, clientId_);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
@@ -550,7 +539,7 @@ OH_MIDIStatusCode MidiClientPrivate::Init(OH_MIDICallbacks callbacks, void *user
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices)
 {
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     
     std::vector<std::map<int32_t, std::string>> deviceInfos;
     auto ret = ipc_->GetDevices(deviceInfos);
