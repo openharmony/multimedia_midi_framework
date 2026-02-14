@@ -575,7 +575,8 @@ OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **m
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback, void *userData)
+OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address,
+    OH_MIDIClient_OnDeviceOpened callback, void *userData)
 {
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto deivceOpenCallback = sptr<MidiClientDeviceOpenCallback>::MakeSptr(ipc_, callback, userData);

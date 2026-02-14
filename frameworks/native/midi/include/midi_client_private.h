@@ -122,7 +122,8 @@ public:
     OH_MIDIStatusCode Init(OH_MIDICallbacks callbacks, void *userData) override;
     OH_MIDIStatusCode GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices) override;
     OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDevice **midiDevice) override;
-    OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback, void *userData) override;
+    OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback,
+        void *userData) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
 private:
