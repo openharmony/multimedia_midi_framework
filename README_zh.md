@@ -94,7 +94,7 @@ MIDI 服务采用 **“按需启动、自动退出”** 的策略，以降低系
 * **BLE MIDI 设备流程**:
   1. **主动发现**: **MIDI APP** 调用[系统蓝牙接口](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/connectivity/bluetooth/ble-development-guide.md)（`@ohos.bluetooth.ble`的`startBLEScan`）启动扫描，根据 UUID 过滤出 BLE MIDI 外设。
      * **MIDI Service UUID**: `03B80E5A-EDE8-4B33-A751-6CE34EC4C700` (参照 [Bluetooth Low Energy MIDI Specification](https://midi.org/midi-over-bluetooth-low-energy-ble-midi))
-  2. **接入服务**: APP 获取 MAC 地址后，调用 `OH_MIDIClient_OpenBleDevice` 并传入回调函数。
+  2. **接入服务**: APP 获取 MAC 地址后，调用 `OH_MIDIClient_OpenBLEDevice` 并传入回调函数。
   3. **建立连接**: 客户端请求服务端 -> 服务端 **MIDI 设备管理** 识别为 BLE 请求 -> 调度 **蓝牙 MIDI 适配** 模块 -> 调用 **蓝牙服务** 建立 GATT 连接。
   4. **异步回调**: 连接完成后，系统调用 `OH_MIDIClient_OnDeviceOpened` 回调通知 APP 连接结果。若成功，APP 获得设备句柄，可进行后续端口操作。
   5. **统一管理**: 连接成功后，该 BLE 设备被纳入 **MIDI 设备管理** 模块的通用列表，APP 可像操作 USB 设备一样对其进行端口操作。
@@ -189,7 +189,7 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 | **OH_MIDIClient_GetPortCount**       | 获取指定设备的端口数量。                                             |
 | **OH_MIDIClient_GetPortInfos**       | 获取指定设备的端口信息。                                             |
 | **OH_MIDIClient_OpenDevice**         | 打开指定的MIDI设备，建立连接会话。                                   |
-| **OH_MIDIClient_OpenBleDevice**      | 异步打开指定的BLE MIDI设备，建立连接会话。                           |
+| **OH_MIDIClient_OpenBLEDevice**      | 异步打开指定的BLE MIDI设备，建立连接会话。                           |
 | **OH_MIDIDevice_Close**        | 关闭已打开的MIDI设备，断开连接。                                     |
 | **OH_MIDIDevice_OpenInputPort**      | 打开设备的指定输入端口，准备接收MIDI数据。                           |
 | **OH_MIDIDevice_OpenOutputPort**     | 打开设备的指定输出端口，准备发送MIDI数据。                           |
@@ -346,7 +346,7 @@ void MIDIDemo() {
 
 * **数据格式**：`OH_MIDIEvent` 中的 `data` 指针类型为 `uint32_t*`。在处理 MIDI 2.0 (UMP) 数据时，每个 UMP 数据包由 1 至 4 个 32 位字组成。
 * **内存获取模式**：`OH_MIDIClient_GetDeviceInfos` 和 `OH_MIDIClient_GetPortInfos` 采用"分步调用"模式。先调用 `OH_MIDIClient_GetDeviceCount` / `OH_MIDIClient_GetPortCount` 获取数量，再调用 `OH_MIDIClient_GetDeviceInfos` / `OH_MIDIClient_GetPortInfos` 填充缓冲区获取实际数据。注意检查实际写入的记录数以处理竞态条件。
-* **BLE 设备异步连接**：`OH_MIDIClient_OpenBleDevice` 采用异步回调模式。应用需要实现 `OH_MIDIClient_OnDeviceOpened` 回调来接收连接结果，并在成功时关闭设备句柄。
+* **BLE 设备异步连接**：`OH_MIDIClient_OpenBLEDevice` 采用异步回调模式。应用需要实现 `OH_MIDIClient_OnDeviceOpened` 回调来接收连接结果，并在成功时关闭设备句柄。
 * **非阻塞发送**：`OH_MIDIDevice_Send` 为非阻塞接口。如果底层缓冲区已满，该接口可能只发送部分数据，请务必检查 `eventsWritten` 返回值。
 * **回调限制**：`OnMIDIReceived` 和 `OnDeviceChange` 回调函数运行在非 UI 线程，请勿直接在回调中执行耗时操作或操作 UI 控件。
 

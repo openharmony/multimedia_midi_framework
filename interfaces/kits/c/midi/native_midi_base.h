@@ -23,7 +23,7 @@
 /**
  * @file native_midi_base.h
  *
- * @brief Declares underlying data structure for MIDI module.
+ * @brief Declares the underlying data structure for MIDI module.
  *
  * @library libohmidi.so
  * @syscap SystemCapability.Multimedia.Audio.MIDI
@@ -171,7 +171,7 @@ typedef enum {
     MIDI_STATUS_SERVICE_DIED = 35500015,
 
     /**
-     * @error System-level error such as insufficient memory or system service failure.
+     * @error System-level errors such as insufficient memory or system service failure.
      *
      * @since 24
      */
@@ -217,7 +217,7 @@ typedef enum {
      * - **MT 0x1**: System Real Time and System Common Messages.
      * - **MT 0x2**: MIDI 1.0 Channel Voice Messages (32-bit).
      * - **MT 0x3**: Data Messages (64-bit) used for SysEx (7-bit payload).
-     * - If the target hardware is MIDI 1.0: The service converts UMP back to byte Stream (F0...F7).
+     * - If the target hardware is MIDI 1.0: The service converts UMP back to byte stream (F0...F7).
      * - If the target hardware is MIDI 2.0: The service sends these packets as-is (encapsulated MIDI 1.0).
      *
      * @since 24
@@ -287,7 +287,7 @@ typedef enum {
 
 /**
  * @brief MIDI Event Structure (Universal).
- * Designed to handle both raw byte Stream (MIDI 1.0) and UMP.
+ * Designed to handle both raw byte stream (MIDI 1.0) and UMP.
  *
  * @since 24
  */
@@ -512,23 +512,22 @@ typedef void (*OH_MIDIDevice_OnReceived)(void *userData, const OH_MIDIEvent *eve
 typedef void (*OH_MIDICallback_OnError)(void *userData, OH_MIDIStatusCode code);
 
 /**
- * @brief Callback for asynchronous BLE device connection result.
+ * @brief Callback for the result of asynchronously opening a BLE device.
  *
- * This callback is invoked when the BLE connection attempt finishes, either successfully
+ * This callback is invoked when the BLE device open attempt finishes, either successfully
  * or with a failure.
  *
- * @param userData The user context pointer passed to {@link OH_MIDIClient_OpenBleDevice}.
- * @param opened Indicates whether the connection was successful.
- * true: Connection established, device handle is valid.
- * false: Connection failed, device handle is NULL.
- * @param device The handle of the connected device.
+ * @param userData The user context pointer passed to {@link OH_MIDIOpenBLEDevice}.
+ * @param opened Indicates whether the device was successfully opened.
+ * true: Device successfully opened, device handle is valid.
+ * false: Device open failed, device handle is NULL.
+ * @param device The handle of the opened device.
  * If opened is true, the application MUST close this handle using
- * {@link OH_MIDIDevice_Close} when it is no longer needed.
+ * {@link OH_MIDIClient_CloseDevice} when it is no longer needed.
  * If opened is false, this parameter is NULL.
- * @param info The information of the connected device.
+ * @param info The information of the opened device.
  * Note: This object is valid ONLY within the scope of this callback.
- * If you need to persist specific attributes (e.g., ID or Name),
- * copy them using the Getter interfaces inside the callback.
+ * If you need to persist specific attributes (e.g., ID or Name), copy them.
  *
  * @since 24
  */

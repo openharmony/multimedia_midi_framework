@@ -83,7 +83,7 @@ OH_MIDIStatusCode OH_MIDIClient_OpenDevice(OH_MIDIClient *client, int64_t device
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIClient_OpenBleDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIClient_OnDeviceOpened callback,
+OH_MIDIStatusCode OH_MIDIClient_OpenBLEDevice(OH_MIDIClient *client, const char *deviceAddr, OH_MIDIClient_OnDeviceOpened callback,
     void *userData)
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient*) client;
