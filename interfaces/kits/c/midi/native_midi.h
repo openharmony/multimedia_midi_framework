@@ -161,9 +161,9 @@ OH_MIDIStatusCode OH_MIDIClient_OpenDevice(OH_MIDIClient *client, int64_t device
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClient_OpenBleDevice(OH_MIDIClient *client,
-                                               const char *deviceAddr,
-                                               OH_MIDIClient_OnDeviceOpened callback,
-                                               void *userData);
+                                              const char *deviceAddr,
+                                              OH_MIDIClient_OnDeviceOpened callback,
+                                              void *userData);
 
 /**
  * @brief Closes MIDI device.
