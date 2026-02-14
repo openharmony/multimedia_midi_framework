@@ -99,7 +99,8 @@ public:
     OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
                                     OH_MIDIDevice_OnReceived callback, void *userData) override;
     OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor) override;
-    OH_MIDIStatusCode ClosePort(uint32_t portIndex) override;
+    OH_MIDIStatusCode CloseInputPort(uint32_t portIndex) override;
+    OH_MIDIStatusCode CloseOutputPort(uint32_t portIndex) override;
     OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
                             uint32_t eventCount, uint32_t *eventsWritten) override;
     OH_MIDIStatusCode SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize) override;

@@ -175,7 +175,8 @@ static int RunMidiDemo()
 
     cout << "Cleaning up..." << endl;
     for (int portIndex : openedPorts) {
-        OH_MIDIDevice_ClosePort(device, portIndex);
+        OH_MIDIDevice_CloseInputPort(device, portIndex);
+        OH_MIDIDevice_CloseOutputPort(device, portIndex);
     }
     OH_MIDIDevice_Close(device);
     OH_MIDIClient_Destroy(client);

@@ -157,13 +157,23 @@ OH_MIDIStatusCode OH_MIDIDevice_OpenOutputPort(OH_MIDIDevice *device, OH_MIDIPor
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode OH_MIDIDevice_ClosePort(OH_MIDIDevice *device, uint32_t portIndex)
+OH_MIDIStatusCode OH_MIDIDevice_CloseInputPort(OH_MIDIDevice *device, uint32_t portIndex)
 {
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
 
-    OH_MIDIStatusCode ret = midiDevice->ClosePort(portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "ClosePort failed");
+    OH_MIDIStatusCode ret = midiDevice->CloseInputPort(portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CloseInputPort failed");
+    return MIDI_STATUS_OK;
+}
+
+OH_MIDIStatusCode OH_MIDIDevice_CloseOutputPort(OH_MIDIDevice *device, uint32_t portIndex)
+{
+    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid device");
+
+    OH_MIDIStatusCode ret = midiDevice->CloseOutputPort(portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "CloseOutputPort failed");
     return MIDI_STATUS_OK;
 }
 

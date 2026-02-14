@@ -26,7 +26,8 @@ public:
     virtual OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
                                                 OH_MIDIDevice_OnReceived callback, void *userData);
     virtual OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor);
-    virtual OH_MIDIStatusCode ClosePort(uint32_t portIndex);
+    virtual OH_MIDIStatusCode CloseInputPort(uint32_t portIndex);
+    virtual OH_MIDIStatusCode CloseOutputPort(uint32_t portIndex);
     virtual OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
                                     uint32_t eventCount, uint32_t *eventsWritten);
     virtual OH_MIDIStatusCode SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize);

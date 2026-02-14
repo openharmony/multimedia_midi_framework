@@ -258,28 +258,33 @@ OH_MIDIStatusCode MidiDevicePrivate::FlushOutputPort(uint32_t portIndex)
     return MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
+OH_MIDIStatusCode MidiDevicePrivate::CloseInputPort(uint32_t portIndex)
 {
     auto ipc = ipc_.lock();
     CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
-    OH_MIDIStatusCode ret = MIDI_STATUS_INVALID_PORT;
-    {
-        std::lock_guard<std::mutex> lock(inputPortsMutex_);
-        auto it = inputPortsMap_.find(portIndex);
-        if (it != inputPortsMap_.end()) {
-            ret = ipc->CloseInputPort(deviceId_, portIndex);
-            inputPortsMap_.erase(it);
-        }
-    }
-    {
-        std::lock_guard<std::mutex> lock(outputPortsMutex_);
-        auto it = outputPortsMap_.find(portIndex);
-        if (it != outputPortsMap_.end()) {
-            ret = ipc->CloseOutputPort(deviceId_, portIndex);
-            outputPortsMap_.erase(it);
-        }
-    }
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close port fail");
+
+    std::lock_guard<std::mutex> lock(inputPortsMutex_);
+    auto it = inputPortsMap_.find(portIndex);
+    CHECK_AND_RETURN_RET_LOG(it != inputPortsMap_.end(), MIDI_STATUS_INVALID_PORT, "invalid input port");
+
+    auto ret = ipc->CloseInputPort(deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail");
+    inputPortsMap_.erase(it);
+    return MIDI_STATUS_OK;
+}
+
+OH_MIDIStatusCode MidiDevicePrivate::CloseOutputPort(uint32_t portIndex)
+{
+    auto ipc = ipc_.lock();
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
+
+    std::lock_guard<std::mutex> lock(outputPortsMutex_);
+    auto it = outputPortsMap_.find(portIndex);
+    CHECK_AND_RETURN_RET_LOG(it != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT, "invalid output port");
+
+    auto ret = ipc->CloseOutputPort(deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close output port fail");
+    outputPortsMap_.erase(it);
     return MIDI_STATUS_OK;
 }
 

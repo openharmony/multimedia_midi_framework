@@ -196,7 +196,8 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 | **OH_MIDIDevice_Send**               | 向指定输出端口发送MIDI数据。                                         |
 | **OH_MIDIDevice_SendSysEx**          | 发送长SysEx消息（字节流到UMP的辅助函数）。                           |
 | **OH_MIDIDevice_FlushOutputPort**    | 刷新输出缓冲区中的挂起消息。                                         |
-| **OH_MIDIDevice_ClosePort**          | 关闭指定的输入或输出端口，停止数据传输。                             |
+| **OH_MIDIDevice_CloseInputPort**     | 关闭指定的输入端口，停止数据接收。                                   |
+| **OH_MIDIDevice_CloseOutputPort**    | 关闭指定的输出端口，停止数据发送。                                   |
 
 ### 开发步骤
 
@@ -323,7 +324,11 @@ void MIDIDemo() {
 
                 // 6. 资源释放：关闭端口
                 for (const auto& port : ports) {
-                    OH_MIDIDevice_ClosePort(device, port.portIndex);
+                    if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
+                        OH_MIDIDevice_CloseInputPort(device, port.portIndex);
+                    } else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
+                        OH_MIDIDevice_CloseOutputPort(device, port.portIndex);
+                    }
                 }
                 OH_MIDIDevice_Close(device);
             }

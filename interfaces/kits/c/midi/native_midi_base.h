@@ -16,14 +16,14 @@
  * @addtogroup OHMIDI
  * @{
  *
- * @brief Provide the definition of the C interface for the MIDI module.
+ * @brief Provides the definition of the C interface for the MIDI module.
  *
  * @since 24
  */
 /**
  * @file native_midi_base.h
  *
- * @brief Declare underlying data structure for MIDI module.
+ * @brief Declares underlying data structure for MIDI module.
  *
  * @library libohmidi.so
  * @syscap SystemCapability.Multimedia.Audio.MIDI
@@ -43,7 +43,7 @@ extern "C" {
 #endif
 
 /**
- * @brief MIDI status code enumeration
+ * @brief MIDI status code enumeration.
  *
  * @since 24
  */
@@ -179,7 +179,7 @@ typedef enum {
 } OH_MIDIStatusCode;
 
 /**
- * @brief Port direction enumeration
+ * @brief Port direction enumeration.
  *
  * @since 24
  */
@@ -217,7 +217,7 @@ typedef enum {
      * - **MT 0x1**: System Real Time and System Common Messages.
      * - **MT 0x2**: MIDI 1.0 Channel Voice Messages (32-bit).
      * - **MT 0x3**: Data Messages (64-bit) used for SysEx (7-bit payload).
-     * - If the target hardware is MIDI 1.0: The service converts UMP back to Byte Stream (F0...F7).
+     * - If the target hardware is MIDI 1.0: The service converts UMP back to byte Stream (F0...F7).
      * - If the target hardware is MIDI 2.0: The service sends these packets as-is (encapsulated MIDI 1.0).
      *
      * @since 24
@@ -244,7 +244,7 @@ typedef enum {
 } OH_MIDIProtocol;
 
 /**
- * @brief MIDI Device Type
+ * @brief MIDI Device type.
  *
  * @since 24
  */
@@ -265,7 +265,7 @@ typedef enum {
 } OH_MIDIDeviceType;
 
 /**
- * @brief Device connection state change action
+ * @brief Device connection state change action.
  *
  * @since 24
  */
@@ -286,8 +286,8 @@ typedef enum {
 } OH_MIDIDeviceChangeAction;
 
 /**
- * @brief MIDI Event Structure (Universal)
- * Designed to handle both raw Byte Stream (MIDI 1.0) and UMP.
+ * @brief MIDI Event Structure (Universal).
+ * Designed to handle both raw byte Stream (MIDI 1.0) and UMP.
  *
  * @since 24
  */
@@ -319,7 +319,7 @@ typedef struct {
 } OH_MIDIEvent;
 
 /**
- * @brief Device Information
+ * @brief Device Information.
  * Used for enumeration and display.
  *
  * @since 24
@@ -380,7 +380,7 @@ typedef struct {
 } OH_MIDIDeviceInformation;
 
 /**
- * @brief Port Information (Detailed)
+ * @brief Port Information (detailed).
  * Used for enumeration (contains display names).
  *
  * @since 24
@@ -444,7 +444,7 @@ typedef struct {
      * 2. **Request MIDI_PROTOCOL_2_0 on a 1.0 Device**: (Lossy)
      * - The service creates a virtual 2.0 view.
      * - App sends UMP Type 4 (MIDI 2.0 Voice).
-     * - Service **Down-converts** Type 4 to Type 2 (e.g., clipping Velocity, dropping Per-Note data).
+     * - Service **down-converts** Type 4 to Type 2 (e.g., clipping velocity, dropping per-note data).
      * - **Warning**: Data precision will be lost. Advanced messages may be dropped.
      *
      * @since 24
@@ -453,21 +453,21 @@ typedef struct {
 } OH_MIDIPortDescriptor;
 
 /**
- * @brief Declare the midi client
+ * @brief Declares the MIDI client.
  *
  * @since 24
  */
 typedef struct OH_MIDIClientStruct OH_MIDIClient;
 
 /**
- * @brief Declare the midi device
+ * @brief Declares the MIDI device.
  *
  * @since 24
  */
 typedef struct OH_MIDIDeviceStruct OH_MIDIDevice;
 
 /**
- * @brief Callback for monitoring device connection/disconnection
+ * @brief Callback for monitoring device connection/disconnection.
  *
  * @param userData User context provided during client creation.
  * @param action Device change action (Connected/Disconnected).
@@ -479,11 +479,12 @@ typedef void (*OH_MIDICallback_OnDeviceChange)(
     void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo);
 
 /**
- * @brief Callback for receiving MIDI data (Batch Processing)
+ * @brief Callback for receiving MIDI data (Batch Processing).
  *
  * @warning **CRITICAL: Memory Safety**
- * The 'events' array and all data pointers within are **transient and ONLY valid
- * during this callback**. Accessing these pointers after the callback returns
+ * The events array and all data pointers within
+ * are **transient and ONLY valid during this callback**.
+ * Accessing these pointers after the callback returns
  * causes **undefined behavior** (crashes, memory corruption).
  * You MUST copy any data you need to keep.
  *
@@ -499,8 +500,8 @@ typedef void (*OH_MIDICallback_OnDeviceChange)(
 typedef void (*OH_MIDIDevice_OnReceived)(void *userData, const OH_MIDIEvent *events, size_t eventCount);
 
 /**
- * @brief Callback for handling client-level errors
- * * Invoked when a critical error occurs in the MIDI service (e.g., service crash).
+ * @brief Callback for handling client-level errors.
+ * Invoked when a critical error occurs in the MIDI service (e.g., service crash).
  * Applications may need to recreate the client when this occurs.
  *
  * @param userData User context provided during client creation.
@@ -537,7 +538,7 @@ typedef void (*OH_MIDIClient_OnDeviceOpened)(void *userData,
                                              OH_MIDIDeviceInformation info);
 
 /**
- * @brief Client callbacks structure
+ * @brief Client callbacks structure.
  *
  * @since 24
  */

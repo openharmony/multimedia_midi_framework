@@ -165,14 +165,14 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
             {MIDI_PROTOCOL, "1"},
             {DEVICE_NAME, "Mock_Piano"},
             {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "MockVendor_1"},
+            {VENDOR_ID, "4311"},
             {ADDRESS, ""}});
         infos.push_back({{DEVICE_ID, "1002"},
             {DEVICE_TYPE, "1"},
             {MIDI_PROTOCOL, "1"},
             {DEVICE_NAME, "Mock_Drum"},
             {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "MockVendor_2"},
+            {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
         return MIDI_STATUS_OK;
     }));
@@ -195,15 +195,15 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
-    EXPECT_EQ(infoArray[0].vendorId, 0);
-    EXPECT_EQ(infoArray[0].productId, 0);
+    EXPECT_EQ(infoArray[0].vendorId, 4311);
+    EXPECT_EQ(infoArray[0].productId, 1234);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
-    EXPECT_EQ(infoArray[1].vendorId, 0);
-    EXPECT_EQ(infoArray[1].productId, 0);
+    EXPECT_EQ(infoArray[1].vendorId, 4321);
+    EXPECT_EQ(infoArray[1].productId, 5678);
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 
@@ -221,14 +221,14 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
             {MIDI_PROTOCOL, "1"},
             {DEVICE_NAME, "Mock_Piano"},
             {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "MockVendor_1"},
+            {VENDOR_ID, "4311"},
             {ADDRESS, ""}});
         infos.push_back({{DEVICE_ID, "1002"},
             {DEVICE_TYPE, "1"},
             {MIDI_PROTOCOL, "1"},
             {DEVICE_NAME, "Mock_Drum"},
             {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "MockVendor_2"},
+            {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
         return MIDI_STATUS_OK;
     }));
@@ -252,14 +252,14 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
             {MIDI_PROTOCOL, "1"},
             {DEVICE_NAME, "Mock_Piano"},
             {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "MockVendor_1"},
+            {VENDOR_ID, "4311"},
             {ADDRESS, ""}});
         infos.push_back({{DEVICE_ID, "1002"},
             {DEVICE_TYPE, "1"},
             {MIDI_PROTOCOL, "1"},
             {DEVICE_NAME, "Mock_Drum"},
             {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "MockVendor_2"},
+            {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
         return MIDI_STATUS_OK;
     }));
@@ -273,15 +273,15 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
-    EXPECT_EQ(infoArray[0].vendorId, 0);
-    EXPECT_EQ(infoArray[0].productId, 0);
+    EXPECT_EQ(infoArray[0].vendorId, 4311);
+    EXPECT_EQ(infoArray[0].productId, 1234);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
-    EXPECT_EQ(infoArray[1].vendorId, 0);
-    EXPECT_EQ(infoArray[1].productId, 0);
+    EXPECT_EQ(infoArray[1].vendorId, 4321);
+    EXPECT_EQ(infoArray[1].productId, 5678);
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 
@@ -340,17 +340,31 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
 }
 
 /**
- * @tc.name: ClosePort_001
- * @tc.desc: Test closing a port that was never opened.
+ * @tc.name: CloseInputPort_001
+ * @tc.desc: Test closing an input port that was never opened.
  * @tc.type: FUNC
  */
-HWTEST_F(MidiClientUnitTest, ClosePort_001, TestSize.Level0)
+HWTEST_F(MidiClientUnitTest, CloseInputPort_001, TestSize.Level0)
 {
     int64_t deviceId = 102;
     uint32_t portIndex = 5;
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
 
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_INVALID_PORT);
+}
+
+/**
+ * @tc.name: CloseOutputPort_001
+ * @tc.desc: Test closing an output port that was never opened.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, CloseOutputPort_001, TestSize.Level0)
+{
+    int64_t deviceId = 102;
+    uint32_t portIndex = 5;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+
+    EXPECT_EQ(device->CloseOutputPort(portIndex), MIDI_STATUS_INVALID_PORT);
 }
 
 /**
@@ -397,10 +411,10 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
     EXPECT_EQ(openStatus, MIDI_STATUS_OK);
 
     // Close port -> should stop thread (via MidiInputPort destructor) and call IPC CloseInputPort
-    OH_MIDIStatusCode closeStatus = device->ClosePort(portIndex);
+    OH_MIDIStatusCode closeStatus = device->CloseInputPort(portIndex);
     EXPECT_EQ(closeStatus, MIDI_STATUS_OK);
 
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_INVALID_PORT);
 }
 
 /**
@@ -431,7 +445,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level
     // Second time should hit "already exists" branch and return ALREADY_OPEN without IPC.
     EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture),
         MIDI_STATUS_PORT_ALREADY_OPEN);
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_OK);
+    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_OK);
 }
 
 /**
@@ -456,7 +470,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_003, TestSize.Level
     OH_MIDIStatusCode status = device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture);
     EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
-    EXPECT_EQ(device->ClosePort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_INVALID_PORT);
 }
 
 /**
