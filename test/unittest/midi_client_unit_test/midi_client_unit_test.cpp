@@ -209,7 +209,7 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
 
 /**
  * @tc.name: GetDevices_002
- * @tc.desc: Test GetDevices when the provided buffer is too small.
+ * @tc.desc: Test GetDevices with silent fill mode when buffer is smaller than available devices.
  * @tc.type: FUNC
  */
 HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
@@ -239,13 +239,17 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     };
     void *userData = nullptr;
     client->Init(callbacks, userData);
-    OH_MIDIDeviceInformation infoArrayTest[1];  // Only 1 slot
+    OH_MIDIDeviceInformation infoArrayTest[1];  // Only 1 slot, but 2 devices available
     size_t numDevices = 1;
     OH_MIDIStatusCode status = client->GetDevices(infoArrayTest, &numDevices);
 
-    // Should return insufficient space and update numDevices to required size
-    EXPECT_EQ(status, MIDI_STATUS_INSUFFICIENT_RESULT_SPACE);
-    EXPECT_EQ(numDevices, 2);
+    // Silent fill mode: should return OK and fill only what capacity allows
+    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(numDevices, 1);  // Actual filled count
+    EXPECT_EQ(infoArrayTest[0].midiDeviceId, 1001);
+    EXPECT_STREQ(infoArrayTest[0].deviceName, "Mock_Piano");
+
+    // Verify with full buffer
     EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
         infos.push_back({{DEVICE_ID, "1001"},
             {DEVICE_TYPE, "0"},
@@ -264,9 +268,10 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
         return MIDI_STATUS_OK;
     }));
     OH_MIDIDeviceInformation infoArray[2];
+    numDevices = 2;
     status = client->GetDevices(infoArray, &numDevices);
 
-    // 3. Verify
+    // Verify all devices are filled when buffer is sufficient
     EXPECT_EQ(status, MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 2);
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);

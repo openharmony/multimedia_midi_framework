@@ -75,7 +75,7 @@ OH_MIDIStatusCode OH_MIDIClient_Create(OH_MIDIClient **client, OH_MIDICallbacks 
  *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is NULL or invalid.
  *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @note Destroying the client automatically closes all devices and ports (anti-failure mechanism).
- *     It is recommended to close resources in reverse order (ports→devices→client) for code clarity,
+ *     It is recommended to close resources in reverse order (ports->devices->client) for code clarity,
  *     but this is not a mandatory requirement.
  * @since 24
  */

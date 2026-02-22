@@ -62,9 +62,7 @@ OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
 
     size_t numDevices = capacity;
     OH_MIDIStatusCode ret = midiclient->GetDevices(infos, &numDevices);
-    if (ret == MIDI_STATUS_OK) {
-        *actualDeviceCount = numDevices;
-    }
+    *actualDeviceCount = numDevices;  // Always set actual count
     return ret;
 }
 
@@ -128,9 +126,7 @@ OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
 
     size_t numPorts = capacity;
     OH_MIDIStatusCode ret = midiclient->GetDevicePorts(deviceId, infos, &numPorts);
-    if (ret == MIDI_STATUS_OK) {
-        *actualPortCount = numPorts;
-    }
+    *actualPortCount = numPorts;  // Always set actual count
     return ret;
 }
 
