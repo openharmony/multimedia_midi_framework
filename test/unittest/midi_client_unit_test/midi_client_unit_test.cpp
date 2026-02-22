@@ -326,6 +326,65 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
 }
 
 /**
+ * @tc.name: GetDeviceCount_WithZeroInitialValue
+ * @tc.desc: Test GetDevices with nullptr infos and zero initial count returns actual count.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, GetDeviceCount_WithZeroInitialValue, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
+        infos.push_back({{DEVICE_ID, "1001"},
+            {DEVICE_TYPE, "0"},
+            {MIDI_PROTOCOL, "1"},
+            {DEVICE_NAME, "Mock_Piano"},
+            {PRODUCT_ID, "1234"},
+            {VENDOR_ID, "4311"},
+            {ADDRESS, ""}});
+        infos.push_back({{DEVICE_ID, "1002"},
+            {DEVICE_TYPE, "1"},
+            {MIDI_PROTOCOL, "1"},
+            {DEVICE_NAME, "Mock_Drum"},
+            {PRODUCT_ID, "5678"},
+            {VENDOR_ID, "4321"},
+            {ADDRESS, "aabbcc"}});
+        return MIDI_STATUS_OK;
+    }));
+
+    size_t numDevices = 0;  // Start with zero
+    OH_MIDIStatusCode status = client->GetDevices(nullptr, &numDevices);
+
+    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(numDevices, 2);  // Should return actual count
+}
+
+/**
+ * @tc.name: GetPortCount_WithZeroInitialValue
+ * @tc.desc: Test GetDevicePorts with nullptr infos and zero initial count returns actual count.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
+{
+    int64_t deviceId = 1001;
+
+    EXPECT_CALL(*mockService, GetDevicePorts(deviceId, _))
+        .WillOnce(Invoke([](int64_t id, std::vector<std::map<int32_t, std::string>> &ports) {
+            ports.push_back({{PORT_INDEX, "0"},
+                {DIRECTION, "0"},
+                {PORT_NAME, "Midi_In_Port"}});
+            ports.push_back({{PORT_INDEX, "1"},
+                {DIRECTION, "1"},
+                {PORT_NAME, "Midi_Out_Port"}});
+            return MIDI_STATUS_OK;
+        }));
+
+    size_t numPorts = 0;  // Start with zero
+    OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, nullptr, &numPorts);
+
+    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(numPorts, 2);  // Should return actual count
+}
+
+/**
  * @tc.name: GetDevicePorts_001
  * @tc.desc: Test GetDevicePorts when the device ID is invalid.
  * @tc.type: FUNC

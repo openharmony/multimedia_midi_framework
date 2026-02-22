@@ -58,7 +58,8 @@ OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
-    CHECK_AND_RETURN_RET_LOG(actualDeviceCount != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
+    CHECK_AND_RETURN_RET_LOG(actualDeviceCount != nullptr && infos != nullptr,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
 
     size_t numDevices = capacity;
     OH_MIDIStatusCode ret = midiclient->GetDevices(infos, &numDevices);
@@ -122,7 +123,8 @@ OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
 {
     OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, MIDI_STATUS_INVALID_CLIENT, "Invalid client");
-    CHECK_AND_RETURN_RET_LOG(actualPortCount != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
+    CHECK_AND_RETURN_RET_LOG(actualPortCount != nullptr && infos != nullptr,
+        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "Invalid parameter");
 
     size_t numPorts = capacity;
     OH_MIDIStatusCode ret = midiclient->GetDevicePorts(deviceId, infos, &numPorts);

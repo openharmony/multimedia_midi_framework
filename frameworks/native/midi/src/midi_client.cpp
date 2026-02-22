@@ -549,11 +549,15 @@ OH_MIDIStatusCode MidiClientPrivate::GetDevices(OH_MIDIDeviceInformation *infos,
     std::vector<std::map<int32_t, std::string>> deviceInfos;
     auto ret = ipc_->GetDevices(deviceInfos);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    // Silent fill mode: only fill up to the capacity provided
+    // Count query: return actual count
+    if (infos == nullptr) {
+        *numDevices = deviceInfos.size();
+        return MIDI_STATUS_OK;
+    }
+    // Silent fill mode for GetDeviceInfos
     size_t actualCount = std::min(*numDevices, deviceInfos.size());
     *numDevices = actualCount;
     CHECK_AND_RETURN_RET(actualCount != 0, MIDI_STATUS_OK);
-    CHECK_AND_RETURN_RET(infos != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
     for (size_t i = 0; i < actualCount; i++) {
         bool convRet = ConvertToDeviceInformation(deviceInfos[i], infos[i]);
         CHECK_AND_CONTINUE_LOG(convRet, "ConvertToDeviceInformation failed");
@@ -588,11 +592,15 @@ OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPor
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);
     CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    // Silent fill mode: only fill up to the capacity provided
+    // Count query: return actual count
+    if (infos == nullptr) {
+        *numPorts = portInfos.size();
+        return MIDI_STATUS_OK;
+    }
+    // Silent fill mode for GetPortInfos
     size_t actualCount = std::min(*numPorts, portInfos.size());
     *numPorts = actualCount;
     CHECK_AND_RETURN_RET(actualCount != 0, MIDI_STATUS_OK);
-    CHECK_AND_RETURN_RET(infos != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
     for (size_t i = 0; i < actualCount; i++) {
         OH_MIDIPortInformation info;
