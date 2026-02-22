@@ -186,7 +186,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenDevice003, TestSize.Level0)
     int64_t deviceId = SimulateDeviceConnection(driverId, "Broken Device");
 
     // Driver returns internal error
-    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_UNKNOWN_ERROR));
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_SYSTEM_ERROR));
 
     int32_t ret = controller_->OpenDevice(clientId_, deviceId);
     EXPECT_EQ(ret, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
@@ -396,7 +396,7 @@ HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort003, TestSize.Level0)
     EXPECT_EQ(ret, MIDI_STATUS_OK);
     std::shared_ptr<MidiSharedRing> buffer2;
     ret = controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex);
-    EXPECT_EQ(ret, MIDI_STATUS_UNKNOWN_ERROR);
+    EXPECT_EQ(ret, MIDI_STATUS_SYSTEM_ERROR);
     controller_->DestroyMidiClient(clientId2);
 }
 

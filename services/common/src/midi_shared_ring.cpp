@@ -122,11 +122,11 @@ int32_t MidiSharedMemoryImpl::Init()
         if (fd_ == STDIN_FILENO || fd_ == STDOUT_FILENO || fd_ == STDERR_FILENO) {
             MIDI_WARNING_LOG("fd is special fd: %{public}d", fd_);
         }
-        CHECK_AND_RETURN_RET_LOG((fd_ >= 0), MIDI_STATUS_UNKNOWN_ERROR, "Init falied: fd %{public}d", fd_);
+        CHECK_AND_RETURN_RET_LOG((fd_ >= 0), MIDI_STATUS_SYSTEM_ERROR, "Init falied: fd %{public}d", fd_);
     }
 
     void *addr = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
-    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, MIDI_STATUS_UNKNOWN_ERROR,
+    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, MIDI_STATUS_SYSTEM_ERROR,
                              "Init falied: fd %{public}d size %{public}zu", fd_, size_);
     base_ = static_cast<uint8_t *>(addr);
     MIDI_DEBUG_LOG("Init %{public}s <%{public}s> done.", (isFromRemote ? "remote" : "local"), name_.c_str());
@@ -325,7 +325,7 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
 
     int minfd = 2; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
-    
+
     auto notifyFd = std::make_shared<UniqueFd>(eventFd);
     auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);
     if (buffer == nullptr || buffer->Init(dataFd) != MIDI_STATUS_OK) {

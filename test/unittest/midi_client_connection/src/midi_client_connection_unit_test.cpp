@@ -125,7 +125,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     MidiEventInner midiEventInner = MakeMidiEventInner(1, payloadWords);
 
     // Try to fill ring by sending repeatedly.
-    // We expect eventually one call returns MIDI_STATUS_UNKNOWN_ERROR due to TryWriteEvent != OK.
+    // We expect eventually one call returns MIDI_STATUS_SYSTEM_ERROR due to TryWriteEvent != OK.
     bool hasSeenFailure = false;
     int32_t lastReturnCode = MIDI_STATUS_OK;
 
@@ -140,7 +140,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     }
 
     ASSERT_TRUE(hasSeenFailure);
-    EXPECT_EQ(MIDI_STATUS_UNKNOWN_ERROR, lastReturnCode);
+    EXPECT_EQ(MIDI_STATUS_SYSTEM_ERROR, lastReturnCode);
 }
 
 /**

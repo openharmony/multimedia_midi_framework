@@ -70,9 +70,9 @@ int32_t DeviceConnectionBase::AddClientConnection(
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
-    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "creat client connection fail");
+    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_SYSTEM_ERROR, "creat client connection fail");
     CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer() == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+        MIDI_STATUS_SYSTEM_ERROR,
         "init client connection fail");
     buffer = clientConnection->GetRingBuffer();
     clients_.push_back(std::move(clientConnection));
@@ -147,11 +147,11 @@ int32_t DeviceConnectionForOutput::AddClientConnection(
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     int fd = dup(notifyEventFd_.Get());
-    CHECK_AND_RETURN_RET(fd >= 0, MIDI_STATUS_UNKNOWN_ERROR);
+    CHECK_AND_RETURN_RET(fd >= 0, MIDI_STATUS_SYSTEM_ERROR);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
-    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "creat client connection fail");
+    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_SYSTEM_ERROR, "creat client connection fail");
     CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer(fd) == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+        MIDI_STATUS_SYSTEM_ERROR,
         "init client connection fail");
     buffer = clientConnection->GetRingBuffer();
     clients_.push_back(std::move(clientConnection));
@@ -209,14 +209,14 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
 {
     int eventFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (eventFd < 0) {
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return MIDI_STATUS_SYSTEM_ERROR;
     }
     notifyEventFd_.Reset(eventFd);
 
     int tfd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (tfd < 0) {
         notifyEventFd_.Reset(-1);
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return MIDI_STATUS_SYSTEM_ERROR;
     }
     timerFd_.Reset(tfd);
 
@@ -224,7 +224,7 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
     if (epfd < 0) {
         timerFd_.Reset(-1);
         notifyEventFd_.Reset(-1);
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return MIDI_STATUS_SYSTEM_ERROR;
     }
     epollFd_.Reset(epfd);
 
@@ -232,7 +232,7 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
     evNotify.events = EPOLLIN;
     evNotify.data.u64 = kEpollTagNotifyEventFd;
     if (::epoll_ctl(epollFd_.Get(), EPOLL_CTL_ADD, notifyEventFd_.Get(), &evNotify) != 0) {
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return MIDI_STATUS_SYSTEM_ERROR;
     }
 
     epoll_event evTimer{};
@@ -243,7 +243,7 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
         epollFd_.Reset(-1);
         timerFd_.Reset(-1);
         notifyEventFd_.Reset(-1);
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return MIDI_STATUS_SYSTEM_ERROR;
     }
 
     return MIDI_STATUS_OK;

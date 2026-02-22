@@ -128,11 +128,11 @@ void MidiServiceController::ScheduleUnloadTask()
 int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &object,
     sptr<IRemoteObject> &client, uint32_t &clientId)
 {
-    CHECK_AND_RETURN_RET_LOG(object, MIDI_STATUS_UNKNOWN_ERROR, "object is nullptr");
+    CHECK_AND_RETURN_RET_LOG(object, MIDI_STATUS_SYSTEM_ERROR, "object is nullptr");
     sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_UNKNOWN_ERROR, "listener is nullptr");
+    CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_SYSTEM_ERROR, "listener is nullptr");
     std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
-    CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
+    CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_SYSTEM_ERROR, "callback is nullptr");
 
     // Get calling application UID
     uint32_t callingUid = IPCSkeleton::GetCallingUid();
@@ -161,11 +161,11 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
         clientId = ++currentClientId_;
     } while (clients_.find(clientId) != clients_.end());
     sptr<MidiInServer> midiClient = new (std::nothrow) MidiInServer(clientId, callback);
-    CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiClient nullptr");
     client = midiClient->AsObject();
-    CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient->AsObject nullptr");
+    CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_SYSTEM_ERROR, "midiClient->AsObject nullptr");
     sptr<MidiServiceDeathRecipient> deathRecipient_ = new (std::nothrow) MidiServiceDeathRecipient(clientId);
-    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "deathRecipient_ nullptr");
+    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "deathRecipient_ nullptr");
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     deathRecipient_->SetNotifyCb([weakSelf](uint32_t clientId) {
         auto self = weakSelf.lock();
@@ -272,7 +272,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, device=%{public}s", clientId, GetEncryptStr(address).c_str());
 
     sptr<IMidiDeviceOpenCallback> callback = iface_cast<IMidiDeviceOpenCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(callback != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "callback cast failed");
+    CHECK_AND_RETURN_RET_LOG(callback != nullptr, MIDI_STATUS_SYSTEM_ERROR, "callback cast failed");
 
     std::unique_lock<std::mutex> lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), MIDI_STATUS_INVALID_CLIENT,
@@ -391,7 +391,7 @@ int32_t MidiServiceController::OpenInputPort(
         "device %{public}" PRId64 "not opened",
         deviceId);
     CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        MIDI_STATUS_UNKNOWN_ERROR,
+        MIDI_STATUS_SYSTEM_ERROR,
         "client %{public}u doesn't open device %{public}" PRId64 "",
         clientId,
         deviceId);
@@ -442,7 +442,7 @@ int32_t MidiServiceController::OpenOutputPort(
         "device %{public}" PRId64 "not opened",
         deviceId);
     CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        MIDI_STATUS_UNKNOWN_ERROR,
+        MIDI_STATUS_SYSTEM_ERROR,
         "client %{public}u doesn't open device %{public}" PRId64 "",
         clientId,
         deviceId);
@@ -630,7 +630,7 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     }
     lock.unlock();
     CHECK_AND_RETURN_RET_LOG(deviceManager_->CloseDevice(deviceId) == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+        MIDI_STATUS_SYSTEM_ERROR,
         "Close device failed: deviceId=%{public}" PRId64,
         deviceId);
     MIDI_INFO_LOG("Device closed: deviceId=%{public}" PRId64, deviceId);

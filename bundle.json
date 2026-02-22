@@ -14,7 +14,7 @@
         "subsystem": "multimedia",
         "syscap": [
             "SystemCapability.Multimedia.Audio.MIDI"
-         ],
+        ],
         "features": [],
         "adapted_system_type": [
             "standard",
