@@ -38,17 +38,6 @@ struct SysExPacketData {
 };
 
 class MidiClientCallback;
-class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
-public:
-    MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-        OH_MIDIClient_OnDeviceOpened callback, void *userData);
-    ~MidiClientDeviceOpenCallback() = default;
-    int32_t NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo) override;
-private:
-    std::weak_ptr<MidiServiceInterface> ipc_;
-    OH_MIDIClient_OnDeviceOpened callback_;
-    void *userData_;
-};
     
 class MidiInputPort {
 public:
@@ -105,6 +94,7 @@ public:
                             uint32_t eventCount, uint32_t *eventsWritten) override;
     OH_MIDIStatusCode SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
+    void SetInValid();
 
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
@@ -113,6 +103,7 @@ private:
     std::mutex outputPortsMutex_;
     std::unordered_map<uint32_t, std::shared_ptr<MidiInputPort>> inputPortsMap_;
     std::unordered_map<uint32_t, std::shared_ptr<MidiOutputPort>> outputPortsMap_;
+    std::atomic<bool> isValid_{true};
 };
 
 class MidiClientPrivate : public MidiClient {
@@ -126,11 +117,28 @@ public:
         void *userData) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
+    void MarkDeviceInValid();
+    void AddDeviceHandler(MidiDevicePrivate *device);
 private:
     void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
     std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;
     sptr<MidiClientCallback> callback_;
+    std::mutex mutex_;
+    std::vector<MidiDevicePrivate *> deviceHandlers_;
+};
+
+class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
+public:
+    MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
+        OH_MIDIClient_OnDeviceOpened callback, void *userData, MidiClientPrivate *client);
+    ~MidiClientDeviceOpenCallback() = default;
+    int32_t NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo) override;
+private:
+    std::weak_ptr<MidiServiceInterface> ipc_;
+    OH_MIDIClient_OnDeviceOpened callback_;
+    void *userData_;
+    MidiClientPrivate *client_ = nullptr;
 };
 } // namespace MIDI
 } // namespace OHOS
