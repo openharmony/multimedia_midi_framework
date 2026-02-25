@@ -43,6 +43,7 @@ using namespace std;
 namespace {
 constexpr int32_t RING_BUFFER_DEFAULT_SIZE = 2048;
 constexpr uint32_t MAX_FUZZ_PORTS = 2;
+
 constexpr uint64_t TEST_TOKEN_ID = 718336240uLL | (1uLL << 32);
 constexpr int64_t TEST_CLIENT_ID1 = 1001;
 constexpr int64_t TEST_CLIENT_ID2 = 1005;
@@ -279,7 +280,7 @@ void DestroyMidiClient(FuzzedDataProvider &fdp)
 
 void MultipleClientsOpenSamePort(FuzzedDataProvider &fdp)
 {
-     CHECK_AND_RETURN(!(activeClients_.size() < 2 || activeDevices_.empty()));
+    CHECK_AND_RETURN(activeClients_.size() > 1 && !activeDevices_.empty());
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
     int64_t deviceId = activeDevices_[deviceIdx];
     uint32_t portIndex = fdp.ConsumeIntegralInRange<uint32_t>(0, MAX_FUZZ_PORTS - 1);
