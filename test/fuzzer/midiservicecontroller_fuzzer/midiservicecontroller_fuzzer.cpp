@@ -43,7 +43,9 @@ using namespace std;
 namespace {
 constexpr int32_t RING_BUFFER_DEFAULT_SIZE = 2048;
 constexpr uint32_t MAX_FUZZ_PORTS = 2;
-constexpr uint64_t TEST_TOKEN_ID = 718336240uLL | (1uLL << 32); 
+constexpr uint64_t TEST_TOKEN_ID = 718336240uLL | (1uLL << 32);
+constexpr int64_t TEST_CLIENT_ID1 = 1001;
+constexpr int64_t TEST_CLIENT_ID2 = 1005;
 } // namespace
 
 std::shared_ptr<MidiServiceController> midiServiceController_;
@@ -157,7 +159,8 @@ private:
 
 class MidiServiceCallbackFuzzer : public MidiCallbackStub {
 public:
-    int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override {
+    int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override
+    {
         return 0;
     };
     int32_t NotifyError(int32_t code) override { return 0; };
@@ -185,7 +188,7 @@ void GetDevices(FuzzedDataProvider &fdp)
 
 void GetDevicePorts(FuzzedDataProvider &fdp)
 {
-    if (activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!activeDevices_.empty());
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
     int64_t deviceId = activeDevices_[deviceIdx];
     midiServiceController_->GetDevicePorts(deviceId);
@@ -193,7 +196,7 @@ void GetDevicePorts(FuzzedDataProvider &fdp)
 
 void OpenDevice(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -203,7 +206,7 @@ void OpenDevice(FuzzedDataProvider &fdp)
 
 void OpenInputPort(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -214,7 +217,7 @@ void OpenInputPort(FuzzedDataProvider &fdp)
 
 void OpenOutputPort(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -225,7 +228,7 @@ void OpenOutputPort(FuzzedDataProvider &fdp)
 
 void CloseDevice(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -235,7 +238,7 @@ void CloseDevice(FuzzedDataProvider &fdp)
 
 void CloseInputPort(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -246,7 +249,7 @@ void CloseInputPort(FuzzedDataProvider &fdp)
 
 void CloseOutputPort(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -257,7 +260,7 @@ void CloseOutputPort(FuzzedDataProvider &fdp)
 
 void FlushOutputPort(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty() || activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!(activeClients_.empty() || activeDevices_.empty()));
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
@@ -268,7 +271,7 @@ void FlushOutputPort(FuzzedDataProvider &fdp)
 
 void DestroyMidiClient(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty()) return;
+    CHECK_AND_RETURN(!activeClients_.empty());
     size_t idx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     midiServiceController_->DestroyMidiClient(activeClients_[idx].clientId);
     activeClients_.erase(activeClients_.begin() + idx);
@@ -276,7 +279,7 @@ void DestroyMidiClient(FuzzedDataProvider &fdp)
 
 void MultipleClientsOpenSamePort(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.size() < 2 || activeDevices_.empty()) return;
+     CHECK_AND_RETURN(!(activeClients_.size() < 2 || activeDevices_.empty()));
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
     int64_t deviceId = activeDevices_[deviceIdx];
     uint32_t portIndex = fdp.ConsumeIntegralInRange<uint32_t>(0, MAX_FUZZ_PORTS - 1);
@@ -289,7 +292,7 @@ void MultipleClientsOpenSamePort(FuzzedDataProvider &fdp)
 
 void OpenDeviceWithInvalidId(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty()) return;
+    CHECK_AND_RETURN(!activeClients_.empty());
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
@@ -298,7 +301,7 @@ void OpenDeviceWithInvalidId(FuzzedDataProvider &fdp)
 
 void OpenDeviceWithInvalidClientId(FuzzedDataProvider &fdp)
 {
-    if (activeDevices_.empty()) return;
+    CHECK_AND_RETURN(!activeDevices_.empty());
     uint32_t invalidClientId = fdp.ConsumeIntegral<uint32_t>();
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
     int64_t deviceId = activeDevices_[deviceIdx];
@@ -307,7 +310,7 @@ void OpenDeviceWithInvalidClientId(FuzzedDataProvider &fdp)
 
 void CloseDeviceWithInvalidId(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty()) return;
+    CHECK_AND_RETURN(!activeClients_.empty());
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
@@ -316,7 +319,7 @@ void CloseDeviceWithInvalidId(FuzzedDataProvider &fdp)
 
 void OpenInputPortWithInvalidId(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty()) return;
+    CHECK_AND_RETURN(!activeClients_.empty());
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
@@ -327,7 +330,7 @@ void OpenInputPortWithInvalidId(FuzzedDataProvider &fdp)
 
 void CloseInputPortWithInvalidId(FuzzedDataProvider &fdp)
 {
-    if (activeClients_.empty()) return;
+    CHECK_AND_RETURN(!activeClients_.empty());
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
     
@@ -349,8 +352,8 @@ void MidiServiceControllerInit()
     midiServiceController_->SetUnloadDelay(0);
 
     auto mockDriver = std::make_unique<MockMidiDeviceDriver>();
-    mockDriver->AddMockDevice(1001, "USB MIDI Device 1", DeviceType::DEVICE_TYPE_USB);
-    mockDriver->AddMockDevice(1002, "USB MIDI Device 2", DeviceType::DEVICE_TYPE_USB);
+    mockDriver->AddMockDevice(TEST_CLIENT_ID1, "USB MIDI Device 1", DeviceType::DEVICE_TYPE_USB);
+    mockDriver->AddMockDevice(TEST_CLIENT_ID2, "USB MIDI Device 2", DeviceType::DEVICE_TYPE_USB);
 
     midiServiceController_->GetDeviceManagerForTest()->InjectDriverForTest(
         DeviceType::DEVICE_TYPE_USB, std::move(mockDriver));
