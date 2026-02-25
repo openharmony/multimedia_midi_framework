@@ -66,7 +66,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_001, TestSize.Level0)
     MidiSharedRing ring(RING_CAPACITY_BYTES);
 
     int32_t ret = ring.Init(INVALID_FD);
-    EXPECT_EQ(MIDI_STATUS_OK, ret);
+    EXPECT_EQ(OH_MIDI_STATUS_OK, ret);
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
@@ -95,7 +95,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_002, TestSize.Level0)
 
     MidiSharedRing ring(RING_CAPACITY_BYTES);
     int32_t ret = ring.Init(fd);
-    EXPECT_EQ(MIDI_STATUS_OK, ret);
+    EXPECT_EQ(OH_MIDI_STATUS_OK, ret);
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
@@ -122,7 +122,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_003, TestSize.Level0)
     MidiSharedRing ring(RING_CAPACITY_BYTES);
 
     int32_t ret = ring.Init(INVALID_FD);
-    EXPECT_EQ(MIDI_STATUS_OK, ret);
+    EXPECT_EQ(OH_MIDI_STATUS_OK, ret);
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
@@ -150,7 +150,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_004, TestSize.Level0)
     MidiSharedRing ring(TOO_LARGE_RING_CAPACITY);
     int32_t ret = ring.Init(INVALID_FD);
 
-    EXPECT_NE(MIDI_STATUS_OK, ret);
+    EXPECT_NE(OH_MIDI_STATUS_OK, ret);
     EXPECT_EQ(nullptr, ring.GetControlHeader());
     EXPECT_EQ(nullptr, ring.GetFutex());
     EXPECT_EQ(nullptr, ring.GetDataBase());
@@ -166,7 +166,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_005, TestSize.Level0)
     constexpr uint32_t RING_CAPACITY_BYTES = 256;
     MidiSharedRing ring(RING_CAPACITY_BYTES);
 
-    EXPECT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
 
@@ -174,7 +174,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_005, TestSize.Level0)
     ctrl->readPosition.store(7);
     ctrl->writePosition.store(11);
 
-    EXPECT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
     ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
     EXPECT_EQ(0u, ctrl->readPosition.load());
@@ -262,7 +262,7 @@ static MidiEventInner MakeEvent(uint64_t ts, const std::vector<uint32_t> &payloa
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_001, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     uint32_t written = 123;
     auto ret = ring.TryWriteEvents(nullptr, 0, &written, false);
@@ -279,7 +279,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_001, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_002, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     uint32_t written = 0;
     auto ret = ring.TryWriteEvents(nullptr, 1, &written, false);
@@ -296,7 +296,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_002, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_003, TestSize.Level0)
 {
     MidiSharedRing ring(0);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> payload{0x11223344};
     MidiEventInner ev = MakeEvent(0, payload);
@@ -315,7 +315,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_003, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_004, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     MidiEventInner ev{};
     ev.timestamp = 0;
@@ -337,7 +337,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_004, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_005, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> payload{0x11111111, 0x22222222};
     MidiEventInner ev = MakeEvent(123, payload);
@@ -357,7 +357,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_005, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_006, TestSize.Level0)
 {
     MidiSharedRing ring(64);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> payload1(8, 0x11111111);
     std::vector<uint32_t> payload2(8, 0xaaaaaaaa);
@@ -378,7 +378,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_006, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Level0)
 {
     MidiSharedRing ring(128);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     // payload1: 21 words => 84 bytes payload, totalBytes = 16 + 84 = 100
     std::vector<uint32_t> payload1(21, 0x1);
@@ -416,7 +416,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_008, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     uint32_t dummyWord = 0x12345678;
     MidiEventInner ev{};
@@ -443,7 +443,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_008, TestSize.Leve
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvent_001, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> payload{0x11111111, 0x22222222};
     MidiEventInner ev = MakeEvent(123, payload);
@@ -462,7 +462,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvent_001, TestSize.Level
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_001, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.PeekNext(peek));
@@ -476,7 +476,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_001, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_002, TestSize.Level0)
 {
     MidiSharedRing ring(0);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.PeekNext(peek));
@@ -490,7 +490,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_002, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_003, TestSize.Level0)
 {
     MidiSharedRing ring(128);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
@@ -509,7 +509,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_003, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
 {
     MidiSharedRing ring(128);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     // event1 totalBytes = 16 + 21*4 = 100, so writePosition becomes 100.
     std::vector<uint32_t> payload1(21, 0);
@@ -552,7 +552,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_005, TestSize.Level0)
 {
     MidiSharedRing ring(128);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
@@ -579,7 +579,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_005, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCommitRead_001, TestSize.Level0)
 {
     MidiSharedRing ring(128);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     auto *ctrl = ring.GetControlHeader();
     ASSERT_NE(nullptr, ctrl);
@@ -604,7 +604,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCommitRead_001, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_001, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> p1(3, 0);
     FillU32(p1, 0x30);
@@ -642,7 +642,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_001, TestSize.Level0
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_002, TestSize.Level0)
 {
     MidiSharedRing ring(256);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> p1(1, 0x111);
     std::vector<uint32_t> p2(1, 0x222);
@@ -674,7 +674,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_002, TestSize.Level0
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_003, TestSize.Level0)
 {
     MidiSharedRing ring(128);
-    ASSERT_EQ(MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
     std::vector<uint32_t> p1(1, 0xabc);
     MidiEventInner ev1 = MakeEvent(1, p1);

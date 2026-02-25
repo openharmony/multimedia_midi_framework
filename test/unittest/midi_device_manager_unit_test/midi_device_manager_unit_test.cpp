@@ -113,10 +113,10 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice001, TestSize.Level0)
 
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, OpenDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*rawUsbDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     int32_t ret = manager_->OpenDevice(globalId);
-    EXPECT_EQ(ret, MIDI_STATUS_OK);
+    EXPECT_EQ(ret, OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -131,7 +131,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenDevice002, TestSize.Level0)
     EXPECT_CALL(*rawUsbDriver_, OpenDevice(_)).Times(0);
 
     int32_t ret = manager_->OpenDevice(fakeGlobalId);
-    EXPECT_NE(ret, MIDI_STATUS_OK);
+    EXPECT_NE(ret, OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -147,10 +147,10 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseDevice001, TestSize.Level0)
     manager_->UpdateDevices();
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, CloseDevice(driverId)).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*rawUsbDriver_, CloseDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     int32_t ret = manager_->CloseDevice(globalId);
-    EXPECT_EQ(ret, MIDI_STATUS_OK);
+    EXPECT_EQ(ret, OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -167,10 +167,10 @@ HWTEST_F(MidiDeviceManagerUnitTest, OpenInputPort001, TestSize.Level0)
     manager_->UpdateDevices();
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*rawUsbDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
     int32_t ret = manager_->OpenInputPort(inputConnection, globalId, portIndex);
-    EXPECT_EQ(ret, MIDI_STATUS_OK);
+    EXPECT_EQ(ret, OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -187,10 +187,10 @@ HWTEST_F(MidiDeviceManagerUnitTest, CloseInputPort001, TestSize.Level0)
     manager_->UpdateDevices();
     int64_t globalId = manager_->GetDevices()[0].deviceId;
 
-    EXPECT_CALL(*rawUsbDriver_, CloseInputPort(driverId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*rawUsbDriver_, CloseInputPort(driverId, portIndex)).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     int32_t ret = manager_->CloseInputPort(globalId, portIndex);
-    EXPECT_EQ(ret, MIDI_STATUS_OK);
+    EXPECT_EQ(ret, OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -217,7 +217,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level0)
     EXPECT_FALSE(manager_->HasDriverMappingForTest(driverId));
 
     EXPECT_CALL(*rawUsbDriver_, OpenDevice(_)).Times(0);
-    EXPECT_NE(manager_->OpenDevice(oldGlobalId), MIDI_STATUS_OK);
+    EXPECT_NE(manager_->OpenDevice(oldGlobalId), OH_MIDI_STATUS_OK);
 }
 
 /**

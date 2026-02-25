@@ -58,10 +58,10 @@ extern "C" {
  * @param client Pointer to receive the new client handle.
  * @param callbacks Callback structure for system events.
  * @param userData User context to be passed to callbacks.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds,
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if client is NULL.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
- *     or {@link #MIDI_STATUS_TOO_MANY_CLIENTS} if creation failed due to resource limits.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds,
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if client is NULL.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ *     or {@link #OH_MIDI_STATUS_TOO_MANY_CLIENTS} if creation failed due to resource limits.
  *         This occurs if the calling application exceeded its per-UID quota or the system is busy.
  * @since 24
  */
@@ -71,9 +71,9 @@ OH_MIDIStatusCode OH_MIDIClient_Create(OH_MIDIClient **client, OH_MIDICallbacks 
  * @brief Destroys the MIDI client and releases resources.
  *
  * @param client Target client handle.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is NULL or invalid.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is NULL or invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @note Destroying the client automatically closes all devices and ports (anti-failure mechanism).
  *     It is recommended to close resources in reverse order (ports->devices->client) for code clarity,
  *     but this is not a mandatory requirement.
@@ -88,10 +88,10 @@ OH_MIDIStatusCode OH_MIDIClient_Destroy(OH_MIDIClient *client);
  *
  * @param client The MIDI client handle.
  * @param count Pointer to receive the number of devices.
- * @return {@link #MIDI_STATUS_OK} on success.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if count is NULL.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} on success.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if count is NULL.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *count);
@@ -103,7 +103,7 @@ OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *co
  *
  * @note If the actual number of connected devices exceeds 'capacity', only 'capacity' records
  *     are written to the buffer, and 'actualDeviceCount' is set to 'capacity'. The function
- *     returns {@link #MIDI_STATUS_OK} but the buffer contains partial data.
+ *     returns {@link #OH_MIDI_STATUS_OK} but the buffer contains partial data.
  *     If the actual number is less than or equal to 'capacity', all available device information
  *     is written, and 'actualDeviceCount' reflects the actual count.
  *
@@ -111,10 +111,10 @@ OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *co
  * @param infos User-allocated buffer to store device information.
  * @param capacity The maximum number of elements the 'infos' buffer can hold.
  * @param actualDeviceCount Pointer to receive the actual number of devices written to the buffer.
- * @return {@link #MIDI_STATUS_OK} on success.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if infos or actualDeviceCount is NULL.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} on success.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if infos or actualDeviceCount is NULL.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
@@ -128,11 +128,11 @@ OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
  * @param client Target client handle.
  * @param deviceId Device ID.
  * @param device Pointer to receive the device handle.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- *     or {@link #MIDI_STATUS_DEVICE_ALREADY_OPEN} if device is already opened by this client.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if device is NULL, or the deviceId does not exist.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ *     or {@link #OH_MIDI_STATUS_DEVICE_ALREADY_OPEN} if device is already opened by this client.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if device is NULL, or the deviceId does not exist.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClient_OpenDevice(OH_MIDIClient *client, int64_t deviceId, OH_MIDIDevice **device);
@@ -149,11 +149,11 @@ OH_MIDIStatusCode OH_MIDIClient_OpenDevice(OH_MIDIClient *client, int64_t device
  * @param deviceAddr The MAC address of the BLE device (e.g., "AA:BB:CC:DD:EE:FF").
  * @param callback The callback function to be invoked when the open process completes.
  * @param userData User context pointer to be passed to the callback.
- * @return {@link #MIDI_STATUS_OK} if the open request was successfully dispatched.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceAddr or callback is nullptr.
- *     or {@link #MIDI_STATUS_PERMISSION_DENIED} if Bluetooth permission is missing.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if the service is unreachable.
+ * @return {@link #OH_MIDI_STATUS_OK} if the open request was successfully dispatched.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceAddr or callback is nullptr.
+ *     or {@link #OH_MIDI_STATUS_PERMISSION_DENIED} if Bluetooth permission is missing.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if the service is unreachable.
  * @note This function triggers a BLE scan and open process which may take time.
  * @warning If Bluetooth permission is denied, the {@link #OH_MIDIClient_OnDeviceOpened} will be
  *     invoked with opened parameter set to false and device parameter set to NULL. The application
@@ -171,11 +171,11 @@ OH_MIDIStatusCode OH_MIDIClient_OpenBLEDevice(OH_MIDIClient *client,
  * @note Closing a device automatically closes all opened ports on that device.
  *
  * @param device Target device handle.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIDevice_Close(OH_MIDIDevice *device);
+OH_MIDIStatusCode OH_MIDIClient_CloseDevice(OH_MIDIClient *client, OH_MIDIDevice *device);
 
 /**
  * @brief Get the number of ports for a specific MIDI device.
@@ -185,11 +185,11 @@ OH_MIDIStatusCode OH_MIDIDevice_Close(OH_MIDIDevice *device);
  * @param client The MIDI client handle.
  * @param deviceId The target device ID.
  * @param count Pointer to receive the number of ports.
- * @return {@link #MIDI_STATUS_OK} on success.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if count is NULL.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceId is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} on success.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if count is NULL.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceId is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t deviceId, size_t *count);
@@ -201,7 +201,7 @@ OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t devi
  *
  * @note If the actual number of ports exceeds 'capacity', only 'capacity' records
  * are written to the buffer, and 'actualPortCount' is set to 'capacity'. The function
- * returns {@link #MIDI_STATUS_OK} but the buffer contains partial data.
+ * returns {@link #OH_MIDI_STATUS_OK} but the buffer contains partial data.
  * If the actual number is less than or equal to 'capacity', all available port information
  * is written, and 'actualPortCount' reflects the actual count.
  *
@@ -210,11 +210,11 @@ OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t devi
  * @param infos User-allocated buffer to store port information.
  * @param capacity The maximum number of elements the 'infos' buffer can hold.
  * @param actualPortCount Pointer to receive the actual number of ports written to the buffer.
- * @return {@link #MIDI_STATUS_OK} on success.
- *     or {@link #MIDI_STATUS_INVALID_CLIENT} if client is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if infos or actualPortCount is NULL.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceId is invalid.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} on success.
+ *     or {@link #OH_MIDI_STATUS_INVALID_CLIENT} if client is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if infos or actualPortCount is NULL.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if deviceId is invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
@@ -232,12 +232,12 @@ OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
  * @param descriptor Port index and protocol configuration.
  * @param callback Callback function invoked when data is available.
  * @param userData Context pointer passed to the callback.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- *     or {@link #MIDI_STATUS_INVALID_PORT} if the port is invalid or not an input port.
- *     or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if the port is already opened by this client.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if callback is NULL.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ *     or {@link #OH_MIDI_STATUS_INVALID_PORT} if the port is invalid or not an input port.
+ *     or {@link #OH_MIDI_STATUS_PORT_ALREADY_OPEN} if the port is already opened by this client.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if callback is NULL.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_OpenInputPort(
@@ -248,11 +248,11 @@ OH_MIDIStatusCode OH_MIDIDevice_OpenInputPort(
  *
  * @param device Target device handle.
  * @param descriptor Port index and protocol configuration.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- *     or {@link #MIDI_STATUS_INVALID_PORT} if the port is invalid or not a output port.
- *     or {@link #MIDI_STATUS_PORT_ALREADY_OPEN} if the port is already opened by this client.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ *     or {@link #OH_MIDI_STATUS_INVALID_PORT} if the port is invalid or not a output port.
+ *     or {@link #OH_MIDI_STATUS_PORT_ALREADY_OPEN} if the port is already opened by this client.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_OpenOutputPort(OH_MIDIDevice *device, OH_MIDIPortDescriptor descriptor);
@@ -262,10 +262,10 @@ OH_MIDIStatusCode OH_MIDIDevice_OpenOutputPort(OH_MIDIDevice *device, OH_MIDIPor
  *
  * @param device Target device handle.
  * @param portIndex Input port index to close.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- *     or {@link #MIDI_STATUS_INVALID_PORT} if portIndex is invalid or not an open input port.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ *     or {@link #OH_MIDI_STATUS_INVALID_PORT} if portIndex is invalid or not an open input port.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_CloseInputPort(OH_MIDIDevice *device, uint32_t portIndex);
@@ -275,10 +275,10 @@ OH_MIDIStatusCode OH_MIDIDevice_CloseInputPort(OH_MIDIDevice *device, uint32_t p
  *
  * @param device Target device handle.
  * @param portIndex Output port index to close.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- *     or {@link #MIDI_STATUS_INVALID_PORT} if portIndex is invalid or not an open output port.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ *     or {@link #OH_MIDI_STATUS_INVALID_PORT} if portIndex is invalid or not an open output port.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_CloseOutputPort(OH_MIDIDevice *device, uint32_t portIndex);
@@ -291,7 +291,7 @@ OH_MIDIStatusCode OH_MIDIDevice_CloseOutputPort(OH_MIDIDevice *device, uint32_t 
  * - Atomicity: Each event in the array is treated atomically.
  * It is either fully written or not written at all.
  * - Partial Success: If the buffer becomes full midway, the function returns
- * {@link #MIDI_STATUS_WOULD_BLOCK} and sets eventsWritten to the number of events
+ * {@link #OH_MIDI_STATUS_WOULD_BLOCK} and sets eventsWritten to the number of events
  * successfully enqueued.
  *
  * @param device Target device handle.
@@ -299,12 +299,12 @@ OH_MIDIStatusCode OH_MIDIDevice_CloseOutputPort(OH_MIDIDevice *device, uint32_t 
  * @param events Pointer to the array of events to send.
  * @param eventCount Number of events in the array.
  * @param eventsWritten Returns the number of events successfully consumed.
- * @return {@link #MIDI_STATUS_OK} if all events were written.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- *     or {@link #MIDI_STATUS_INVALID_PORT} if portIndex is invalid, or not open.
- *     or {@link #MIDI_STATUS_WOULD_BLOCK} if buffer is full (check eventsWritten).
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
- *     or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if all events were written.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ *     or {@link #OH_MIDI_STATUS_INVALID_PORT} if portIndex is invalid, or not open.
+ *     or {@link #OH_MIDI_STATUS_WOULD_BLOCK} if buffer is full (check eventsWritten).
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_Send(
@@ -327,12 +327,12 @@ OH_MIDIStatusCode OH_MIDIDevice_Send(
  * @param portIndex Target port index.
  * @param data Pointer to the byte stream to send.
  * @param byteSize Byte size of data.
- * @return {@link #MIDI_STATUS_OK} if all events were written.
- *     or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- *     or {@link #MIDI_STATUS_INVALID_PORT} if portIndex is invalid, or not open.
- *     or {@link #MIDI_STATUS_TIMEOUT} if the operation could not be completed within a reasonable time,
+ * @return {@link #OH_MIDI_STATUS_OK} if all events were written.
+ *     or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ *     or {@link #OH_MIDI_STATUS_INVALID_PORT} if portIndex is invalid, or not open.
+ *     or {@link #OH_MIDI_STATUS_TIMEOUT} if the operation could not be completed within a reasonable time,
  *                                     may use OH_MIDIDevice_FlushOutputPort to reset.
- *     or {@link #MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
+ *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_SendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
@@ -348,10 +348,10 @@ OH_MIDIStatusCode OH_MIDIDevice_SendSysEx(OH_MIDIDevice *device, uint32_t portIn
  *
  * @param device Target device handle.
  * @param portIndex Target port index.
- * @return {@link #MIDI_STATUS_OK} if execution succeeds,
- * or {@link #MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
- * or {@link #MIDI_STATUS_INVALID_PORT} if portIndex invalid or not a output port.
- * or {@link #MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
+ * @return {@link #OH_MIDI_STATUS_OK} if execution succeeds,
+ * or {@link #OH_MIDI_STATUS_INVALID_DEVICE_HANDLE} if device is invalid.
+ * or {@link #OH_MIDI_STATUS_INVALID_PORT} if portIndex invalid or not a output port.
+ * or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
 OH_MIDIStatusCode OH_MIDIDevice_FlushOutputPort(OH_MIDIDevice *device, uint32_t portIndex);

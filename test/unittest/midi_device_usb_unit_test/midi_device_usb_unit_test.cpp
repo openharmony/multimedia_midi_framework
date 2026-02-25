@@ -64,7 +64,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_001, TestSize.Level0)
         .Times(1)
         .WillOnce(Invoke([](std::vector<HDI::Midi::V1_0::MidiDeviceInfo> &deviceList) {
             deviceList.clear();
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
     auto deviceInfos = driver.GetRegisteredDevices();
@@ -115,7 +115,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
             device.ports.push_back(port1);
 
             deviceList.push_back(device);
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
     auto deviceInfos = driver.GetRegisteredDevices();
@@ -200,10 +200,10 @@ HWTEST_F(MidiDeviceUsbUnitTest, OpenInputPort001, TestSize.Level0)
         .Times(1)
         .WillOnce(Invoke([&](int64_t, uint32_t, const sptr<HDI::Midi::V1_0::IMidiCallback> &dataCallback) {
             capturedCallback = dataCallback;
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
-    EXPECT_EQ(MIDI_STATUS_OK, driver.OpenInputPort(deviceId, portIndex, inputCallback));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, driver.OpenInputPort(deviceId, portIndex, inputCallback));
     ASSERT_NE(nullptr, capturedCallback);
 
     std::vector<HDI::Midi::V1_0::MidiMessage> messages;
@@ -244,7 +244,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, CloseInputPort001, TestSize.Level0)
     UsbMidiTransportDeviceDriver driver;
     driver.midiHdi_ = mockMidiHdi;
 
-    EXPECT_CALL(*mockMidiHdi, CloseInputPort(deviceId, portIndex)).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockMidiHdi, CloseInputPort(deviceId, portIndex)).WillOnce(Return(OH_MIDI_STATUS_OK));
 
-    EXPECT_EQ(MIDI_STATUS_OK, driver.CloseInputPort(deviceId, portIndex));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, driver.CloseInputPort(deviceId, portIndex));
 }
