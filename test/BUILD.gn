@@ -36,3 +36,8 @@ group("midi_unit_test") {
     "unittest/ump_processor_unit_test:ump_processor_unittest",
   ]
 }
+
+group("midi_fuzz_test") {
+  testonly = true
+  deps = [ "fuzztest/midiservicecontroller_fuzzer:fuzztest" ]
+}
