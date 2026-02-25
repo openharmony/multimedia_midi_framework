@@ -287,6 +287,62 @@ void MultipleClientsOpenSamePort(FuzzedDataProvider &fdp)
     }
 }
 
+void OpenDeviceWithInvalidId(FuzzedDataProvider &fdp)
+{
+    if (activeClients_.empty()) return;
+    size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
+    auto &client = activeClients_[clientIdx];
+    int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
+    midiServiceController_->OpenDevice(client.clientId, invalidDeviceId);
+}
+
+void OpenDeviceWithInvalidClientId(FuzzedDataProvider &fdp)
+{
+    if (activeDevices_.empty()) return;
+    uint32_t invalidClientId = fdp.ConsumeIntegral<uint32_t>();
+    size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
+    int64_t deviceId = activeDevices_[deviceIdx];
+    midiServiceController_->OpenDevice(invalidClientId, deviceId);
+}
+
+void CloseDeviceWithInvalidId(FuzzedDataProvider &fdp)
+{
+    if (activeClients_.empty()) return;
+    size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
+    auto &client = activeClients_[clientIdx];
+    int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
+    midiServiceController_->CloseDevice(client.clientId, invalidDeviceId);
+}
+
+void OpenInputPortWithInvalidId(FuzzedDataProvider &fdp)
+{
+    if (activeClients_.empty()) return;
+    size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
+    auto &client = activeClients_[clientIdx];
+    int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
+    uint32_t invalidPortIndex = fdp.ConsumeIntegral<uint32_t>();
+    
+    midiServiceController_->OpenInputPort(client.clientId, client.buffer, invalidDeviceId, invalidPortIndex);
+}
+
+void CloseInputPortWithInvalidId(FuzzedDataProvider &fdp)
+{
+    if (activeClients_.empty()) return;
+    size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
+    auto &client = activeClients_[clientIdx];
+    
+    int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
+    uint32_t invalidPortIndex = fdp.ConsumeIntegral<uint32_t>();
+    
+    midiServiceController_->CloseInputPort(client.clientId, invalidDeviceId, invalidPortIndex);
+}
+
+void DestroyMidiClientWithInvalidId(FuzzedDataProvider &fdp)
+{
+    uint32_t invalidClientId = fdp.ConsumeIntegral<uint32_t>();
+    midiServiceController_->DestroyMidiClient(invalidClientId);
+}
+
 void MidiServiceControllerInit()
 {
     midiServiceController_ = MidiServiceController::GetInstance();
@@ -324,7 +380,13 @@ void MidiServiceControllerTest(const uint8_t *data, size_t size)
             CloseOutputPort,
             FlushOutputPort,
             DestroyMidiClient,
-            MultipleClientsOpenSamePort
+            MultipleClientsOpenSamePort,
+            OpenDeviceWithInvalidId,
+            OpenDeviceWithInvalidClientId,
+            CloseDeviceWithInvalidId,
+            OpenInputPortWithInvalidId,
+            CloseInputPortWithInvalidId,
+            DestroyMidiClientWithInvalidId
         });
         func(fdp);
     }
