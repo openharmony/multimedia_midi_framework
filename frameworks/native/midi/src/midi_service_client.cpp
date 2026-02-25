@@ -31,7 +31,7 @@ namespace MIDI {
 static OH_MIDIStatusCode GetMidiStatusCode(int32_t statusCode)
 {
     auto ret = (OH_MIDIStatusCode)statusCode;
-    return (ret >= OH_MIDI_STATUS_OK && ret < MIDI_STATUS_SYSTEM_ERROR) ? ret :
+    return (ret >= OH_MIDI_STATUS_OK && ret < OH_MIDI_STATUS_SYSTEM_ERROR) ? ret :
         OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
 }
 
@@ -61,7 +61,7 @@ OH_MIDIStatusCode MidiServiceClient::Init(sptr<MidiCallbackStub> callback, uint3
     deathRecipient_->SetNotifyCb(
         [this](uint32_t clientId) {
             CHECK_AND_RETURN(this->callback_ != nullptr);
-            this->callback_->NotifyError(MIDI_STATUS_SERVICE_DIED);
+            this->callback_->NotifyError(OH_MIDI_STATUS_SERVICE_DIED);
         }
     );
     object->AddDeathRecipient(deathRecipient_);
@@ -159,7 +159,7 @@ OH_MIDIStatusCode MidiServiceClient::DestroyMidiClient()
     CHECK_AND_RETURN_RET_LOG(samgr != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "Get samgr failed.");
 
     sptr<IRemoteObject> object = samgr->CheckSystemAbility(MIDI_SERVICE_ID);
-    CHECK_AND_RETURN_RET_LOG(object != nullptr, MIDI_STATUS_GENERIC_IPC_FAILURE,
+    CHECK_AND_RETURN_RET_LOG(object != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE,
         "midi service remote object is NULL.");
     object->RemoveDeathRecipient(deathRecipient_);
     deathRecipient_ = nullptr;

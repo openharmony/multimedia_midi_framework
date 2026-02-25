@@ -126,7 +126,7 @@ int32_t MidiSharedMemoryImpl::Init()
     }
 
     void *addr = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
-    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, MIDI_STATUS_SYSTEM_ERROR,
+    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, OH_MIDI_STATUS_SYSTEM_ERROR,
                              "Init falied: fd %{public}d size %{public}zu", fd_, size_);
     base_ = static_cast<uint8_t *>(addr);
     MIDI_DEBUG_LOG("Init %{public}s <%{public}s> done.", (isFromRemote ? "remote" : "local"), name_.c_str());

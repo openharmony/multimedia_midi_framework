@@ -73,57 +73,57 @@ public:
             return MIDI_STATUS_DEVICE_ALREADY_OPEN;
         }
         openedDevices_.insert(deviceId);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t OpenDevice(std::string deviceAddr, BleDriverCallback deviceCallback) override
     {
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t CloseDevice(int64_t deviceId) override
     {
         openedDevices_.erase(deviceId);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback cb) override
     {
         uint64_t key = (static_cast<uint64_t>(deviceId) << 32) | portIndex;
         if (openedInputPorts_.count(key) > 0) {
-            return MIDI_STATUS_PORT_ALREADY_OPEN;
+            return OH_MIDI_STATUS_PORT_ALREADY_OPEN;
         }
         openedInputPorts_.insert(key);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t OpenOutputPort(int64_t deviceId, uint32_t portIndex) override
     {
         uint64_t key = (static_cast<uint64_t>(deviceId) << 32) | portIndex;
         if (openedOutputPorts_.count(key) > 0) {
-            return MIDI_STATUS_PORT_ALREADY_OPEN;
+            return OH_MIDI_STATUS_PORT_ALREADY_OPEN;
         }
         openedOutputPorts_.insert(key);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override
     {
         uint64_t key = (static_cast<uint64_t>(deviceId) << 32) | portIndex;
         openedInputPorts_.erase(key);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) override
     {
         uint64_t key = (static_cast<uint64_t>(deviceId) << 32) | portIndex;
         openedOutputPorts_.erase(key);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t HandleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) override
     {
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     void AddMockDevice(int64_t driverId, const std::string &name, DeviceType type)
@@ -173,7 +173,7 @@ void CreateMidiInServer(FuzzedDataProvider &fdp)
     sptr<IRemoteObject> clientObj;
     uint32_t clientId = 0;
     int32_t ret = midiServiceController_->CreateMidiInServer(callback->AsObject(), clientObj, clientId);
-    if (ret == MIDI_STATUS_OK) {
+    if (ret == OH_MIDI_STATUS_OK) {
         ClientContext ctx;
         ctx.clientId = clientId;
         ctx.clientObj = clientObj;
@@ -325,7 +325,7 @@ void OpenInputPortWithInvalidId(FuzzedDataProvider &fdp)
     auto &client = activeClients_[clientIdx];
     int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
     uint32_t invalidPortIndex = fdp.ConsumeIntegral<uint32_t>();
-    
+
     midiServiceController_->OpenInputPort(client.clientId, client.buffer, invalidDeviceId, invalidPortIndex);
 }
 
@@ -334,10 +334,10 @@ void CloseInputPortWithInvalidId(FuzzedDataProvider &fdp)
     CHECK_AND_RETURN(!activeClients_.empty());
     size_t clientIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     auto &client = activeClients_[clientIdx];
-    
+
     int64_t invalidDeviceId = fdp.ConsumeIntegral<int64_t>();
     uint32_t invalidPortIndex = fdp.ConsumeIntegral<uint32_t>();
-    
+
     midiServiceController_->CloseInputPort(client.clientId, invalidDeviceId, invalidPortIndex);
 }
 
