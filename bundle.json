@@ -56,7 +56,8 @@
             "inner_kits": [],
             "test": [
                 "//foundation/multimedia/midi_framework/test:midi_unit_test",
-                "//foundation/multimedia/midi_framework/test:midi_demo_test"
+                "//foundation/multimedia/midi_framework/test:midi_demo_test",
+                "//foundation/multimedia/midi_framework/test:midi_fuzz_test"
             ]
         }
     }
