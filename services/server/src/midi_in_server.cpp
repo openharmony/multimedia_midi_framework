@@ -147,7 +147,7 @@ bool MidiInServer::IsBluetoothDevice(const std::map<int32_t, std::string> &devic
         return false;
     }
     uint32_t typeVal = 0;
-    CHECK_AND_RETURN_RET(StringToDecNum(it->second, typeVal),false);
+    CHECK_AND_RETURN_RET(StringToDecNum(it->second, typeVal), false);
     return typeVal == static_cast<uint32_t>(DEVICE_TYPE_BLE);
 }
 }  // namespace MIDI

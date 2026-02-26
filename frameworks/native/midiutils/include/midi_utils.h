@@ -53,7 +53,8 @@ constexpr auto MAX_TIMEOUT_MS = std::chrono::milliseconds(2000);
 
 constexpr size_t PREFIX_LENGTH = 2;
 
-constexpr uint32_t BASE_TEN = 10;
+constexpr uint32_t BASE_DECIMAL = 10;
+constexpr uint32_t BASE_HEXADECIMAL = 16;
 
 inline uint8_t GetSysexStatus(uint32_t pktIndex, uint32_t totalPkts)
 {
@@ -134,12 +135,13 @@ private:
 };
 
 template <typename T>
-bool StringToNum(const std::string& str, T& outValue, int base = BASE_TEN) {
+bool StringToNum(const std::string& str, T& outValue, uint32_t base = BASE_DECIMAL)
+{
     if (str.empty()) return false;
 
     const char* dataPtr = str.data();
     size_t dataSize = str.size();
-    if (base == 16) { // Hexadecimal
+    if (base == BASE_HEXADECIMAL) {
          
         if (dataSize >= PREFIX_LENGTH && dataPtr[0] == '0' && (dataPtr[1] == 'x' || dataPtr[1] == 'X')) {
             dataPtr += PREFIX_LENGTH;
@@ -152,13 +154,15 @@ bool StringToNum(const std::string& str, T& outValue, int base = BASE_TEN) {
 }
 
 template <typename T>
-bool StringToDecNum(const std::string& str, T& outValue) {
-    return StringToNum<T>(str, outValue, 10); // Decimal
+bool StringToDecNum(const std::string& str, T& outValue)
+{
+    return StringToNum<T>(str, outValue, BASE_DECIMAL);
 }
 
 template <typename T>
-bool StringToHexNum(const std::string& str, T& outValue) {
-    return StringToNum<T>(str, outValue, 16); // Hexadecimal
+bool StringToHexNum(const std::string& str, T& outValue)
+{
+    return StringToNum<T>(str, outValue, BASE_HEXADECIMAL);
 }
 } // namespace MIDI
 } // namespace OHOS
