@@ -43,7 +43,6 @@ namespace {
     constexpr size_t HEAD_STR_LEN = 2;
     constexpr size_t TAIL_STR_LEN = 5;
     constexpr size_t WIDE_LEN = 2;
-    static constexpr uint32_t BASE_TEN = 10;
 } // namespace
 
 int64_t ClockTime::GetCurNano()
@@ -146,15 +145,6 @@ std::string DumpMidiEvents(const std::vector<MidiEventInner>& events)
         out << "\n  [" << i << "] " << DumpOneEvent(events[i].timestamp, events[i].length, events[i].data);
     }
     return out.str();
-}
-
-long StringToNum(const std::string &str)
-{
-    char *endptr;
-    long num = strtol(str.c_str(), &endptr, BASE_TEN);
-    CHECK_AND_RETURN_RET_LOG(endptr != nullptr && *endptr == '\0', 0,
-        "trans str \"%{public}s\" to num failed", str.c_str());
-    return num;
 }
 
 std::array<uint32_t, SYSEX7_WORD_COUNT> PackSysEx7Ump64(uint8_t group, uint8_t status,

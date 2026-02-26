@@ -18,6 +18,8 @@
 
 #include <array>
 #include "midi_info.h"
+#include <charconv>
+#include <system_error>
 
 namespace OHOS {
 namespace MIDI {
@@ -48,6 +50,10 @@ constexpr uint32_t PACKETS_BATCH_NUM = 256;
 constexpr int64_t WAIT_SLICE_NS = 2 * 1000 * 1000; // 2ms
 
 constexpr auto MAX_TIMEOUT_MS = std::chrono::milliseconds(2000);
+
+constexpr size_t PREFIX_LENGTH = 2;
+
+constexpr uint32_t BASE_TEN = 10;
 
 inline uint8_t GetSysexStatus(uint32_t pktIndex, uint32_t totalPkts)
 {
@@ -126,6 +132,34 @@ public:
 private:
     int fd_ = -1;
 };
+
+template <typename T>
+bool StringToNum(const std::string& str, T& outValue, int base = BASE_TEN) {
+    if (str.empty()) return false;
+
+    const char* dataPtr = str.data();
+    size_t dataSize = str.size();
+    if (base == 16) { // Hexadecimal
+         
+        if (dataSize >= PREFIX_LENGTH && dataPtr[0] == '0' && (dataPtr[1] == 'x' || dataPtr[1] == 'X')) {
+            dataPtr += PREFIX_LENGTH;
+            dataSize -= PREFIX_LENGTH;
+        }
+    }
+    if (dataSize == 0) return false;
+    auto [ptr, ec] = std::from_chars(dataPtr, dataPtr + dataSize, outValue, base);
+    return (ec == std::errc() && ptr == dataPtr + dataSize);
+}
+
+template <typename T>
+bool StringToDecNum(const std::string& str, T& outValue) {
+    return StringToNum<T>(str, outValue, 10); // Decimal
+}
+
+template <typename T>
+bool StringToHexNum(const std::string& str, T& outValue) {
+    return StringToNum<T>(str, outValue, 16); // Hexadecimal
+}
 } // namespace MIDI
 } // namespace OHOS
 #endif

@@ -44,47 +44,46 @@ public:
 static bool ConvertToDeviceInformation(
     const std::map<int32_t, std::string> &deviceInfo, OH_MIDIDeviceInformation &outInfo)
 {
-    // 初始化outInfo
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
 
     auto it = deviceInfo.find(DEVICE_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceId error");
-    outInfo.midiDeviceId = StringToNum(it->second);
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.midiDeviceId), false, "parse deviceId failed");
 
     it = deviceInfo.find(DEVICE_TYPE);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceType error");
-    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(StringToNum(it->second));
+    uint32_t typeVal = 0;
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, typeVal), false, "parse deviceType failed");
+    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(typeVal);
 
     it = deviceInfo.find(MIDI_PROTOCOL);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "protocol error");
-    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(StringToNum(it->second));
+    uint32_t protocolVal = 0;
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, protocolVal), false, "parse protocol failed");
+    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(protocolVal);
 
     it = deviceInfo.find(DEVICE_NAME);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceName error");
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
-        false,
-        "copy deviceName failed");
+        strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName), it->second.c_str(), it->second.length()) == 0,
+        false, "copy deviceName failed");
 
     it = deviceInfo.find(PRODUCT_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productId error");
-    outInfo.productId = StringToNum(it->second);
+    CHECK_AND_RETURN_RET_LOG(StringToHexNum(it->second, outInfo.productId), false, "parse productId hex failed");
 
     it = deviceInfo.find(VENDOR_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorId error");
-    outInfo.vendorId = StringToNum(it->second);
+    CHECK_AND_RETURN_RET_LOG(StringToHexNum(it->second, outInfo.vendorId), false, "parse vendorId hex failed");
 
     it = deviceInfo.find(ADDRESS);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
-        false,
-        "copy deviceAddress failed");
-
+        strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress), it->second.c_str(), it->second.length()) == 0,
+        false, "copy deviceAddress failed");
     return true;
 }
+
 MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
     OH_MIDIClient_OnDeviceOpened callback, void *userData)
     : ipc_(midiServiceInterface), callback_(callback), userData_(userData)
@@ -110,22 +109,23 @@ static bool ConvertToPortInformation(
     const std::map<int32_t, std::string> &portInfo, int64_t deviceId, OH_MIDIPortInformation &outInfo)
 {
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
-
     outInfo.deviceId = deviceId;
 
     auto it = portInfo.find(PORT_INDEX);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "port index error");
+    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "port index missing");
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.portIndex), false, "parse port index failed");
 
-    outInfo.portIndex = static_cast<uint32_t>(StringToNum(it->second));
     it = portInfo.find(DIRECTION);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "direction error");
-    outInfo.direction = static_cast<OH_MIDIPortDirection>(StringToNum(it->second));
+    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "direction missing");
+    uint32_t directionVal = 0;
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, directionVal), false, "parse direction failed");
+    outInfo.direction = static_cast<OH_MIDIPortDirection>(directionVal);
 
     it = portInfo.find(PORT_NAME);
     CHECK_AND_RETURN_RET_LOG(it != portInfo.end() && !it->second.empty(), false, "port name error");
 
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length()) == MIDI_STATUS_OK,
+        strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length()) == 0,
         false,
         "copy port name failed");
     return true;
