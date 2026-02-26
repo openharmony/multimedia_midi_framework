@@ -35,19 +35,19 @@ int32_t ClientConnectionInServer::CreateRingBuffer(int fd)
 {
     auto fdObject = std::make_shared<UniqueFd>(fd);
     sharedRingBuffer_ = MidiSharedRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE, fdObject);
-    CHECK_AND_RETURN_RET_LOG(sharedRingBuffer_ != nullptr, MIDI_STATUS_SYSTEM_ERROR, "create fail");
+    CHECK_AND_RETURN_RET_LOG(sharedRingBuffer_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "create fail");
 
     memset_s(sharedRingBuffer_->GetDataBase(), sharedRingBuffer_->GetCapacity(), 0,
              sharedRingBuffer_->GetCapacity());
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 
 int32_t ClientConnectionInServer::TrySendToClient(const MidiEventInner& event)
 {
     CHECK_AND_RETURN_RET(sharedRingBuffer_->TryWriteEvent(event) == MidiStatusCode::OK,
-        MIDI_STATUS_SYSTEM_ERROR, "try send event fail");
-    return MIDI_STATUS_OK;
+        OH_MIDI_STATUS_SYSTEM_ERROR, "try send event fail");
+    return OH_MIDI_STATUS_OK;
 }
 
 bool ClientConnectionInServer::EnqueueNonRealtime(std::vector<uint32_t>&& payloadWords,

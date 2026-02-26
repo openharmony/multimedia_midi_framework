@@ -74,7 +74,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_001, TestSize.Level0)
 {
     MidiServiceClient client;
     std::vector<std::map<int32_t, std::string>> deviceInfos;
-    EXPECT_EQ(client.GetDevices(deviceInfos), MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.GetDevices(deviceInfos), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -95,10 +95,10 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_002, TestSize.Level0)
         .WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &devices) {
             devices.clear();
             devices.push_back({{0, "dev0"}, {1, "usb"}});
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
-    EXPECT_EQ(client.GetDevices(deviceInfos), MIDI_STATUS_OK);
+    EXPECT_EQ(client.GetDevices(deviceInfos), OH_MIDI_STATUS_OK);
     ASSERT_EQ(deviceInfos.size(), 1u);
     EXPECT_EQ(deviceInfos[0].at(0), "dev0");
 }
@@ -111,7 +111,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, OpenDevice_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    EXPECT_EQ(client.OpenDevice(1), MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.OpenDevice(1), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -127,8 +127,8 @@ HWTEST_F(MidiServiceClientUnitTest, OpenDevice_002, TestSize.Level0)
     InjectIpcForTest(client, mockIpc);
 
     int64_t deviceId = 1001;
-    EXPECT_CALL(*mockIpc, OpenDevice(deviceId)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
-    EXPECT_EQ(client.OpenDevice(deviceId), MIDI_STATUS_OK);
+    EXPECT_CALL(*mockIpc, OpenDevice(deviceId)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_EQ(client.OpenDevice(deviceId), OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -139,7 +139,7 @@ HWTEST_F(MidiServiceClientUnitTest, OpenDevice_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, CloseDevice_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    EXPECT_EQ(client.CloseDevice(1), MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.CloseDevice(1), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -155,8 +155,8 @@ HWTEST_F(MidiServiceClientUnitTest, CloseDevice_002, TestSize.Level0)
     InjectIpcForTest(client, mockIpc);
 
     int64_t deviceId = 1001;
-    EXPECT_CALL(*mockIpc, CloseDevice(deviceId)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
-    EXPECT_EQ(client.CloseDevice(deviceId), MIDI_STATUS_OK);
+    EXPECT_CALL(*mockIpc, CloseDevice(deviceId)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_EQ(client.CloseDevice(deviceId), OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -168,7 +168,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_001, TestSize.Level0)
 {
     MidiServiceClient client;
     std::vector<std::map<int32_t, std::string>> portInfos;
-    EXPECT_EQ(client.GetDevicePorts(1, portInfos), MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.GetDevicePorts(1, portInfos), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -192,10 +192,10 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_002, TestSize.Level0)
             ports.clear();
             ports.push_back({{0, "port0"}, {1, "input"}});
             ports.push_back({{0, "port1"}, {1, "output"}});
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
-    EXPECT_EQ(client.GetDevicePorts(deviceId, portInfos), MIDI_STATUS_OK);
+    EXPECT_EQ(client.GetDevicePorts(deviceId, portInfos), OH_MIDI_STATUS_OK);
     ASSERT_EQ(portInfos.size(), 2u);
 }
 
@@ -208,7 +208,7 @@ HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_001, TestSize.Level0)
 {
     MidiServiceClient client;
     std::shared_ptr<MidiSharedRing> buffer;
-    EXPECT_EQ(client.OpenInputPort(buffer, 1, 0), MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.OpenInputPort(buffer, 1, 0), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -231,10 +231,10 @@ HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_002, TestSize.Level0)
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &outBuffer, int64_t, uint32_t) {
             outBuffer = MidiSharedRing::CreateFromLocal(256);
-            return (outBuffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_SYSTEM_ERROR;
+            return (outBuffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
         }));
 
-    EXPECT_EQ(client.OpenInputPort(buffer, deviceId, portIndex), MIDI_STATUS_OK);
+    EXPECT_EQ(client.OpenInputPort(buffer, deviceId, portIndex), OH_MIDI_STATUS_OK);
     EXPECT_NE(buffer, nullptr);
 }
 
@@ -246,7 +246,7 @@ HWTEST_F(MidiServiceClientUnitTest, OpenInputPort_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    EXPECT_EQ(client.CloseInputPort(1, 0), MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.CloseInputPort(1, 0), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -264,6 +264,6 @@ HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_002, TestSize.Level0)
     int64_t deviceId = 1004;
     uint32_t portIndex = 0;
 
-    EXPECT_CALL(*mockIpc, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
-    EXPECT_EQ(client.CloseInputPort(deviceId, portIndex), MIDI_STATUS_OK);
+    EXPECT_CALL(*mockIpc, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_EQ(client.CloseInputPort(deviceId, portIndex), OH_MIDI_STATUS_OK);
 }

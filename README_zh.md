@@ -190,7 +190,7 @@ midi_framework部件向开发者提供了 **Native API**，主要涵盖客户端
 | **OH_MIDIClient_GetPortInfos**       | 获取指定设备的端口信息。                                             |
 | **OH_MIDIClient_OpenDevice**         | 打开指定的MIDI设备，建立连接会话。                                   |
 | **OH_MIDIClient_OpenBLEDevice**      | 异步打开指定的BLE MIDI设备，建立连接会话。                           |
-| **OH_MIDIDevice_Close**        | 关闭已打开的MIDI设备，断开连接。                                     |
+| **OH_MIDIClient_CloseDevice**        | 关闭已打开的MIDI设备，断开连接。                                     |
 | **OH_MIDIDevice_OpenInputPort**      | 打开设备的指定输入端口，准备接收MIDI数据。                           |
 | **OH_MIDIDevice_OpenOutputPort**     | 打开设备的指定输出端口，准备发送MIDI数据。                           |
 | **OH_MIDIDevice_Send**               | 向指定输出端口发送MIDI数据。                                         |
@@ -258,7 +258,7 @@ void MIDIDemo() {
     callbacks.onError = OnError;
 
     OH_MIDIStatusCode ret = OH_MIDIClient_Create(&client, callbacks, nullptr);
-    if (ret != MIDI_STATUS_OK) {
+    if (ret != OH_MIDI_STATUS_OK) {
         std::cout << "Failed to create client." << std::endl;
         return;
     }
@@ -289,20 +289,20 @@ void MIDIDemo() {
             OH_MIDIDevice *device = nullptr;
             ret = OH_MIDIClient_OpenDevice(client, targetDeviceId, &device);
 
-            if (ret == MIDI_STATUS_OK && device != nullptr) {
+            if (ret == OH_MIDI_STATUS_OK && device != nullptr) {
                 // 5. 遍历并打开端口
                 for (const auto& port : ports) {
                     // --- 场景 A: 输入端口 (接收) ---
                     if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
                         OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
-                        if (OH_MIDIDevice_OpenInputPort(device, desc, OnMIDIReceived, nullptr) == MIDI_STATUS_OK) {
+                        if (OH_MIDIDevice_OpenInputPort(device, desc, OnMIDIReceived, nullptr) == OH_MIDI_STATUS_OK) {
                             std::cout << "Input port " << port.portIndex << " opened." << std::endl;
                         }
                     }
                     // --- 场景 B: 输出端口 (发送) ---
                     else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
                         OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_1_0};
-                        if (OH_MIDIDevice_OpenOutputPort(device, desc) == MIDI_STATUS_OK) {
+                        if (OH_MIDIDevice_OpenOutputPort(device, desc) == OH_MIDI_STATUS_OK) {
                             std::cout << "Output port " << port.portIndex << " opened. Sending data..." << std::endl;
 
                             // 构建 UMP 数据包: MIDI 1.0 Note On -> Channel 0, Note 60, Vel 100
@@ -330,7 +330,7 @@ void MIDIDemo() {
                         OH_MIDIDevice_CloseOutputPort(device, port.portIndex);
                     }
                 }
-                OH_MIDIDevice_Close(device);
+                OH_MIDIClient_CloseDevice(client, device);
             }
         }
     }

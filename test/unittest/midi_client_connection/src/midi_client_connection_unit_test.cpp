@@ -65,7 +65,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerCreateRingBuffer_
 {
     ClientConnectionInServer clientConnection(1, 2, 3);
 
-    EXPECT_EQ(MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
 
     std::shared_ptr<MidiSharedRing> sharedRing = clientConnection.GetRingBuffer();
     ASSERT_NE(nullptr, sharedRing);
@@ -92,12 +92,12 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerCreateRingBuffer_
 HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_001, TestSize.Level0)
 {
     ClientConnectionInServer clientConnection(10, 20, 30);
-    ASSERT_EQ(MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
+    ASSERT_EQ(OH_MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
 
     std::vector<uint32_t> payloadWords{0x11223344, 0x55667788, 0x99AABBCC};
     MidiEventInner midiEventInner = MakeMidiEventInner(12345, payloadWords);
 
-    EXPECT_EQ(MIDI_STATUS_OK, clientConnection.TrySendToClient(midiEventInner));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, clientConnection.TrySendToClient(midiEventInner));
 
     // Verify data is really in ring (PeekNext should succeed).
     std::shared_ptr<MidiSharedRing> sharedRing = clientConnection.GetRingBuffer();
@@ -117,7 +117,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
 HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_002, TestSize.Level0)
 {
     ClientConnectionInServer clientConnection(11, 22, 33);
-    ASSERT_EQ(MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
+    ASSERT_EQ(OH_MIDI_STATUS_OK, clientConnection.CreateRingBuffer());
 
     // Use a relatively large payload to fill the ring quickly and deterministically.
     // (Payload size tuned so several writes succeed then ring becomes full.)
@@ -125,13 +125,13 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     MidiEventInner midiEventInner = MakeMidiEventInner(1, payloadWords);
 
     // Try to fill ring by sending repeatedly.
-    // We expect eventually one call returns MIDI_STATUS_SYSTEM_ERROR due to TryWriteEvent != OK.
+    // We expect eventually one call returns OH_MIDI_STATUS_SYSTEM_ERROR due to TryWriteEvent != OK.
     bool hasSeenFailure = false;
-    int32_t lastReturnCode = MIDI_STATUS_OK;
+    int32_t lastReturnCode = OH_MIDI_STATUS_OK;
 
     for (int32_t attemptIndex = 0; attemptIndex < 100; ++attemptIndex) {
         lastReturnCode = clientConnection.TrySendToClient(midiEventInner);
-        if (lastReturnCode != MIDI_STATUS_OK) {
+        if (lastReturnCode != OH_MIDI_STATUS_OK) {
             hasSeenFailure = true;
             break;
         }
@@ -140,7 +140,7 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
     }
 
     ASSERT_TRUE(hasSeenFailure);
-    EXPECT_EQ(MIDI_STATUS_SYSTEM_ERROR, lastReturnCode);
+    EXPECT_EQ(OH_MIDI_STATUS_SYSTEM_ERROR, lastReturnCode);
 }
 
 /**

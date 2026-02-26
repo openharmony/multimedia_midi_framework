@@ -143,9 +143,9 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
     MidiDevice *device = nullptr;
 
     // Expect OpenDevice to be called twice on the IPC layer
-    EXPECT_CALL(*mockService, OpenDevice(deviceId)).Times(1).WillRepeatedly(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, OpenDevice(deviceId)).Times(1).WillRepeatedly(Return(OH_MIDI_STATUS_OK));
 
-    EXPECT_EQ(client->OpenDevice(deviceId, &device), MIDI_STATUS_OK);
+    EXPECT_EQ(client->OpenDevice(deviceId, &device), OH_MIDI_STATUS_OK);
     EXPECT_NE(device, nullptr);
     delete device;
 }
@@ -158,7 +158,7 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
 HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
 {
     // 1. Prepare mock data from IPC
-    EXPECT_CALL(*mockService, Init(_, _)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, Init(_, _)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
     EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
         infos.push_back({{DEVICE_ID, "1001"},
             {DEVICE_TYPE, "0"},
@@ -174,7 +174,7 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
             {PRODUCT_ID, "5678"},
             {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }));
     OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange =
@@ -189,7 +189,7 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     OH_MIDIStatusCode status = client->GetDevices(infoArray, &numDevices);
 
     // 3. Verify
-    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 2);
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
@@ -214,7 +214,7 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
 {
-    EXPECT_CALL(*mockService, Init(_, _)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, Init(_, _)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
     EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
         infos.push_back({{DEVICE_ID, "1001"},
             {DEVICE_TYPE, "0"},
@@ -230,7 +230,7 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
             {PRODUCT_ID, "5678"},
             {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }));
     OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange =
@@ -244,7 +244,7 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     OH_MIDIStatusCode status = client->GetDevices(infoArrayTest, &numDevices);
 
     // Silent fill mode: should return OK and fill only what capacity allows
-    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 1);  // Actual filled count
     EXPECT_EQ(infoArrayTest[0].midiDeviceId, 1001);
     EXPECT_STREQ(infoArrayTest[0].deviceName, "Mock_Piano");
@@ -265,14 +265,14 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
             {PRODUCT_ID, "5678"},
             {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }));
     OH_MIDIDeviceInformation infoArray[2];
     numDevices = 2;
     status = client->GetDevices(infoArray, &numDevices);
 
     // Verify all devices are filled when buffer is sufficient
-    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 2);
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
     EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
@@ -307,13 +307,13 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
             ports.push_back({{PORT_INDEX, "1"},
                 {DIRECTION, "1"},  // Output
                 {PORT_NAME, "Midi_Out_Port"}});
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
     OH_MIDIPortInformation portArray[2];
     size_t numPorts = 2;
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
 
-    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numPorts, 2);
     EXPECT_EQ(portArray[0].portIndex, 0);
     EXPECT_EQ(portArray[0].deviceId, 1001);
@@ -347,13 +347,13 @@ HWTEST_F(MidiClientUnitTest, GetDeviceCount_WithZeroInitialValue, TestSize.Level
             {PRODUCT_ID, "5678"},
             {VENDOR_ID, "4321"},
             {ADDRESS, "aabbcc"}});
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }));
 
     size_t numDevices = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevices(nullptr, &numDevices);
 
-    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 2);  // Should return actual count
 }
 
@@ -374,13 +374,13 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
             ports.push_back({{PORT_INDEX, "1"},
                 {DIRECTION, "1"},
                 {PORT_NAME, "Midi_Out_Port"}});
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
     size_t numPorts = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, nullptr, &numPorts);
 
-    EXPECT_EQ(status, MIDI_STATUS_OK);
+    EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numPorts, 2);  // Should return actual count
 }
 
@@ -394,13 +394,13 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
     int64_t invalidId = -1;
 
     // Simulate IPC returning error for invalid device
-    EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _)).WillOnce(Return(MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
+    EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _)).WillOnce(Return(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
 
     OH_MIDIPortInformation portArray[1];
     size_t numPorts = 1;
     OH_MIDIStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
 
-    EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(status, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
 
 /**
@@ -414,7 +414,7 @@ HWTEST_F(MidiClientUnitTest, CloseInputPort_001, TestSize.Level0)
     uint32_t portIndex = 5;
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
 
-    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseInputPort(portIndex), OH_MIDI_STATUS_INVALID_PORT);
 }
 
 /**
@@ -428,7 +428,7 @@ HWTEST_F(MidiClientUnitTest, CloseOutputPort_001, TestSize.Level0)
     uint32_t portIndex = 5;
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
 
-    EXPECT_EQ(device->CloseOutputPort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseOutputPort(portIndex), OH_MIDI_STATUS_INVALID_PORT);
 }
 
 /**
@@ -441,9 +441,9 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_CloseDevice_001, TestSize.Level0)
     int64_t deviceId = 1001;
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
 
-    EXPECT_CALL(*mockService, CloseDevice(deviceId)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseDevice(deviceId)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
-    EXPECT_EQ(device->CloseDevice(), MIDI_STATUS_OK);
+    EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -465,20 +465,20 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
             buffer = MidiSharedRing::CreateFromLocal(256);
-            return (buffer != nullptr) ? MIDI_STATUS_OK : MIDI_STATUS_SYSTEM_ERROR;
+            return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
         }));
 
-    EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     // Open input port -> should start receiver thread internally
     OH_MIDIStatusCode openStatus = device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture);
-    EXPECT_EQ(openStatus, MIDI_STATUS_OK);
+    EXPECT_EQ(openStatus, OH_MIDI_STATUS_OK);
 
     // Close port -> should stop thread (via MidiInputPort destructor) and call IPC CloseInputPort
     OH_MIDIStatusCode closeStatus = device->CloseInputPort(portIndex);
-    EXPECT_EQ(closeStatus, MIDI_STATUS_OK);
+    EXPECT_EQ(closeStatus, OH_MIDI_STATUS_OK);
 
-    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseInputPort(portIndex), OH_MIDI_STATUS_INVALID_PORT);
 }
 
 /**
@@ -500,16 +500,16 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
             buffer = MidiSharedRing::CreateFromLocal(256);
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }));
 
-    EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
-    EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture), MIDI_STATUS_OK);
+    EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture), OH_MIDI_STATUS_OK);
     // Second time should hit "already exists" branch and return ALREADY_OPEN without IPC.
     EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture),
-        MIDI_STATUS_PORT_ALREADY_OPEN);
-    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_OK);
+        OH_MIDI_STATUS_PORT_ALREADY_OPEN);
+    EXPECT_EQ(device->CloseInputPort(portIndex), OH_MIDI_STATUS_OK);
 }
 
 /**
@@ -529,12 +529,12 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_003, TestSize.Level
 
     EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
         .Times(1)
-        .WillOnce(Return(MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
+        .WillOnce(Return(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
 
     OH_MIDIStatusCode status = device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture);
-    EXPECT_EQ(status, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(status, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
-    EXPECT_EQ(device->CloseInputPort(portIndex), MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseInputPort(portIndex), OH_MIDI_STATUS_INVALID_PORT);
 }
 
 /**
@@ -642,7 +642,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_001, TestSize.Level0)
     std::vector<MidiEvent> midiEvents;
     std::vector<std::vector<uint32_t>> payloadBuffers;
 
-    EXPECT_EQ(MIDI_STATUS_OK, outputPort.SendSysEx(portIndex, data, byteSize));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputPort.SendSysEx(portIndex, data, byteSize));
     localRing->DrainToBatch(midiEvents, payloadBuffers, 0);
     EXPECT_EQ(midiEvents.size(), 1);
     EXPECT_EQ(midiEvents[0].data[0] & 0xFF, 0xF0);
@@ -666,7 +666,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_002, TestSize.Level1)
     uint8_t data[largeSize];
     std::fill_n(data, largeSize, 0x01);
 
-    EXPECT_EQ(MIDI_STATUS_TIMEOUT, outputPort.SendSysEx(portIndex, data, largeSize));
+    EXPECT_EQ(OH_MIDI_STATUS_TIMEOUT, outputPort.SendSysEx(portIndex, data, largeSize));
 }
 
 /**
@@ -691,7 +691,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_003, TestSize.Level0)
     std::vector<MidiEvent> midiEvents;
     std::vector<std::vector<uint32_t>> payloadBuffers;
 
-    EXPECT_EQ(MIDI_STATUS_OK, outputPort.SendSysEx(portIndex, data, byteSize));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputPort.SendSysEx(portIndex, data, byteSize));
     localRing->DrainToBatch(midiEvents, payloadBuffers, 0);
     EXPECT_EQ(midiEvents.size(), 2);
     EXPECT_EQ(midiEvents[0].data[0] & 0xFF, 0x01);

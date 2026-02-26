@@ -53,42 +53,42 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_OK = 0,
+    OH_MIDI_STATUS_OK = 0,
 
     /**
      * @error Invalid parameter (e.g., null pointer).
      *
      * @since 24
      */
-    MIDI_STATUS_GENERIC_INVALID_ARGUMENT = 35500001,
+    OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT = 35500001,
 
     /**
      * @error IPC communication failure.
      *
      * @since 24
      */
-    MIDI_STATUS_GENERIC_IPC_FAILURE = 35500002,
+    OH_MIDI_STATUS_GENERIC_IPC_FAILURE = 35500002,
 
     /**
      * @error Invalid client handle.
      *
      * @since 24
      */
-    MIDI_STATUS_INVALID_CLIENT = 35500003,
+    OH_MIDI_STATUS_INVALID_CLIENT = 35500003,
 
     /**
      * @error Invalid device handle.
      *
      * @since 24
      */
-    MIDI_STATUS_INVALID_DEVICE_HANDLE = 35500004,
+    OH_MIDI_STATUS_INVALID_DEVICE_HANDLE = 35500004,
 
     /**
      * @error Invalid port index.
      *
      * @since 24
      */
-    MIDI_STATUS_INVALID_PORT = 35500005,
+    OH_MIDI_STATUS_INVALID_PORT = 35500005,
 
     /**
      * @error Send buffer is transiently full.
@@ -98,14 +98,14 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_WOULD_BLOCK = 35500006,
+    OH_MIDI_STATUS_WOULD_BLOCK = 35500006,
 
     /**
      * @error Operation can not be handled in a reasonable time.
      *
      * @since 24
      */
-    MIDI_STATUS_TIMEOUT = 35500007,
+    OH_MIDI_STATUS_TIMEOUT = 35500007,
 
     /**
      * @error The client has reached the maximum number of open devices allowed.
@@ -113,7 +113,7 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_TOO_MANY_OPEN_DEVICES = 35500008,
+    OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES = 35500008,
 
     /**
      * @error The client has reached the maximum number of open ports allowed.
@@ -121,21 +121,21 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_TOO_MANY_OPEN_PORTS = 35500009,
+    OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS = 35500009,
 
     /**
      * @error The client has already opened this device.
      *
      * @since 24
      */
-    MIDI_STATUS_DEVICE_ALREADY_OPEN = 35500010,
+    OH_MIDI_STATUS_DEVICE_ALREADY_OPEN = 35500010,
 
     /**
      * @error The client has already opened this port.
      *
      * @since 24
      */
-    MIDI_STATUS_PORT_ALREADY_OPEN = 35500011,
+    OH_MIDI_STATUS_PORT_ALREADY_OPEN = 35500011,
 
     /**
      * @error The system-wide or per-application limit for MIDI clients has been reached.
@@ -143,7 +143,7 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_TOO_MANY_CLIENTS = 35500012,
+    OH_MIDI_STATUS_TOO_MANY_CLIENTS = 35500012,
 
     /**
      * @error Permission denied.
@@ -152,7 +152,7 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_PERMISSION_DENIED = 35500013,
+    OH_MIDI_STATUS_PERMISSION_DENIED = 35500013,
 
     /**
      * @error The MIDI system service has died or disconnected.
@@ -160,14 +160,14 @@ typedef enum {
      *
      * @since 24
      */
-    MIDI_STATUS_SERVICE_DIED = 35500014,
+    OH_MIDI_STATUS_SERVICE_DIED = 35500014,
 
     /**
      * @error System-level errors such as insufficient memory or system service failure.
      *
      * @since 24
      */
-    MIDI_STATUS_SYSTEM_ERROR = 35500100
+    OH_MIDI_STATUS_SYSTEM_ERROR = 35500100
 } OH_MIDIStatusCode;
 
 /**

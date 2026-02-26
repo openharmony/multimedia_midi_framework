@@ -132,13 +132,13 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseClients_001, TestSize
     EXPECT_TRUE(deviceConnectionBase.IsEmptyClientConnections());
 
     std::shared_ptr<MidiSharedRing> clientRingBuffer;
-    EXPECT_EQ(MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(100, 999, clientRingBuffer));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(100, 999, clientRingBuffer));
     ASSERT_NE(nullptr, clientRingBuffer);
     EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConnections());
 
     // Add another client
     std::shared_ptr<MidiSharedRing> anotherClientRingBuffer;
-    EXPECT_EQ(MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(200, 888, anotherClientRingBuffer));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, deviceConnectionBase.AddClientConnection(200, 888, anotherClientRingBuffer));
     ASSERT_NE(nullptr, anotherClientRingBuffer);
     EXPECT_FALSE(deviceConnectionBase.IsEmptyClientConnections());
 
@@ -179,8 +179,8 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
 
     std::shared_ptr<MidiSharedRing> clientRingBuffer1;
     std::shared_ptr<MidiSharedRing> clientRingBuffer2;
-    ASSERT_EQ(MIDI_STATUS_OK, inputConnection.AddClientConnection(1, 1000, clientRingBuffer1));
-    ASSERT_EQ(MIDI_STATUS_OK, inputConnection.AddClientConnection(2, 1001, clientRingBuffer2));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, inputConnection.AddClientConnection(1, 1000, clientRingBuffer1));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, inputConnection.AddClientConnection(2, 1001, clientRingBuffer2));
     ASSERT_NE(nullptr, clientRingBuffer1);
     ASSERT_NE(nullptr, clientRingBuffer2);
 
@@ -248,19 +248,19 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_001, TestSize.L
     DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
 
     // Stop before start: OK
-    EXPECT_EQ(MIDI_STATUS_OK, outputConnection.Stop());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
 
     // Start twice: both OK
-    EXPECT_EQ(MIDI_STATUS_OK, outputConnection.Start());
-    EXPECT_EQ(MIDI_STATUS_OK, outputConnection.Start());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
 
     int notifyEventFileDescriptor = outputConnection.GetNotifyEventFdForClients();
     EXPECT_GE(notifyEventFileDescriptor, 0);
     EXPECT_TRUE(IsFdValid(notifyEventFileDescriptor));
 
     // Stop twice: both OK
-    EXPECT_EQ(MIDI_STATUS_OK, outputConnection.Stop());
-    EXPECT_EQ(MIDI_STATUS_OK, outputConnection.Stop());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
 }
 
 /**
@@ -282,10 +282,10 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
     outputConnection.SetMaxSendCacheBytes(4);
     outputConnection.SetPerClientMaxPendingEvents(1); // currently not wired to clients, but cover interface
 
-    ASSERT_EQ(MIDI_STATUS_OK, outputConnection.Start());
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
 
     std::shared_ptr<MidiSharedRing> clientRingBuffer;
-    ASSERT_EQ(MIDI_STATUS_OK, outputConnection.AddClientConnection(10, 1234, clientRingBuffer));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.AddClientConnection(10, 1234, clientRingBuffer));
     ASSERT_NE(nullptr, clientRingBuffer);
 
     // Prepare events:
@@ -322,7 +322,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_002, TestSize.L
     // - timerfd trigger -> epoll wake -> collect due -> flush send cache
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-    EXPECT_EQ(MIDI_STATUS_OK, outputConnection.Stop());
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
 
     // Ring should have been drained (best-effort check; if pending was full it might stop early,
     // but in current implementation pending limit is not wired, so it should drain).
@@ -346,7 +346,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_003, TestSize.L
 
     {
         DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
-        ASSERT_EQ(MIDI_STATUS_OK, outputConnection.Start());
+        ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
     }
 }
 
@@ -365,13 +365,13 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_004, TestSize.L
 
     DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
 
-    ASSERT_EQ(MIDI_STATUS_OK, outputConnection.Start());
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
 
     std::shared_ptr<MidiSharedRing> clientRingBuffer;
     uint32_t clientId = 10;
     int64_t deviceHandle = 1234;
 
-    ASSERT_EQ(MIDI_STATUS_OK, outputConnection.AddClientConnection(clientId, deviceHandle, clientRingBuffer));
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.AddClientConnection(clientId, deviceHandle, clientRingBuffer));
     ASSERT_NE(nullptr, clientRingBuffer);
 
     uint32_t dummyWord = 0x12345678;
