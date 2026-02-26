@@ -166,7 +166,8 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<in
 
 int32_t MidiClientCallback::NotifyError(int32_t code)
 {
-    CHECK_AND_RETURN_RET_LOG(callbacks_.onError != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callbacks_.onError is nullptr");
+    CHECK_AND_RETURN_RET_LOG(callbacks_.onError != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR,
+        "callbacks_.onError is nullptr");
     callbacks_.onError(userData_, (OH_MIDIStatusCode)code);
     CHECK_AND_RETURN_RET_LOG(client_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "client is nullptr");
     client_->MarkDeviceInValid();
