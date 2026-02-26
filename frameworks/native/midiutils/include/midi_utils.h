@@ -142,7 +142,6 @@ bool StringToNum(const std::string& str, T& outValue, uint32_t base = BASE_DECIM
     const char* dataPtr = str.data();
     size_t dataSize = str.size();
     if (base == BASE_HEXADECIMAL) {
-         
         if (dataSize >= PREFIX_LENGTH && dataPtr[0] == '0' && (dataPtr[1] == 'x' || dataPtr[1] == 'X')) {
             dataPtr += PREFIX_LENGTH;
             dataSize -= PREFIX_LENGTH;
