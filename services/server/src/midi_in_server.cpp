@@ -41,7 +41,7 @@ int32_t MidiInServer::GetDevices(std::vector<std::map<int32_t, std::string>> &de
     devices = MidiServiceController::GetInstance()->GetDevices();
     UpdateBluetoothPermission();
     if (hasBluetoothPermission_) {
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
     auto endIter = std::remove_if(devices.begin(), devices.end(),
         [this](const std::map<int32_t, std::string> &device) {
@@ -50,13 +50,13 @@ int32_t MidiInServer::GetDevices(std::vector<std::map<int32_t, std::string>> &de
     devices.erase(endIter, devices.end());
 
     MIDI_INFO_LOG("Filtered BLE devices, remaining count: %{public}zu", devices.size());
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiInServer::GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports)
 {
     ports = MidiServiceController::GetInstance()->GetDevicePorts(deviceId);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiInServer::OpenDevice(int64_t deviceId)
@@ -69,7 +69,7 @@ int32_t MidiInServer::OpenBleDevice(const std::string &address, const sptr<IRemo
 {
     if (!MidiPermissionManager::VerifyBluetoothPermission()) {
         MIDI_ERR_LOG("Bluetooth permission verification failed");
-        return MIDI_STATUS_PERMISSION_DENIED;
+        return OH_MIDI_STATUS_PERMISSION_DENIED;
     }
     MIDI_INFO_LOG("address : %{public}s", GetEncryptStr(address).c_str());
     return MidiServiceController::GetInstance()->OpenBleDevice(clientId_, address, object);

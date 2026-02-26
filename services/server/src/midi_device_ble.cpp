@@ -79,7 +79,7 @@ static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector
             uint8_t cmd = status & STATUS_MASK_CMD;
 
             midi1Bytes.push_back(status);
-            
+
             // Program Change (0xC0) and Channel Pressure (0xD0) are 2 bytes
             if (cmd == STATUS_PROG_CHANGE || cmd == STATUS_CHAN_PRESSURE) {
                 midi1Bytes.push_back(data1);
@@ -446,11 +446,11 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
             static_cast<uint32_t>(midi1Data[i]) << " ";
     }
     MIDI_INFO_LOG("MIDI 1.0 decoded: %{public}s", midi1Stream.str().c_str());
-    
+
     // Step 2: Convert MIDI 1.0 to UMP
     std::vector<uint32_t> midi2 = ParseUmpData(midi1Data.data(), midi1Data.size());
     CHECK_AND_RETURN_LOG(!midi2.empty(), "Failed to parse UMP data");
-    
+
     std::vector<MidiEventInner> events;
     MidiEventInner event = {
         .timestamp = GetCurNano(),
@@ -564,7 +564,7 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
             MIDI_WARNING_LOG("Driver: Device %{public}s already has context", GetEncryptStr(deviceAddr).c_str());
             // If it's fully ready, we might callback immediately,
             // but Controller handles "Pending" logic usually.
-            return MIDI_STATUS_DEVICE_ALREADY_OPEN;
+            return OH_MIDI_STATUS_DEVICE_ALREADY_OPEN;
         }
     }
 
@@ -576,7 +576,7 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
     // Note: uuidStorage is local but BleGattcRegister is called immediately (synchronous call)
     std::string uuidStorage;
     BtUuid appUuid = MakeBtUuid(BLE_MIDI_APP_UUID, uuidStorage);
-    
+
     int32_t clientId = BleGattcRegister(appUuid);
     if (clientId <= 0) {
         MIDI_ERR_LOG("BleGattcRegister failed for address=%{public}s", GetEncryptStr(deviceAddr).c_str());
@@ -593,7 +593,7 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
         MIDI_ERR_LOG("ParseMac failed: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
         BleGattcUnRegister(clientId);
         devices_.erase(clientId);
-        return MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
 
     if (BleGattcConnect(clientId, &gattCallbacks_, &bd, false, OHOS_BT_TRANSPORT_TYPE_LE) != 0) {
