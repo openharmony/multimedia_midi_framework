@@ -91,7 +91,7 @@ public:
     OH_MIDIStatusCode CloseInputPort(uint32_t portIndex) override;
     OH_MIDIStatusCode CloseOutputPort(uint32_t portIndex) override;
     OH_MIDIStatusCode Send(uint32_t portIndex, const OH_MIDIEvent *events,
-                             uint32_t eventCount, uint32_t *eventsWritten) override;
+                           uint32_t eventCount, uint32_t *eventsWritten) override;
     OH_MIDIStatusCode SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
     void SetInValid();
