@@ -234,7 +234,7 @@ OH_MIDIStatusCode MidiDevicePrivate::OpenOutputPort(OH_MIDIPortDescriptor descri
     return OH_MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiDevicePrivate::Send(uint32_t portIndex, OH_MIDIEvent *events,
+OH_MIDIStatusCode MidiDevicePrivate::Send(uint32_t portIndex, const OH_MIDIEvent *events,
     uint32_t eventCount, uint32_t *eventsWritten)
 {
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
@@ -245,7 +245,7 @@ OH_MIDIStatusCode MidiDevicePrivate::Send(uint32_t portIndex, OH_MIDIEvent *even
     return (OH_MIDIStatusCode)outputPort->Send(events, eventCount, eventsWritten);
 }
 
-OH_MIDIStatusCode MidiDevicePrivate::SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize)
+OH_MIDIStatusCode MidiDevicePrivate::SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize)
 {
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
     auto iter = outputPortsMap_.find(portIndex);
@@ -402,7 +402,7 @@ void MidiInputPort::DrainRingAndDispatch()
     }
     MIDI_DEBUG_LOG("[client] receive midi events from server");
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(midiEvents).c_str());
-    CHECK_AND_RETURN(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0);
+    CHECK_AND_RETURN(protocol_ == OH_MIDI_PROTOCOL_1_0 || protocol_ == OH_MIDI_PROTOCOL_2_0);
     callback_(userData_, callbackEvents.data(), callbackEvents.size());
 }
 
@@ -421,13 +421,13 @@ MidiOutputPort::MidiOutputPort(OH_MIDIProtocol protocol) : protocol_(protocol)
     MIDI_INFO_LOG("OutputPort created");
 }
 
-int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten)
+int32_t MidiOutputPort::Send(const OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten)
 {
     CHECK_AND_RETURN_RET_LOG(events && eventsWritten, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "parameter is nullptr");
     CHECK_AND_RETURN_RET_LOG(eventCount > 0 && eventCount <= MAX_EVENTS_NUMS, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "parameter is invalid");
-    CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0,
+    CHECK_AND_RETURN_RET_LOG(protocol_ == OH_MIDI_PROTOCOL_1_0 || protocol_ == OH_MIDI_PROTOCOL_2_0,
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
 
     thread_local std::vector<MidiEventInner> innerEvents;
@@ -444,7 +444,7 @@ int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t
 }
 
 void MidiOutputPort::PrepareSysExPackets(
-    uint8_t group, uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
+    uint8_t group, const uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
     SysExPacketData &packetData)
 {
     packetData.innerEvents.clear();
@@ -502,11 +502,11 @@ int32_t MidiOutputPort::SendSysExPackets(const std::vector<MidiEventInner> &inne
     return OH_MIDI_STATUS_OK;
 }
 
-int32_t MidiOutputPort::SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize)
+int32_t MidiOutputPort::SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize)
 {
     CHECK_AND_RETURN_RET_LOG(data, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "parameter is nullptr");
     CHECK_AND_RETURN_RET_LOG(byteSize > 0, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "byteSize is invalid");
-    CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0,
+    CHECK_AND_RETURN_RET_LOG(protocol_ == OH_MIDI_PROTOCOL_1_0 || protocol_ == OH_MIDI_PROTOCOL_2_0,
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
     CHECK_AND_RETURN_RET_LOG(ringBuffer_ != nullptr, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "ringBuffer_ is nullptr");
     CHECK_AND_RETURN_RET_LOG(portIndex < PORT_GROUP_RANGE, OH_MIDI_STATUS_INVALID_PORT, "portIndex out of range");

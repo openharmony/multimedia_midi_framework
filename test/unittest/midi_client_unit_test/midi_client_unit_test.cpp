@@ -192,15 +192,15 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 2);
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
-    EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
-    EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_EQ(infoArray[0].deviceType, OH_MIDI_DEVICE_TYPE_USB);
+    EXPECT_EQ(infoArray[0].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
     EXPECT_EQ(infoArray[0].vendorId, 4311);
     EXPECT_EQ(infoArray[0].productId, 1234);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
-    EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
-    EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_EQ(infoArray[1].deviceType, OH_MIDI_DEVICE_TYPE_BLE);
+    EXPECT_EQ(infoArray[1].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
     EXPECT_EQ(infoArray[1].vendorId, 4321);
     EXPECT_EQ(infoArray[1].productId, 5678);
@@ -275,15 +275,15 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(status, OH_MIDI_STATUS_OK);
     EXPECT_EQ(numDevices, 2);
     EXPECT_EQ(infoArray[0].midiDeviceId, 1001);
-    EXPECT_EQ(infoArray[0].deviceType, MIDI_DEVICE_TYPE_USB);
-    EXPECT_EQ(infoArray[0].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_EQ(infoArray[0].deviceType, OH_MIDI_DEVICE_TYPE_USB);
+    EXPECT_EQ(infoArray[0].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
     EXPECT_EQ(infoArray[0].vendorId, 4311);
     EXPECT_EQ(infoArray[0].productId, 1234);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
-    EXPECT_EQ(infoArray[1].deviceType, MIDI_DEVICE_TYPE_BLE);
-    EXPECT_EQ(infoArray[1].nativeProtocol, MIDI_PROTOCOL_1_0);
+    EXPECT_EQ(infoArray[1].deviceType, OH_MIDI_DEVICE_TYPE_BLE);
+    EXPECT_EQ(infoArray[1].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
     EXPECT_EQ(infoArray[1].vendorId, 4321);
     EXPECT_EQ(infoArray[1].productId, 5678);
@@ -317,11 +317,11 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
     EXPECT_EQ(numPorts, 2);
     EXPECT_EQ(portArray[0].portIndex, 0);
     EXPECT_EQ(portArray[0].deviceId, 1001);
-    EXPECT_EQ(portArray[0].direction, MIDI_PORT_DIRECTION_INPUT);
+    EXPECT_EQ(portArray[0].direction, OH_MIDI_PORT_DIRECTION_INPUT);
     EXPECT_STREQ(portArray[0].name, "Midi_In_Port");
     EXPECT_EQ(portArray[1].portIndex, 1);
     EXPECT_EQ(portArray[1].deviceId, 1001);
-    EXPECT_EQ(portArray[1].direction, MIDI_PORT_DIRECTION_OUTPUT);
+    EXPECT_EQ(portArray[1].direction, OH_MIDI_PORT_DIRECTION_OUTPUT);
     EXPECT_STREQ(portArray[1].name, "Midi_Out_Port");
 }
 
@@ -458,7 +458,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
     OH_MIDIPortDescriptor descriptor;
     descriptor.portIndex = portIndex;
-    descriptor.protocol = MIDI_PROTOCOL_1_0;
+    descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
     CallbackCapture callbackCapture;
 
     EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
@@ -493,7 +493,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
     OH_MIDIPortDescriptor descriptor;
     descriptor.portIndex = portIndex;
-    descriptor.protocol = MIDI_PROTOCOL_1_0;
+    descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
     CallbackCapture callbackCapture;
 
     EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
@@ -524,7 +524,7 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_003, TestSize.Level
     auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
     OH_MIDIPortDescriptor descriptor;
     descriptor.portIndex = portIndex;
-    descriptor.protocol = MIDI_PROTOCOL_1_0;
+    descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
     CallbackCapture callbackCapture;
 
     EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
@@ -548,14 +548,14 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartStop_001, TestSize.Level0)
 
     // 1) callback is nullptr -> Start should fail
     {
-        MidiInputPort inputPort(nullptr, &callbackCapture, MIDI_PROTOCOL_1_0);
+        MidiInputPort inputPort(nullptr, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
         EXPECT_FALSE(inputPort.StartReceiverThread());
         EXPECT_TRUE(inputPort.StopReceiverThread());  // should be safe even if never started
     }
 
     // 2) ringBuffer is nullptr -> Start should fail
     {
-        MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, MIDI_PROTOCOL_1_0);
+        MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
         // ringBuffer_ is nullptr by default
         EXPECT_FALSE(inputPort.StartReceiverThread());
         EXPECT_TRUE(inputPort.StopReceiverThread());
@@ -572,7 +572,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_ReceiverDispatch_001, TestSize.Level0
 {
     CallbackCapture callbackCapture;
 
-    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, MIDI_PROTOCOL_1_0);
+    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(512);
     ASSERT_NE(localRing, nullptr);
 
@@ -611,7 +611,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartReceiverThread_002, TestSize.Lev
 {
     CallbackCapture callbackCapture;
 
-    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, MIDI_PROTOCOL_1_0);
+    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
@@ -630,7 +630,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartReceiverThread_002, TestSize.Lev
  */
 HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_001, TestSize.Level0)
 {
-    MidiOutputPort outputPort(MIDI_PROTOCOL_2_0);
+    MidiOutputPort outputPort(OH_MIDI_PROTOCOL_2_0);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
@@ -656,7 +656,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_002, TestSize.Level1)
 {
-    MidiOutputPort outputPort(MIDI_PROTOCOL_2_0);
+    MidiOutputPort outputPort(OH_MIDI_PROTOCOL_2_0);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
@@ -676,7 +676,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_002, TestSize.Level1)
  */
 HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_003, TestSize.Level0)
 {
-    MidiOutputPort outputPort(MIDI_PROTOCOL_2_0);
+    MidiOutputPort outputPort(OH_MIDI_PROTOCOL_2_0);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
