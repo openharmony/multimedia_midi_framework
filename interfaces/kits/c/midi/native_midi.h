@@ -99,7 +99,7 @@ OH_MIDIStatusCode OH_MIDIClient_Destroy(OH_MIDIClient *client);
  *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *count);
+OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(const OH_MIDIClient *client, size_t *count);
 
 /**
  * @brief Gets the information of connected MIDI devices.
@@ -122,7 +122,7 @@ OH_MIDIStatusCode OH_MIDIClient_GetDeviceCount(OH_MIDIClient *client, size_t *co
  *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(OH_MIDIClient *client,
+OH_MIDIStatusCode OH_MIDIClient_GetDeviceInfos(const OH_MIDIClient *client,
                                                OH_MIDIDeviceInformation *infos,
                                                size_t capacity,
                                                size_t *actualDeviceCount);
@@ -206,7 +206,7 @@ OH_MIDIStatusCode OH_MIDIClient_CloseDevice(OH_MIDIClient *client, OH_MIDIDevice
  *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t deviceId, size_t *count);
+OH_MIDIStatusCode OH_MIDIClient_GetPortCount(const OH_MIDIClient *client, int64_t deviceId, size_t *count);
 
 /**
  * @brief Get the port information of a specific MIDI device.
@@ -231,7 +231,7 @@ OH_MIDIStatusCode OH_MIDIClient_GetPortCount(OH_MIDIClient *client, int64_t devi
  *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(OH_MIDIClient *client,
+OH_MIDIStatusCode OH_MIDIClient_GetPortInfos(const OH_MIDIClient *client,
                                              int64_t deviceId,
                                              OH_MIDIPortInformation *infos,
                                              size_t capacity,
@@ -331,8 +331,8 @@ OH_MIDIStatusCode OH_MIDIDevice_CloseOutputPort(OH_MIDIDevice *device, uint32_t 
  *     or {@link #OH_MIDI_STATUS_GENERIC_IPC_FAILURE} if connection to system service fails.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIDevice_Send(
-    OH_MIDIDevice *device, uint32_t portIndex, OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
+OH_MIDIStatusCode OH_MIDIDevice_Send(OH_MIDIDevice *device, uint32_t portIndex,
+    const OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
 
 /**
  * @brief Sends a large SysEx message (Byte-Stream to UMP Helper).
@@ -359,7 +359,8 @@ OH_MIDIStatusCode OH_MIDIDevice_Send(
  *     or {@link #OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT} if arguments are invalid.
  * @since 24
  */
-OH_MIDIStatusCode OH_MIDIDevice_SendSysEx(OH_MIDIDevice *device, uint32_t portIndex, uint8_t *data, uint32_t byteSize);
+OH_MIDIStatusCode OH_MIDIDevice_SendSysEx(OH_MIDIDevice *device, uint32_t portIndex,
+    const uint8_t *data, uint32_t byteSize);
 
 /**
  * @brief Flushes pending messages in output buffer.
