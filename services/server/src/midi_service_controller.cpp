@@ -193,6 +193,12 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevices()
     return ret;
 }
 
+std::map<int32_t, std::string> MidiServiceController::GetDevice(int64_t deviceId)
+{
+    auto ret = deviceManager_->GetDeviceForDeviceId(deviceId);
+    return ConvertDeviceInfo(ret);
+}
+
 std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevicePorts(int64_t deviceId)
 {
     std::vector<std::map<int32_t, std::string>> ret;

@@ -99,7 +99,7 @@ class MidiServiceMock : public MidiServiceInterface {
 public:
     MOCK_METHOD(OH_MIDIStatusCode, Init, (sptr<MidiCallbackStub> callback, uint32_t &clientId), (override));
     MOCK_METHOD(OH_MIDIStatusCode, GetDevices, ((std::vector<std::map<int32_t, std::string>>)&deviceInfos), (override));
-    MOCK_METHOD(OH_MIDIStatusCode, OpenDevice, (int64_t deviceId), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, OpenDevice, (int64_t deviceId, (std::map<int32_t, std::string> &deviceInfo)), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenBleDevice,
         (std::string address, sptr<MidiDeviceOpenCallbackStub> callback), (override));
     MOCK_METHOD(OH_MIDIStatusCode, CloseDevice, (int64_t deviceId), (override));
@@ -143,7 +143,17 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
     MidiDevice *device = nullptr;
 
     // Expect OpenDevice to be called twice on the IPC layer
-    EXPECT_CALL(*mockService, OpenDevice(deviceId)).Times(1).WillRepeatedly(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t,
+        std::map<int32_t, std::string> &info) {
+        info = {{DEVICE_ID, "1001"},
+                {DEVICE_TYPE, "0"},
+                {MIDI_PROTOCOL, "1"},
+                {DEVICE_NAME, "Mock_Piano"},
+                {PRODUCT_ID, "1234"},
+                {VENDOR_ID, "4311"},
+                {ADDRESS, ""}};
+        return OH_MIDI_STATUS_OK;
+    }));
 
     EXPECT_EQ(client->OpenDevice(deviceId, &device), OH_MIDI_STATUS_OK);
     EXPECT_NE(device, nullptr);
@@ -410,9 +420,10 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, CloseInputPort_001, TestSize.Level0)
 {
-    int64_t deviceId = 102;
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 102;
     uint32_t portIndex = 5;
-    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
 
     EXPECT_EQ(device->CloseInputPort(portIndex), OH_MIDI_STATUS_INVALID_PORT);
 }
@@ -424,9 +435,10 @@ HWTEST_F(MidiClientUnitTest, CloseInputPort_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, CloseOutputPort_001, TestSize.Level0)
 {
-    int64_t deviceId = 102;
     uint32_t portIndex = 5;
-    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 102;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
 
     EXPECT_EQ(device->CloseOutputPort(portIndex), OH_MIDI_STATUS_INVALID_PORT);
 }
@@ -438,10 +450,11 @@ HWTEST_F(MidiClientUnitTest, CloseOutputPort_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_CloseDevice_001, TestSize.Level0)
 {
-    int64_t deviceId = 1001;
-    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 1001;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
 
-    EXPECT_CALL(*mockService, CloseDevice(deviceId)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseDevice(info.midiDeviceId)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
 }
@@ -453,22 +466,23 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_CloseDevice_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level0)
 {
-    int64_t deviceId = 2001;
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 2001;
     uint32_t portIndex = 0;
-    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
     OH_MIDIPortDescriptor descriptor;
     descriptor.portIndex = portIndex;
     descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
     CallbackCapture callbackCapture;
 
-    EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
+    EXPECT_CALL(*mockService, OpenInputPort(_, info.midiDeviceId, portIndex))
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
             buffer = MidiSharedRing::CreateFromLocal(256);
             return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
         }));
 
-    EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseInputPort(info.midiDeviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     // Open input port -> should start receiver thread internally
     OH_MIDIStatusCode openStatus = device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture);
@@ -488,22 +502,23 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
  */
 HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level0)
 {
-    int64_t deviceId = 2002;
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 2002;
     uint32_t portIndex = 1;
-    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
     OH_MIDIPortDescriptor descriptor;
     descriptor.portIndex = portIndex;
     descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
     CallbackCapture callbackCapture;
 
-    EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
+    EXPECT_CALL(*mockService, OpenInputPort(_, info.midiDeviceId, portIndex))
         .Times(1)
         .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
             buffer = MidiSharedRing::CreateFromLocal(256);
             return OH_MIDI_STATUS_OK;
         }));
 
-    EXPECT_CALL(*mockService, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseInputPort(info.midiDeviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     EXPECT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture), OH_MIDI_STATUS_OK);
     // Second time should hit "already exists" branch and return ALREADY_OPEN without IPC.
@@ -519,15 +534,16 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_002, TestSize.Level
  */
 HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_003, TestSize.Level0)
 {
-    int64_t deviceId = 2003;
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 2003;
     uint32_t portIndex = 2;
-    auto device = std::make_unique<MidiDevicePrivate>(mockService, deviceId);
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
     OH_MIDIPortDescriptor descriptor;
     descriptor.portIndex = portIndex;
     descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
     CallbackCapture callbackCapture;
 
-    EXPECT_CALL(*mockService, OpenInputPort(_, deviceId, portIndex))
+    EXPECT_CALL(*mockService, OpenInputPort(_, info.midiDeviceId, portIndex))
         .Times(1)
         .WillOnce(Return(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
 
@@ -548,14 +564,14 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartStop_001, TestSize.Level0)
 
     // 1) callback is nullptr -> Start should fail
     {
-        MidiInputPort inputPort(nullptr, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
+        MidiInputPort inputPort(nullptr, &callbackCapture, MIDI_NONE);
         EXPECT_FALSE(inputPort.StartReceiverThread());
         EXPECT_TRUE(inputPort.StopReceiverThread());  // should be safe even if never started
     }
 
     // 2) ringBuffer is nullptr -> Start should fail
     {
-        MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
+        MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, MIDI_NONE);
         // ringBuffer_ is nullptr by default
         EXPECT_FALSE(inputPort.StartReceiverThread());
         EXPECT_TRUE(inputPort.StopReceiverThread());
@@ -572,7 +588,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_ReceiverDispatch_001, TestSize.Level0
 {
     CallbackCapture callbackCapture;
 
-    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
+    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, MIDI_NONE);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(512);
     ASSERT_NE(localRing, nullptr);
 
@@ -611,7 +627,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartReceiverThread_002, TestSize.Lev
 {
     CallbackCapture callbackCapture;
 
-    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, OH_MIDI_PROTOCOL_1_0);
+    MidiInputPort inputPort(MidiReceivedTrampoline, &callbackCapture, MIDI_NONE);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
@@ -630,7 +646,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_StartReceiverThread_002, TestSize.Lev
  */
 HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_001, TestSize.Level0)
 {
-    MidiOutputPort outputPort(OH_MIDI_PROTOCOL_2_0);
+    MidiOutputPort outputPort(MIDI_NONE);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
@@ -656,7 +672,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_002, TestSize.Level1)
 {
-    MidiOutputPort outputPort(OH_MIDI_PROTOCOL_2_0);
+    MidiOutputPort outputPort(MIDI_NONE);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
@@ -676,7 +692,7 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_002, TestSize.Level1)
  */
 HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_003, TestSize.Level0)
 {
-    MidiOutputPort outputPort(OH_MIDI_PROTOCOL_2_0);
+    MidiOutputPort outputPort(MIDI_NONE);
     std::shared_ptr<MidiSharedRing> localRing = MidiSharedRing::CreateFromLocal(256);
     ASSERT_NE(localRing, nullptr);
 
