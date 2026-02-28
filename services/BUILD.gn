@@ -49,6 +49,7 @@ ohos_shared_library("midi_service") {
     "server/src/midi_listener_callback.cpp",
     "server/src/midi_server.cpp",
     "server/src/midi_service_controller.cpp",
+    "server/src/midi_permission.cpp",
     "server/src/midi_client_connection.cpp",
     "server/src/midi_device_connection.cpp",
   ]
@@ -70,6 +71,7 @@ ohos_shared_library("midi_service") {
 
   external_deps = [
     "ability_base:want",
+    "access_token:libaccesstoken_sdk",
     "bluetooth:btframework",
     "common_event_service:cesfwk_innerkits",
     "c_utils:utils",
@@ -84,7 +86,7 @@ ohos_shared_library("midi_service") {
 
   cflags_cc = [ "-std=c++20" ]
 
-  defines = []
+  defines = [ "UNIT_TEST_SUPPORT" ]
   subsystem_name = "multimedia"
   part_name = "midi_framework"
 }

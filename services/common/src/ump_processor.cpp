@@ -168,12 +168,14 @@ void UmpProcessor::ProcessBytes(const uint8_t* data, size_t len,
 {
     for (size_t i = 0; i < len; ++i) {
         uint8_t b = data[i];
-
-        if (HandleRealTime(b, callback)) {
-            continue;
-        }
-
         if (b >= MIDI_STATUS_START) {
+            if (i + 1 < len && data[i+1] >= MIDI_STATUS_START) {
+                i++;
+                b = data[i];
+            }
+            if (HandleRealTime(b, callback)) {
+                continue;
+            }
             HandleStatusByte(b, callback);
         } else {
             HandleDataByte(b, callback);

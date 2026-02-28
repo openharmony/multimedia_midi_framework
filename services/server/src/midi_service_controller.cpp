@@ -26,25 +26,28 @@
 #include "midi_utils.h"
 #include "imidi_device_open_callback.h"
 #include "midi_listener_callback.h"
+#include "midi_permission.h"
+#include "ipc_skeleton.h"
 #include <chrono>
 
 namespace OHOS {
 namespace MIDI {
+namespace {
+constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
+constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_MS = 60 * 1000;
+}
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
-static constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
 static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device)
 {
     std::map<int32_t, std::string> deviceInfo;
 
-    // Convert numeric IDs to strings
     deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
     deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
     deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
-
-    // Direct string assignments
+    deviceInfo[DEVICE_NAME] = device.deviceName;
+    deviceInfo[PRODUCT_ID] = device.productId;
+    deviceInfo[VENDOR_ID] = device.vendorId;
     deviceInfo[ADDRESS] = device.address;
-    deviceInfo[PRODUCT_NAME] = device.productName;
-    deviceInfo[VENDOR_NAME] = device.vendorName;
 
     return deviceInfo;
 }
@@ -55,6 +58,7 @@ DeviceClientContext::~DeviceClientContext()
 }
 
 MidiServiceController::MidiServiceController()
+    : unloadDelayTime_(UNLOAD_DELAY_DEFAULT_TIME_IN_MS)  // Default: 60 seconds (production)
 {
     deviceManager_ = std::make_shared<MidiDeviceManager>();
 }
@@ -68,16 +72,17 @@ MidiServiceController::~MidiServiceController()
     clients_.clear();
 }
 
+void MidiServiceController::Init()
+{
+    deviceManager_->Init();
+}
+
 std::shared_ptr<MidiServiceController> MidiServiceController::GetInstance()
 {
     static std::shared_ptr<MidiServiceController> instance = std::make_shared<MidiServiceController>();
     return instance;
 }
 
-void MidiServiceController::Init()
-{
-    deviceManager_->Init();
-}
 
 void MidiServiceController::CancelUnloadTask()
 {
@@ -102,9 +107,9 @@ void MidiServiceController::ScheduleUnloadTask()
     }
 
     unloadThread_ = std::thread([this]() {
-        MIDI_INFO_LOG("Unload timer started. Waiting for 5 minutes...");
+        MIDI_INFO_LOG("Unload timer started. Waiting for %{public}" PRId64 " ms...", unloadDelayTime_);
         std::unique_lock<std::mutex> lk(unloadMutex_);
-        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(UNLOAD_DELAY_TIME)) == std::cv_status::timeout) {
+        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_)) == std::cv_status::timeout) {
             CHECK_AND_RETURN(isUnloadPending_);
             MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
             auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
@@ -123,13 +128,32 @@ void MidiServiceController::ScheduleUnloadTask()
 int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &object,
     sptr<IRemoteObject> &client, uint32_t &clientId)
 {
-    CHECK_AND_RETURN_RET_LOG(object, MIDI_STATUS_UNKNOWN_ERROR, "object is nullptr");
+    CHECK_AND_RETURN_RET_LOG(object, OH_MIDI_STATUS_SYSTEM_ERROR, "object is nullptr");
     sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(listener, MIDI_STATUS_UNKNOWN_ERROR, "listener is nullptr");
+    CHECK_AND_RETURN_RET_LOG(listener, OH_MIDI_STATUS_SYSTEM_ERROR, "listener is nullptr");
     std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
-    CHECK_AND_RETURN_RET_LOG(callback, MIDI_STATUS_UNKNOWN_ERROR, "callback is nullptr");
+    CHECK_AND_RETURN_RET_LOG(callback, OH_MIDI_STATUS_SYSTEM_ERROR, "callback is nullptr");
+
+    // Get calling application UID
+    uint32_t callingUid = IPCSkeleton::GetCallingUid();
+    MIDI_INFO_LOG("CreateMidiInServer called from UID: %{public}u", callingUid);
+
     std::lock_guard lock(lock_);
     CancelUnloadTask();
+
+    // Check client count limit (overall system)
+    if (clients_.size() >= MAX_CLIENTS) {
+        MIDI_ERR_LOG("Maximum number of clients reached: %{public}u", MAX_CLIENTS);
+        return OH_MIDI_STATUS_TOO_MANY_CLIENTS;
+    }
+
+    // Check client count limit per application (UID)
+    auto &appClients = appClientMap_[callingUid];
+    if (appClients.size() >= MAX_CLIENTS_PER_APP) {
+        MIDI_ERR_LOG("Application (UID=%{public}u) has reached maximum client count: %{public}u",
+            callingUid, MAX_CLIENTS_PER_APP);
+        return OH_MIDI_STATUS_TOO_MANY_CLIENTS;
+    }
     do {
         if (currentClientId_ >= MAX_CLIENTID) {
             currentClientId_ = 0;
@@ -137,11 +161,11 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
         clientId = ++currentClientId_;
     } while (clients_.find(clientId) != clients_.end());
     sptr<MidiInServer> midiClient = new (std::nothrow) MidiInServer(clientId, callback);
-    CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiClient nullptr");
     client = midiClient->AsObject();
-    CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiClient->AsObject nullptr");
+    CHECK_AND_RETURN_RET_LOG(client != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiClient->AsObject nullptr");
     sptr<MidiServiceDeathRecipient> deathRecipient_ = new (std::nothrow) MidiServiceDeathRecipient(clientId);
-    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "deathRecipient_ nullptr");
+    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "deathRecipient_ nullptr");
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     deathRecipient_->SetNotifyCb([weakSelf](uint32_t clientId) {
         auto self = weakSelf.lock();
@@ -150,8 +174,13 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
     });
     object->AddDeathRecipient(deathRecipient_);
     clients_.emplace(clientId, std::move(midiClient));
-    MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u", clientId);
-    return MIDI_STATUS_OK;
+
+    // Store UID in client resource info and add to app client map
+    clientResourceInfo_[clientId].uid = callingUid;
+    appClientMap_[callingUid].insert(clientId);
+
+    MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u, UID: %{public}u", clientId, callingUid);
+    return OH_MIDI_STATUS_OK;
 }
 
 std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevices()
@@ -178,34 +207,63 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevicePort
     return ret;
 }
 
+bool MidiServiceController::IsBluetoothDevice(int64_t deviceId) const
+{
+    for (const auto &[address, devId] : activeBleDevices_) {
+        if (devId == deviceId) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        MIDI_STATUS_INVALID_CLIENT,
+        OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
+
+    auto &resourceInfo = clientResourceInfo_[clientId];
+
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "Bluetooth permission denied for device: deviceId=%{public}" PRId64,
+            deviceId);
+    }
+
     auto it = deviceClientContexts_.find(deviceId);
     if (it != deviceClientContexts_.end()) {
         CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) == it->second->clients.end(),
-            MIDI_STATUS_DEVICE_ALREADY_OPEN,
+            OH_MIDI_STATUS_DEVICE_ALREADY_OPEN,
             "Device already opened by client: deviceId=%{public}" PRId64 ", clientId=%{public}u",
             deviceId,
             clientId);
         it->second->clients.insert(clientId);
         MIDI_INFO_LOG(
             "Client added to existing device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
-    CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == MIDI_STATUS_OK,
-        MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+
+    // Check device count limit for this client
+    if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+            clientId, MAX_DEVICES_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
+    }
+
+    CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == OH_MIDI_STATUS_OK,
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "Open device failed: deviceId=%{public}" PRId64,
         deviceId);
     std::unordered_set<int32_t> clients = {static_cast<int32_t>(clientId)};
     auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(clients));
     deviceClientContexts_.emplace(deviceId, std::move(context));
+    resourceInfo.openDevices.insert(deviceId);
     MIDI_INFO_LOG("Device opened successfully: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::string &address,
@@ -214,10 +272,10 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, device=%{public}s", clientId, GetEncryptStr(address).c_str());
 
     sptr<IMidiDeviceOpenCallback> callback = iface_cast<IMidiDeviceOpenCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(callback != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "callback cast failed");
+    CHECK_AND_RETURN_RET_LOG(callback != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callback cast failed");
 
     std::unique_lock<std::mutex> lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), MIDI_STATUS_INVALID_CLIENT,
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u", clientId);
 
     auto activeIt = activeBleDevices_.find(address);
@@ -226,13 +284,13 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         auto ctxIt = deviceClientContexts_.find(deviceId);
         if (ctxIt != deviceClientContexts_.end()) {
             MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
-                address.c_str(), deviceId);
+                GetEncryptStr(address).c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
             std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
             lock.unlock();
             callback->NotifyDeviceOpened(true, deviceInfo);
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         }
     }
 
@@ -243,11 +301,11 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
 
     if (!isFirstRequest) {
         MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.",
-            address.c_str(), clientId);
-        return MIDI_STATUS_OK;
+            GetEncryptStr(address).c_str(), clientId);
+        return OH_MIDI_STATUS_OK;
     }
-    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", address.c_str());
-    
+    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(address).c_str());
+
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     auto completeCallback = [weakSelf, address](bool success, int64_t deviceId,
@@ -258,20 +316,20 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     };
 
     int32_t ret = deviceManager_->OpenBleDevice(address, completeCallback);
-    if (ret != MIDI_STATUS_OK) {
+    if (ret != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("Manager OpenBleDevice failed immediately: %{public}d", ret);
         // Clean up pending list immediately
         pendingBleConnections_.erase(address);
         return ret;
     }
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 void MidiServiceController::HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
     const std::map<int32_t, std::string> &deviceInfo)
 {
     MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
-                address.c_str(), success, deviceId);
+                GetEncryptStr(address).c_str(), success, deviceId);
 
     std::list<PendingBleConnection> waitingClients;
 
@@ -282,7 +340,8 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
             waitingClients = std::move(it->second);
             pendingBleConnections_.erase(it);
         } else {
-            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)", address.c_str());
+            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)",
+                GetEncryptStr(address).c_str());
         }
 
         if (success) {
@@ -323,16 +382,16 @@ int32_t MidiServiceController::OpenInputPort(
         "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        MIDI_STATUS_INVALID_CLIENT,
+        OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
         "device %{public}" PRId64 "not opened",
         deviceId);
     CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        MIDI_STATUS_UNKNOWN_ERROR,
+        OH_MIDI_STATUS_SYSTEM_ERROR,
         "client %{public}u doesn't open device %{public}" PRId64 "",
         clientId,
         deviceId);
@@ -341,20 +400,30 @@ int32_t MidiServiceController::OpenInputPort(
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
-            MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
+            OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
         inputPort->second->AddClientConnection(clientId, deviceId, buffer);
         MIDI_INFO_LOG("connect inputport success");
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
+
+    // Check port count limit for this client
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
+
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
     auto ret = deviceManager_->OpenInputPort(inputConnection, deviceId, portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open input port fail!");
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open input port fail!");
 
     inputConnection->AddClientConnection(clientId, deviceId, buffer);
+    resourceInfo.openPortCount++;
 
     inputPortConnections.emplace(portIndex, std::move(inputConnection));
     MIDI_INFO_LOG("OpenInputPort Success");
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::OpenOutputPort(
@@ -364,41 +433,76 @@ int32_t MidiServiceController::OpenOutputPort(
         "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        MIDI_STATUS_INVALID_CLIENT,
+        OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
         "device %{public}" PRId64 "not opened",
         deviceId);
     CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        MIDI_STATUS_UNKNOWN_ERROR,
+        OH_MIDI_STATUS_SYSTEM_ERROR,
         "client %{public}u doesn't open device %{public}" PRId64 "",
         clientId,
         deviceId);
-    
+
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId) != true,
-            MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
+            OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
         outputPort->second->AddClientConnection(clientId, deviceId, buffer);
         MIDI_INFO_LOG("connect outputport success");
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    // Check port count limit for this client
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
 
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open output port fail!");
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
     // start events handle thread of output port
     outputConnection->Start();
     outputConnection->AddClientConnection(clientId, deviceId, buffer);
+    resourceInfo.openPortCount++;
     outputPortConnections.emplace(portIndex, std::move(outputConnection));
     MIDI_INFO_LOG("OpenOutputPort Success");
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
+int32_t MidiServiceController::FlushOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
+{
+    MIDI_INFO_LOG(
+        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    std::lock_guard lock(lock_);
+    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
+        OH_MIDI_STATUS_INVALID_CLIENT,
+        "Client not found: %{public}u",
+        clientId);
+    auto it = deviceClientContexts_.find(deviceId);
+    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        "device %{public}" PRId64 "not opened",
+        deviceId);
+    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+        "client %{public}u doesn't open device %{public}" PRId64,
+        clientId,
+        deviceId);
+    auto &outputPortConnections = it->second->outputDeviceconnections_;
+    auto outputPort = outputPortConnections.find(portIndex);
+    if (outputPort != outputPortConnections.end()) {
+        outputPort->second->FlushClientCache(clientId);
+    }
+    return OH_MIDI_STATUS_OK;
+}
 
 int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
@@ -406,7 +510,7 @@ int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceI
         "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        MIDI_STATUS_INVALID_CLIENT,
+        OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
     return CloseInputPortInner(clientId, deviceId, portIndex);
@@ -418,7 +522,7 @@ int32_t MidiServiceController::CloseOutputPort(uint32_t clientId, int64_t device
         "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        MIDI_STATUS_INVALID_CLIENT,
+        OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
     return CloseOutputPortInner(clientId, deviceId, portIndex);
@@ -428,11 +532,11 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
 {
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
         "device %{public}" PRId64 "not opened",
         deviceId);
     CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "client %{public}u doesn't open device %{public}" PRId64,
         clientId,
         deviceId);
@@ -440,24 +544,30 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         inputPort->second->RemoveClientConnection(clientId);
-        if (inputPort->second->IsEmptyClientConections()) {
+        if (inputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseInputPort(deviceId, portIndex);
-            CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
+            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail!");
             inputPortConnections.erase(inputPort);
+
+            // Decrement port count when port is fully closed
+            auto &resourceInfo = clientResourceInfo_[clientId];
+            if (resourceInfo.openPortCount > 0) {
+                resourceInfo.openPortCount--;
+            }
         }
     }
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
         "device %{public}" PRId64 "not opened",
         deviceId);
     CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "client %{public}u doesn't open device %{public}" PRId64,
         clientId,
         deviceId);
@@ -465,25 +575,31 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
         outputPort->second->RemoveClientConnection(clientId);
-        if (outputPort->second->IsEmptyClientConections()) {
+        if (outputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
-            CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close input port fail!");
+            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail!");
             outputPortConnections.erase(outputPort);
+
+            // Decrement port count when port is fully closed
+            auto &resourceInfo = clientResourceInfo_[clientId];
+            if (resourceInfo.openPortCount > 0) {
+                resourceInfo.openPortCount--;
+            }
         }
     }
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 {
     std::unique_lock<std::mutex> lock(lock_);
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        MIDI_STATUS_INVALID_CLIENT,
+        OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u",
         clientId);
     auto it = deviceClientContexts_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
         "Device not found: deviceId=%{public}" PRId64,
         deviceId);
 
@@ -491,15 +607,20 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     auto clientIt = clients.find(clientId);
 
     CHECK_AND_RETURN_RET_LOG(clientIt != clients.end(),
-        MIDI_STATUS_INVALID_DEVICE_HANDLE,
+        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
         "Client not associated with device: deviceId=%{public}" PRId64 ", clientId=%{public}u",
         deviceId,
         clientId);
 
     ClosePortforDevice(clientId, deviceId, it->second);
     clients.erase(clientIt);
+
+    // Remove device from client's resource tracking
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    resourceInfo.openDevices.erase(deviceId);
+
     MIDI_INFO_LOG("Client removed from device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
-    CHECK_AND_RETURN_RET(clients.empty(), MIDI_STATUS_OK);
+    CHECK_AND_RETURN_RET(clients.empty(), OH_MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
     for (auto bleIt = activeBleDevices_.begin(); bleIt != activeBleDevices_.end(); bleIt++) {
         if (bleIt->second == deviceId) {
@@ -508,85 +629,204 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
         }
     }
     lock.unlock();
-    CHECK_AND_RETURN_RET_LOG(deviceManager_->CloseDevice(deviceId) == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+    CHECK_AND_RETURN_RET_LOG(deviceManager_->CloseDevice(deviceId) == OH_MIDI_STATUS_OK,
+        OH_MIDI_STATUS_SYSTEM_ERROR,
         "Close device failed: deviceId=%{public}" PRId64,
         deviceId);
     MIDI_INFO_LOG("Device closed: deviceId=%{public}" PRId64, deviceId);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 void MidiServiceController::ClosePortforDevice(
     uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext)
 {
+    std::vector<uint32_t> portIndexes;
     for (const auto &[portIndex, _] : deviceClientContext->inputDeviceconnections_) {
+        portIndexes.push_back(portIndex);
+    }
+    for (auto portIndex: portIndexes) {
         CloseInputPortInner(clientId, deviceId, portIndex);
     }
-
+    portIndexes.clear();
     for (const auto &[portIndex, _]: deviceClientContext->outputDeviceconnections_) {
+        portIndexes.push_back(portIndex);
+    }
+    for (auto portIndex: portIndexes) {
         CloseOutputPortInner(clientId, deviceId, portIndex);
     }
+}
+
+void MidiServiceController::CollectDevicesForClientDestruction(uint32_t clientId,
+    std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean)
+{
+    for (auto& [deviceId, context] : deviceClientContexts_) {
+        if (context->clients.find(clientId) != context->clients.end()) {
+            if (context->clients.size() == 1) {
+                devicesToClose.push_back(deviceId);
+            }
+            devicesToClean.push_back(deviceId);
+        }
+    }
+}
+
+void MidiServiceController::CleanupDeviceForClient(uint32_t clientId, int64_t deviceId)
+{
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        return;
+    }
+    ClosePortforDevice(clientId, deviceId, it->second);
+    auto& clients = it->second->clients;
+    clients.erase(clientId);
+    if (clients.empty()) {
+        deviceClientContexts_.erase(it);
+        auto bleIt = std::find_if(activeBleDevices_.begin(), activeBleDevices_.end(),
+            [deviceId](const auto& pair) { return pair.second == deviceId; });
+        if (bleIt != activeBleDevices_.end()) {
+            activeBleDevices_.erase(bleIt);
+        }
+    }
+}
+
+void MidiServiceController::CleanupClientResources(uint32_t clientId, uint32_t clientUid)
+{
+    auto appIt = appClientMap_.find(clientUid);
+    if (appIt != appClientMap_.end()) {
+        appIt->second.erase(clientId);
+        if (appIt->second.empty()) {
+            appClientMap_.erase(appIt);
+        }
+    }
+    clientResourceInfo_.erase(clientId);
 }
 
 int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 {
     MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
-    std::lock_guard lock(lock_);
-    auto it = clients_.find(clientId);
-    CHECK_AND_RETURN_RET_LOG(
-        it != clients_.end(), MIDI_STATUS_INVALID_CLIENT, "Client not found for destruction: %{public}u", clientId);
 
-    for (auto deviceIt = deviceClientContexts_.begin(); deviceIt != deviceClientContexts_.end();) {
-        auto &clients = deviceIt->second->clients;
-        if (clients.find(clientId) != clients.end()) {
-            int64_t deviceId = deviceIt->first;
-            ClosePortforDevice(clientId, deviceId, deviceIt->second);
-            clients.erase(clientId);
-            if (clients.empty()) {
-                deviceManager_->CloseDevice(deviceId);
-                deviceIt = deviceClientContexts_.erase(deviceIt);
-                continue;
-            }
+    std::vector<int64_t> devicesToClose;
+    std::vector<int64_t> devicesToClean;
+    uint32_t clientUid = 0;
+
+    {
+        std::lock_guard lock(lock_);
+        auto it = clients_.find(clientId);
+        CHECK_AND_RETURN_RET_LOG(
+            it != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT, "Client not found: %{public}u", clientId);
+
+        CollectDevicesForClientDestruction(clientId, devicesToClose, devicesToClean);
+
+        auto resourceInfoIt = clientResourceInfo_.find(clientId);
+        if (resourceInfoIt != clientResourceInfo_.end()) {
+            clientUid = resourceInfoIt->second.uid;
         }
-        ++deviceIt;
+        clients_.erase(it);
     }
-    clients_.erase(it);
+
+    for (auto deviceId : devicesToClose) {
+        deviceManager_->CloseDevice(deviceId);
+    }
+
+    {
+        std::lock_guard lock(lock_);
+        for (auto deviceId : devicesToClean) {
+            CleanupDeviceForClient(clientId, deviceId);
+        }
+        CleanupClientResources(clientId, clientUid);
+    }
+
     MIDI_INFO_LOG("Client destroyed: %{public}u", clientId);
-    CHECK_AND_RETURN_RET(clients_.empty(), MIDI_STATUS_OK);
-    MIDI_INFO_LOG("No clients left. Scheduling unload.");
+    CHECK_AND_RETURN_RET(clients_.empty(), OH_MIDI_STATUS_OK);
     ScheduleUnloadTask();
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
-    if (change == REMOVED) {
+    std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
+    std::vector<sptr<MidiInServer>> clientsToNotify;
+
+    {
         std::lock_guard lock(lock_);
-        MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
-        for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
-            if (it->second == device.deviceId) {
-                activeBleDevices_.erase(it);
-                break;
+        if (change == REMOVED) {
+            MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
+            for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
+                if (it->second == device.deviceId) {
+                    activeBleDevices_.erase(it);
+                    break;
+                }
+            }
+            auto it = deviceClientContexts_.find(device.deviceId);
+            if (it != deviceClientContexts_.end()) {
+                deviceClientContexts_.erase(it);
             }
         }
-        auto it = deviceClientContexts_.find(device.deviceId);
-        if (it != deviceClientContexts_.end()) {
-            deviceClientContexts_.erase(it);
+        clientsToNotify.reserve(clients_.size());
+        for (auto& [id, client] : clients_) {
+            if (client != nullptr) {
+                clientsToNotify.push_back(client);
+            }
         }
     }
-    std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
-    for (auto it : clients_) {
-        CHECK_AND_CONTINUE(it.second != nullptr);
-        it.second->NotifyDeviceChange(change, deviceInfo);
+    for (auto& client : clientsToNotify) {
+        client->NotifyDeviceChange(change, deviceInfo);
     }
 }
 
 void MidiServiceController::NotifyError(int32_t code)
 {
-    for (auto it : clients_) {
-        CHECK_AND_CONTINUE(it.second != nullptr);
-        it.second->NotifyError(code);
+    std::vector<sptr<MidiInServer>> clientsToNotify;
+    {
+        std::lock_guard lock(lock_);
+        clientsToNotify.reserve(clients_.size());
+        for (auto& [id, client] : clients_) {
+            if (client != nullptr) {
+                clientsToNotify.push_back(client);
+            }
+        }
+    }
+    for (auto& client : clientsToNotify) {
+        client->NotifyError(code);
     }
 }
+
+#ifdef UNIT_TEST_SUPPORT
+void MidiServiceController::ClearStateForTest()
+{
+    // Cancel any pending unload task before clearing state
+    CancelUnloadTask();
+
+    // Wait for unload thread to complete (immediate in test mode since UNLOAD_DELAY_TIME = 0)
+    if (unloadThread_.joinable()) {
+        unloadThread_.join();
+    }
+
+    std::lock_guard<std::mutex> lock(lock_);
+    deviceClientContexts_.clear();
+    activeBleDevices_.clear();
+    pendingBleConnections_.clear();
+    clients_.clear();
+    if (deviceManager_) {
+        deviceManager_->ClearStateForTest();
+    }
+    currentClientId_.store(0);
+}
+
+bool MidiServiceController::HasDeviceContextForTest(int64_t deviceId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    return deviceClientContexts_.find(deviceId) != deviceClientContexts_.end();
+}
+
+bool MidiServiceController::HasClientForDeviceForTest(int64_t deviceId, uint32_t clientId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        return false;
+    }
+    return it->second->clients.find(static_cast<int32_t>(clientId)) != it->second->clients.end();
+}
+#endif
 }  // namespace MIDI
 }  // namespace OHOS

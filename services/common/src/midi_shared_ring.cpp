@@ -105,7 +105,7 @@ MidiSharedMemoryImpl::~MidiSharedMemoryImpl()
 
 int32_t MidiSharedMemoryImpl::Init()
 {
-    CHECK_AND_RETURN_RET_LOG((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE), MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+    CHECK_AND_RETURN_RET_LOG((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
                              "Init falied: size out of range: %{public}zu", size_);
     bool isFromRemote = false;
     if (fd_ >= 0) {
@@ -122,15 +122,15 @@ int32_t MidiSharedMemoryImpl::Init()
         if (fd_ == STDIN_FILENO || fd_ == STDOUT_FILENO || fd_ == STDERR_FILENO) {
             MIDI_WARNING_LOG("fd is special fd: %{public}d", fd_);
         }
-        CHECK_AND_RETURN_RET_LOG((fd_ >= 0), MIDI_STATUS_UNKNOWN_ERROR, "Init falied: fd %{public}d", fd_);
+        CHECK_AND_RETURN_RET_LOG((fd_ >= 0), OH_MIDI_STATUS_SYSTEM_ERROR, "Init falied: fd %{public}d", fd_);
     }
 
     void *addr = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
-    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, MIDI_STATUS_UNKNOWN_ERROR,
+    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, OH_MIDI_STATUS_SYSTEM_ERROR,
                              "Init falied: fd %{public}d size %{public}zu", fd_, size_);
     base_ = static_cast<uint8_t *>(addr);
     MIDI_DEBUG_LOG("Init %{public}s <%{public}s> done.", (isFromRemote ? "remote" : "local"), name_.c_str());
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 bool MidiSharedMemoryImpl::Marshalling(Parcel &parcel) const
@@ -169,7 +169,7 @@ int MidiSharedMemoryImpl::GetFd() const { return fd_; }
 std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromLocal(size_t size, const std::string &name)
 {
     std::shared_ptr<MidiSharedMemoryImpl> sharedMemory = std::make_shared<MidiSharedMemoryImpl>(size, name);
-    CHECK_AND_RETURN_RET_LOG(sharedMemory->Init() == MIDI_STATUS_OK, nullptr, "CreateFromLocal failed");
+    CHECK_AND_RETURN_RET_LOG(sharedMemory->Init() == OH_MIDI_STATUS_OK, nullptr, "CreateFromLocal failed");
     return sharedMemory;
 }
 
@@ -178,7 +178,7 @@ std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromRemote(int fd, siz
     int minfd = 2; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(fd > minfd, nullptr, "CreateFromRemote failed: invalid fd: %{public}d", fd);
     std::shared_ptr<MidiSharedMemoryImpl> sharedMemory = std::make_shared<MidiSharedMemoryImpl>(fd, size, name);
-    if (sharedMemory->Init() != MIDI_STATUS_OK) {
+    if (sharedMemory->Init() != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("CreateFromRemote failed");
         return nullptr;
     }
@@ -213,7 +213,7 @@ MidiSharedMemory *MidiSharedMemory::Unmarshalling(Parcel &parcel)
         return nullptr;
     }
 
-    if (memory->Init() != MIDI_STATUS_OK || memory->GetBase() == nullptr) {
+    if (memory->Init() != OH_MIDI_STATUS_OK || memory->GetBase() == nullptr) {
         MIDI_ERR_LOG("Init failed or GetBase failed");
         delete memory;
         return nullptr;
@@ -247,7 +247,7 @@ MidiSharedRing::MidiSharedRing(uint32_t ringCapacityBytes, std::shared_ptr<Uniqu
 
 int32_t MidiSharedRing::Init(int dataFd)
 {
-    CHECK_AND_RETURN_RET_LOG(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+    CHECK_AND_RETURN_RET_LOG(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
                              "failed: invalid totalMemorySize_");
     if (dataFd == INVALID_FD) {
         dataMem_ = MidiSharedMemory::CreateFromLocal(totalMemorySize_, "midi_shared_buffer");
@@ -263,7 +263,7 @@ int32_t MidiSharedRing::Init(int dataFd)
     ringBase_ = base_ + sizeof(ControlHeader);
 
     MIDI_DEBUG_LOG("Init done.");
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int MidiSharedRing::GetEventFd() const
@@ -277,7 +277,7 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromLocal(size_t ringCapac
     MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
 
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes);
-    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == MIDI_STATUS_OK, nullptr, "failed to init.");
+    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == OH_MIDI_STATUS_OK, nullptr, "failed to init.");
     return buffer;
 }
 
@@ -285,7 +285,7 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromLocal(size_t ringCapac
 {
     MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes, fd);
-    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == MIDI_STATUS_OK, nullptr, "failed to init.");
+    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == OH_MIDI_STATUS_OK, nullptr, "failed to init.");
     return buffer;
 }
 
@@ -297,7 +297,7 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromRemote(size_t ringCapa
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
 
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes);
-    if (buffer->Init(dataFd) != MIDI_STATUS_OK) {
+    if (buffer->Init(dataFd) != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("failed to init.");
         return nullptr;
     }
@@ -325,10 +325,10 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
 
     int minfd = 2; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
-    
+
     auto notifyFd = std::make_shared<UniqueFd>(eventFd);
     auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);
-    if (buffer == nullptr || buffer->Init(dataFd) != MIDI_STATUS_OK) {
+    if (buffer == nullptr || buffer->Init(dataFd) != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("failed to init.");
         if (buffer != nullptr)
             delete buffer;
@@ -385,6 +385,19 @@ ControlHeader *MidiSharedRing::GetControlHeader() const
 FutexCode MidiSharedRing::WaitFor(int64_t timeoutInNs, const std::function<bool(void)> &pred)
 {
     return FutexTool::FutexWait(GetFutex(), timeoutInNs, [&pred]() { return pred(); });
+}
+
+FutexCode MidiSharedRing::WaitForSpace(int64_t timeoutInNs, uint32_t neededBytes)
+{
+    CHECK_AND_RETURN_RET_LOG(controler_ != nullptr, FUTEX_INVALID_PARAMS, "controler_ is null");
+    CHECK_AND_RETURN_RET_LOG(neededBytes > 0, FUTEX_INVALID_PARAMS, "neededBytes invalid");
+
+    auto pred = [this, neededBytes]() -> bool {
+        uint32_t r = controler_->readPosition.load();
+        uint32_t w = controler_->writePosition.load();
+        return RingFree(r, w, capacity_) >= neededBytes;
+    };
+    return FutexTool::FutexWait(GetFutex(), timeoutInNs, pred);
 }
 
 void MidiSharedRing::WakeFutex(uint32_t wakeVal)
@@ -491,6 +504,7 @@ void MidiSharedRing::CommitRead(const PeekedEvent &ev)
         end = 0;
     }
     controler_->readPosition.store(end);
+    WakeFutex(); // wake who is waiting to write data
 }
 
 void MidiSharedRing::DrainToBatch(
@@ -516,6 +530,14 @@ void MidiSharedRing::DrainToBatch(
         CommitRead(peekedEvent);
         ++count;
     }
+}
+
+void MidiSharedRing::Flush()
+{
+    MIDI_INFO_LOG("reset data cache");
+    controler_->readPosition.store(0);
+    controler_->writePosition.store(0);
+    memset_s(GetDataBase(), GetCapacity(), 0, GetCapacity());
 }
 
 //==================== Private Helpers (All <= 50 lines) ====================//

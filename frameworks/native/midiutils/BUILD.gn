@@ -35,6 +35,7 @@ ohos_shared_library("midiutils") {
   include_dirs = [
     "${midi_framework_root}/frameworks/native/midiutils/include",
     "${midi_framework_root}/interfaces/",
+    "${midi_framework_root}/interfaces/kits/c/midi",
   ]
 
   deps = [
