@@ -21,7 +21,6 @@
 #include "midi_log.h"
 #include "midi_utils.h"
 #include "midi_device_ble.h"
-#include "ump_processor.h"
 #include "bluetooth_host.h"
 
 namespace OHOS {

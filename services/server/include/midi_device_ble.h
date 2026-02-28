@@ -21,6 +21,7 @@
 #include "midi_info.h"
 #include "midi_device_driver.h"
 #include "ohos_bt_gatt_client.h"
+#include "ump_processor.h"
 
 namespace OHOS {
 namespace MIDI {
