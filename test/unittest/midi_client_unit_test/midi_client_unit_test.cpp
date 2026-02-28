@@ -483,7 +483,8 @@ HWTEST_F(MidiClientUnitTest, MidiDevicePrivate_OpenInputPort_001, TestSize.Level
             return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
         }));
 
-    EXPECT_CALL(*mockService, CloseInputPort(info.midiDeviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockService, CloseInputPort(info.midiDeviceId, portIndex))
+        .Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
 
     // Open input port -> should start receiver thread internally
     OH_MIDIStatusCode openStatus = device->OpenInputPort(descriptor, MidiReceivedTrampoline, &callbackCapture);

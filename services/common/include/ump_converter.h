@@ -89,14 +89,14 @@ private:
     static bool ConvertMidi2ChannelVoiceToMidi1(const uint32_t* inWords, size_t inWordCount,
         std::vector<uint32_t>& out);
     static bool ConvertMidi2ChannelVoiceToMidi1Inner(uint8_t statusNibble,
-                                                   uint8_t data1,
-                                                   uint32_t w1,
-                                                   Midi1ChannelVoiceMsg& m,
-                                                   std::vector<uint32_t>& out);
+                                                    uint8_t data1,
+                                                    uint32_t w1,
+                                                    Midi1ChannelVoiceMsg& m,
+                                                    std::vector<uint32_t>& out);
     static bool ConvertMidi1ChannelVoiceToMidi2Inner(uint8_t statusNibble,
-                                                   uint8_t data1,
-                                                   uint8_t data2,
-                                                   Midi2ChannelVoiceMsg& m,
-                                                   std::vector<uint32_t>& out); 
+                                                    uint8_t data1,
+                                                    uint8_t data2,
+                                                    Midi2ChannelVoiceMsg& m,
+                                                    std::vector<uint32_t>& out);
 };
 #endif
