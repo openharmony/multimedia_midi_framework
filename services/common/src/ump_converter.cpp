@@ -246,10 +246,10 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1(const uint32_t* inWords,
 }
 
 bool UmpConverter::ConvertMidi1ChannelVoiceToMidi2Inner(uint8_t statusNibble,
-                                                   uint8_t data1,
-                                                   uint8_t data2,
-                                                   Midi2ChannelVoiceMsg& m,
-                                                   std::vector<uint32_t>& out)
+                                                        uint8_t data1,
+                                                        uint8_t data2,
+                                                        Midi2ChannelVoiceMsg& m,
+                                                        std::vector<uint32_t>& out)
 {
     switch (statusNibble) {
         case STATUS_NOTE_OFF:
@@ -306,10 +306,10 @@ bool UmpConverter::ConvertMidi1ChannelVoiceToMidi2Inner(uint8_t statusNibble,
 }
 
 bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(uint8_t statusNibble,
-                                                   uint8_t data1,
-                                                   uint32_t w1,
-                                                   Midi1ChannelVoiceMsg& m,
-                                                   std::vector<uint32_t>& out)
+                                                        uint8_t data1,
+                                                        uint32_t w1,
+                                                        Midi1ChannelVoiceMsg& m,
+                                                        std::vector<uint32_t>& out)
 {
     switch (statusNibble) {
         case STATUS_NOTE_OFF:
