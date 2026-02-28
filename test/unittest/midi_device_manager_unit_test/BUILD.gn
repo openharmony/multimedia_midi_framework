@@ -25,8 +25,9 @@ ohos_unittest("midi_device_manager_unit_test") {
   cflags = [
     "-Wall",
     "-Werror",
-    "-fno-access-control",
   ]
+
+  defines = [ "UNIT_TEST_SUPPORT" ]
 
   include_dirs = [
     "${midi_framework_root}/frameworks/native/midiutils/include",

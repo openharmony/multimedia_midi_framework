@@ -43,6 +43,14 @@ public:
      */
     void ProcessBytes(const uint8_t* data, size_t len, UmpCallback callback);
 
+    /**
+     * @brief Decode BLE MIDI packet to standard MIDI 1.0 byte stream.
+     * @param src Pointer to the BLE MIDI packet data.
+     * @param srcLen Length of the BLE MIDI packet.
+     * @return Decoded MIDI 1.0 byte stream.
+     */
+    std::vector<uint8_t> DecodeBleMidi(const uint8_t* src, size_t srcLen);
+
     // Set the destination Group (0-15) for generated UMPs
     void SetGroup(uint8_t group);
 

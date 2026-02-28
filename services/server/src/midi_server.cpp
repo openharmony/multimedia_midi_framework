@@ -29,16 +29,30 @@ MidiServer::MidiServer(int32_t systemAbilityId, bool runOnCreate) : SystemAbilit
 void MidiServer::OnStart()
 {
     controller_ = MidiServiceController::GetInstance();
+    CHECK_AND_RETURN_LOG(controller_ != nullptr,
+        "Failed to get MidiServiceController instance");
     controller_->Init();
-    Publish(this);
+    auto result = Publish(this);
+    CHECK_AND_RETURN_LOG(result,
+        "Failed to publish MIDI service to SAMgr");
+    MIDI_INFO_LOG("MIDI service started successfully");
 }
 
-void MidiServer::OnDump() {}
+void MidiServer::OnStop()
+{
+    MIDI_INFO_LOG("MIDI service stopping");
+    controller_ = nullptr;
+}
+
+void MidiServer::OnDump()
+{
+    MIDI_INFO_LOG("MIDI service dump");
+}
 
 int32_t MidiServer::CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
     uint32_t &clientId)
 {
-    CHECK_AND_RETURN_RET_LOG(controller_, MIDI_STATUS_UNKNOWN_ERROR, "controller_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(controller_, OH_MIDI_STATUS_SYSTEM_ERROR, "controller_ is nullptr");
     return controller_->CreateMidiInServer(object, client, clientId);
 }
 

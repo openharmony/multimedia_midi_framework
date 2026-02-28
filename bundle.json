@@ -15,13 +15,16 @@
         "syscap": [],
         "features": [],
         "adapted_system_type": [
-            "standard"
+            "standard",
+            "small",
+            "mini"
         ],
-        "rom": "4500KB",
-        "ram": "4000KB",
+        "rom": "4096KB",
+        "ram": "4096KB",
         "deps": {
             "components": [
                 "ability_base",
+                "access_token",
                 "bluetooth",
                 "c_utils",
                 "common_event_service",
@@ -51,7 +54,8 @@
             "inner_kits": [],
             "test": [
                 "//foundation/multimedia/midi_framework/test:midi_unit_test",
-                "//foundation/multimedia/midi_framework/test:midi_demo_test"
+                "//foundation/multimedia/midi_framework/test:midi_demo_test",
+                "//foundation/multimedia/midi_framework/test:midi_fuzz_test"
             ]
         }
     }

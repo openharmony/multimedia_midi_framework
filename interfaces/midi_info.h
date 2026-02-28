@@ -24,7 +24,7 @@
 
 namespace OHOS {
 namespace MIDI {
-enum DeviceInformationProperty { DEVICE_ID, DEVICE_TYPE, MIDI_PROTOCOL, PRODUCT_NAME, VENDOR_NAME, ADDRESS};
+enum DeviceInformationProperty { DEVICE_ID, DEVICE_TYPE, MIDI_PROTOCOL, DEVICE_NAME, PRODUCT_ID, VENDOR_ID, ADDRESS};
 
 enum ProtInformationProperty { PORT_INDEX, DIRECTION, PORT_NAME };
 
@@ -55,10 +55,11 @@ struct DeviceInformation {
     DeviceType deviceType;
     TransportProtocol transportProtocol;
     std::string address;
-    std::string productName;
-    std::string vendorName;
+    std::string deviceName;
+    std::string productId;
+    std::string vendorId;
     std::vector<PortInformation> portInfos;
-    DeviceInformation() : deviceId(0),  driverDeviceId(0),
+    DeviceInformation(): deviceId(0),  driverDeviceId(0),
         deviceType(DeviceType::DEVICE_TYPE_USB), transportProtocol(TransportProtocol::PROTOCOL_1_0) {}
 };
 

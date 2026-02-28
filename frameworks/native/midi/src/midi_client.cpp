@@ -29,78 +29,87 @@ namespace OHOS {
 namespace MIDI {
 namespace {
     constexpr uint32_t MAX_EVENTS_NUMS = 1000;
+    constexpr uint32_t PORT_GROUP_RANGE = 16;
 }  // namespace
 class MidiClientCallback : public MidiCallbackStub {
 public:
-    MidiClientCallback(OH_MIDICallbacks callbacks, void *userData,
-        std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange);
+    MidiClientCallback(OH_MIDICallbacks callbacks, void *userData, MidiClientPrivate *client);
     ~MidiClientCallback() = default;
     int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override;
     int32_t NotifyError(int32_t code) override;
     OH_MIDICallbacks callbacks_;
     void *userData_;
-    std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange_;
+    MidiClientPrivate *client_ = nullptr;
 };
 
 static bool ConvertToDeviceInformation(
     const std::map<int32_t, std::string> &deviceInfo, OH_MIDIDeviceInformation &outInfo)
 {
-    // 初始化outInfo
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
 
     auto it = deviceInfo.find(DEVICE_ID);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceId error");
-    outInfo.midiDeviceId = std::stoll(it->second);
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.midiDeviceId), false, "parse deviceId failed");
 
     it = deviceInfo.find(DEVICE_TYPE);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceType error");
-    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(std::stoi(it->second));
+    uint32_t typeVal = 0;
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, typeVal), false, "parse deviceType failed");
+    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(typeVal);
 
     it = deviceInfo.find(MIDI_PROTOCOL);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "protocol error");
-    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(std::stoi(it->second));
+    uint32_t protocolVal = 0;
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, protocolVal), false, "parse protocol failed");
+    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(protocolVal);
 
-    it = deviceInfo.find(PRODUCT_NAME);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productName error");
+    it = deviceInfo.find(DEVICE_NAME);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceName error");
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.productName, sizeof(outInfo.productName), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
+        strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName), it->second.c_str(), it->second.length()) ==
+            OH_MIDI_STATUS_OK,
         false,
-        "copy productName failed");
+        "copy deviceName failed");
 
-    it = deviceInfo.find(VENDOR_NAME);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorName error");
-    CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.vendorName, sizeof(outInfo.vendorName), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
-        false,
-        "copy vendorName failed");
+    it = deviceInfo.find(PRODUCT_ID);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productId error");
+    CHECK_AND_RETURN_RET_LOG(StringToHexNum(it->second, outInfo.productId), false, "parse productId hex failed");
+
+    it = deviceInfo.find(VENDOR_ID);
+    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorId error");
+    CHECK_AND_RETURN_RET_LOG(StringToHexNum(it->second, outInfo.vendorId), false, "parse vendorId hex failed");
+
     it = deviceInfo.find(ADDRESS);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
     CHECK_AND_RETURN_RET_LOG(
         strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress), it->second.c_str(), it->second.length()) ==
-            MIDI_STATUS_OK,
+            OH_MIDI_STATUS_OK,
         false,
         "copy deviceAddress failed");
+
     return true;
 }
+
 MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-    OH_MIDIOnDeviceOpened callback, void *userData)
-    : ipc_(midiServiceInterface), callback_(callback), userData_(userData)
+    OH_MIDIClient_OnDeviceOpened callback, void *userData, MidiClientPrivate *client)
+    : ipc_(midiServiceInterface), callback_(callback), userData_(userData), client_(client)
 {
 }
 
 int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo)
 {
-    CHECK_AND_RETURN_RET_LOG(callback_ != nullptr && ipc_.lock(), MIDI_STATUS_UNKNOWN_ERROR, "callback_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(callback_ != nullptr && ipc_.lock(), OH_MIDI_STATUS_SYSTEM_ERROR, "callback_ is nullptr");
     OH_MIDIDeviceInformation info;
     if (!opened) {
         callback_(userData_, opened, nullptr, info);
         return 0;
     }
     bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_UNKNOWN_ERROR, "ConvertToDeviceInformation failed");
+    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
     auto newDevice = new MidiDevicePrivate(ipc_.lock(), info.midiDeviceId);
+    if (client_) {
+        client_->AddDeviceHandler(newDevice);
+    }
     callback_(userData_, opened, (OH_MIDIDevice *)newDevice, info);
     return 0;
 }
@@ -109,22 +118,23 @@ static bool ConvertToPortInformation(
     const std::map<int32_t, std::string> &portInfo, int64_t deviceId, OH_MIDIPortInformation &outInfo)
 {
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
-
     outInfo.deviceId = deviceId;
 
     auto it = portInfo.find(PORT_INDEX);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "port index error");
+    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "port index missing");
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.portIndex), false, "parse port index failed");
 
-    outInfo.portIndex = static_cast<uint32_t>(std::stoll(it->second));
     it = portInfo.find(DIRECTION);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "direction error");
-    outInfo.direction = static_cast<OH_MIDIPortDirection>(std::stoi(it->second));
+    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "direction missing");
+    uint32_t directionVal = 0;
+    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, directionVal), false, "parse direction failed");
+    outInfo.direction = static_cast<OH_MIDIPortDirection>(directionVal);
 
     it = portInfo.find(PORT_NAME);
     CHECK_AND_RETURN_RET_LOG(it != portInfo.end() && !it->second.empty(), false, "port name error");
 
     CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length()) == MIDI_STATUS_OK,
+        strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length()) == OH_MIDI_STATUS_OK,
         false,
         "copy port name failed");
     return true;
@@ -134,28 +144,26 @@ static int32_t GetStatusCode(MidiStatusCode code)
 {
     switch (code) {
         case MidiStatusCode::OK:
-            return MIDI_STATUS_OK;
+            return OH_MIDI_STATUS_OK;
         case MidiStatusCode::WOULD_BLOCK:
-            return MIDI_STATUS_WOULD_BLOCK;
+            return OH_MIDI_STATUS_WOULD_BLOCK;
         default:
-            return MIDI_STATUS_UNKNOWN_ERROR;
+            return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 }
 
-MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData,
-    std::function<void(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)> deviceChange)
-    : callbacks_(callbacks), userData_(userData), deviceChange_(deviceChange)
+MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData, MidiClientPrivate *client)
+    : callbacks_(callbacks), userData_(userData), client_(client)
 {}
 
 int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo)
 {
     CHECK_AND_RETURN_RET_LOG(
-        callbacks_.onDeviceChange != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "callbacks_.onDeviceChange is nullptr");
+        callbacks_.onDeviceChange != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callbacks_.onDeviceChange is nullptr");
 
     OH_MIDIDeviceInformation info;
     bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, MIDI_STATUS_UNKNOWN_ERROR, "ConvertToDeviceInformation failed");
-    deviceChange_(static_cast<OH_MIDIDeviceChangeAction>(change), info);
+    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
 
     callbacks_.onDeviceChange(userData_, static_cast<OH_MIDIDeviceChangeAction>(change), info);
     return 0;
@@ -163,8 +171,11 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<in
 
 int32_t MidiClientCallback::NotifyError(int32_t code)
 {
-    CHECK_AND_RETURN_RET_LOG(callbacks_.onError != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "callbacks_.onError is nullptr");
+    CHECK_AND_RETURN_RET_LOG(callbacks_.onError != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR,
+        "callbacks_.onError is nullptr");
     callbacks_.onError(userData_, (OH_MIDIStatusCode)code);
+    CHECK_AND_RETURN_RET_LOG(client_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "client is nullptr");
+    client_->MarkDeviceInValid();
     return 0;
 }
 
@@ -182,50 +193,50 @@ MidiDevicePrivate::~MidiDevicePrivate()
 OH_MIDIStatusCode MidiDevicePrivate::CloseDevice()
 {
     auto ipc = ipc_.lock();
-    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     return ipc->CloseDevice(deviceId_);
 }
 
 OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descriptor,
-    OH_OnMIDIReceived callback, void *userData)
+    OH_MIDIDevice_OnReceived callback, void *userData)
 {
     std::lock_guard<std::mutex> lock(inputPortsMutex_);
     auto ipc = ipc_.lock();
-    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
 
     auto iter = inputPortsMap_.find(descriptor.portIndex);
-    CHECK_AND_RETURN_RET(iter == inputPortsMap_.end(), MIDI_STATUS_PORT_ALREADY_OPEN);
+    CHECK_AND_RETURN_RET(iter == inputPortsMap_.end(), OH_MIDI_STATUS_PORT_ALREADY_OPEN);
     auto inputPort = std::make_shared<MidiInputPort>(callback, userData, descriptor.protocol);
 
     std::shared_ptr<MidiSharedRing> &buffer = inputPort->GetRingBuffer();
     auto ret = ipc->OpenInputPort(buffer, deviceId_, descriptor.portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open inputport fail");
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open inputport fail");
 
     CHECK_AND_RETURN_RET_LOG(
-        inputPort->StartReceiverThread() == true, MIDI_STATUS_UNKNOWN_ERROR, "start receiver thread fail");
+        inputPort->StartReceiverThread() == true, OH_MIDI_STATUS_SYSTEM_ERROR, "start receiver thread fail");
 
     inputPortsMap_.emplace(descriptor.portIndex, std::move(inputPort));
     MIDI_INFO_LOG("port[%{public}u] success", descriptor.portIndex);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode MidiDevicePrivate::OpenOutputPort(OH_MIDIPortDescriptor descriptor)
 {
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
     auto ipc = ipc_.lock();
-    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
 
     auto iter = outputPortsMap_.find(descriptor.portIndex);
-    CHECK_AND_RETURN_RET(iter == outputPortsMap_.end(), MIDI_STATUS_PORT_ALREADY_OPEN);
+    CHECK_AND_RETURN_RET(iter == outputPortsMap_.end(), OH_MIDI_STATUS_PORT_ALREADY_OPEN);
 
     auto outputPort = std::make_shared<MidiOutputPort>(descriptor.protocol);
     std::shared_ptr<MidiSharedRing> &buffer = outputPort->GetRingBuffer();
     auto ret = ipc->OpenOutputPort(buffer, deviceId_, descriptor.portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "open outputport fail");
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open outputport fail");
 
     outputPortsMap_.emplace(descriptor.portIndex, std::move(outputPort));
     MIDI_INFO_LOG("port[%{public}u] success", descriptor.portIndex);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode MidiDevicePrivate::Send(uint32_t portIndex, OH_MIDIEvent *events,
@@ -233,45 +244,70 @@ OH_MIDIStatusCode MidiDevicePrivate::Send(uint32_t portIndex, OH_MIDIEvent *even
 {
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
     auto iter = outputPortsMap_.find(portIndex);
-    CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT, "invalid port");
+    CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid port");
+    CHECK_AND_RETURN_RET_LOG(isValid_ != false, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc failed");
     auto outputPort = iter->second;
     return (OH_MIDIStatusCode)outputPort->Send(events, eventCount, eventsWritten);
+}
+
+OH_MIDIStatusCode MidiDevicePrivate::SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize)
+{
+    std::lock_guard<std::mutex> lock(outputPortsMutex_);
+    auto iter = outputPortsMap_.find(portIndex);
+    CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid port");
+    CHECK_AND_RETURN_RET_LOG(isValid_ != false, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc failed");
+    auto outputPort = iter->second;
+    return (OH_MIDIStatusCode)outputPort->SendSysEx(portIndex, data, byteSize);
 }
 
 OH_MIDIStatusCode MidiDevicePrivate::FlushOutputPort(uint32_t portIndex)
 {
     std::lock_guard<std::mutex> lock(outputPortsMutex_);
+    auto ipc = ipc_.lock();
     auto iter = outputPortsMap_.find(portIndex);
-    CHECK_AND_RETURN_RET(iter != outputPortsMap_.end(), MIDI_STATUS_INVALID_PORT);
-    return MIDI_STATUS_OK;
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(iter != outputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid port");
+    auto ret = ipc->FlushOutputPort(deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open outputport fail");
+    return OH_MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiDevicePrivate::ClosePort(uint32_t portIndex)
+OH_MIDIStatusCode MidiDevicePrivate::CloseInputPort(uint32_t portIndex)
 {
     auto ipc = ipc_.lock();
-    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
-    OH_MIDIStatusCode ret = MIDI_STATUS_INVALID_PORT;
-    {
-        std::lock_guard<std::mutex> lock(inputPortsMutex_);
-        auto it = inputPortsMap_.find(portIndex);
-        if (it != inputPortsMap_.end()) {
-            ret = ipc->CloseInputPort(deviceId_, portIndex);
-            inputPortsMap_.erase(it);
-        }
-    }
-    {
-        std::lock_guard<std::mutex> lock(outputPortsMutex_);
-        auto it = outputPortsMap_.find(portIndex);
-        if (it != outputPortsMap_.end()) {
-            ret = ipc->CloseOutputPort(deviceId_, portIndex);
-            outputPortsMap_.erase(it);
-        }
-    }
-    CHECK_AND_RETURN_RET_LOG(ret == MIDI_STATUS_OK, ret, "close port fail");
-    return MIDI_STATUS_OK;
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
+
+    std::lock_guard<std::mutex> lock(inputPortsMutex_);
+    auto it = inputPortsMap_.find(portIndex);
+    CHECK_AND_RETURN_RET_LOG(it != inputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid input port");
+
+    auto ret = ipc->CloseInputPort(deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail");
+    inputPortsMap_.erase(it);
+    return OH_MIDI_STATUS_OK;
 }
 
-MidiInputPort::MidiInputPort(OH_OnMIDIReceived callback, void *userData, OH_MIDIProtocol protocol)
+OH_MIDIStatusCode MidiDevicePrivate::CloseOutputPort(uint32_t portIndex)
+{
+    auto ipc = ipc_.lock();
+    CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
+
+    std::lock_guard<std::mutex> lock(outputPortsMutex_);
+    auto it = outputPortsMap_.find(portIndex);
+    CHECK_AND_RETURN_RET_LOG(it != outputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid output port");
+
+    auto ret = ipc->CloseOutputPort(deviceId_, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail");
+    outputPortsMap_.erase(it);
+    return OH_MIDI_STATUS_OK;
+}
+
+void MidiDevicePrivate::SetInValid()
+{
+    isValid_.store(false);
+}
+
+MidiInputPort::MidiInputPort(OH_MIDIDevice_OnReceived callback, void *userData, OH_MIDIProtocol protocol)
     : callback_(callback), userData_(userData), protocol_(protocol)
 {
     MIDI_INFO_LOG("InputPort created");
@@ -369,6 +405,8 @@ void MidiInputPort::DrainRingAndDispatch()
         callbackEvent.data = event.data;
         callbackEvents.push_back(callbackEvent);
     }
+    MIDI_DEBUG_LOG("[client] receive midi events from server");
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(midiEvents).c_str());
     CHECK_AND_RETURN(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0);
     callback_(userData_, callbackEvents.data(), callbackEvents.size());
 }
@@ -390,12 +428,12 @@ MidiOutputPort::MidiOutputPort(OH_MIDIProtocol protocol) : protocol_(protocol)
 
 int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten)
 {
-    CHECK_AND_RETURN_RET_LOG(events && eventsWritten, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+    CHECK_AND_RETURN_RET_LOG(events && eventsWritten, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "parameter is nullptr");
-    CHECK_AND_RETURN_RET_LOG(eventCount > 0 && eventCount <= MAX_EVENTS_NUMS, MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+    CHECK_AND_RETURN_RET_LOG(eventCount > 0 && eventCount <= MAX_EVENTS_NUMS, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "parameter is invalid");
     CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0,
-        MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
 
     thread_local std::vector<MidiEventInner> innerEvents;
     innerEvents.clear();
@@ -404,9 +442,94 @@ int32_t MidiOutputPort::Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t
     for (uint32_t i = 0; i < eventCount; ++i) {
         innerEvents[i] = MidiEventInner{events[i].timestamp, events[i].length, events[i].data};
     }
-
+    MIDI_DEBUG_LOG("[client] send midi events");
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(innerEvents).c_str());
     auto ret = ringBuffer_->TryWriteEvents(innerEvents.data(), eventCount, eventsWritten);
     return GetStatusCode(ret);
+}
+
+void MidiOutputPort::PrepareSysExPackets(
+    uint8_t group, uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
+    SysExPacketData &packetData)
+{
+    packetData.innerEvents.clear();
+    packetData.payloadWords.clear();
+    packetData.innerEvents.resize(totalPkts);
+    packetData.payloadWords.resize(totalPkts);
+
+    for (uint32_t i = 0; i < totalPkts; ++i) {
+        const uint32_t offset = i * MAX_PACKET_BYTES;
+        const uint32_t remain = byteSize - offset;
+        const uint8_t nbytes = static_cast<uint8_t>(std::min<uint32_t>(MAX_PACKET_BYTES, remain));
+        const uint8_t status = GetSysexStatus(i, totalPkts);
+
+        packetData.payloadWords[i] = PackSysEx7Ump64(group, status, data + offset, nbytes);
+
+        packetData.innerEvents[i] = MidiEventInner{0, 2, packetData.payloadWords[i].data()}; // 2 words
+    }
+}
+
+int32_t MidiOutputPort::SendSysExPackets(const std::vector<MidiEventInner> &innerEvents,
+    uint32_t pktCount, const std::chrono::steady_clock::time_point &start)
+{
+    uint32_t writtenInBatch = 0;
+
+    while (writtenInBatch < pktCount) {
+        if (std::chrono::steady_clock::now() - start > MAX_TIMEOUT_MS) {
+            return OH_MIDI_STATUS_TIMEOUT;
+        }
+
+        uint32_t writtenThis = 0;
+        MidiStatusCode ret = ringBuffer_->TryWriteEvents(innerEvents.data() + writtenInBatch,
+            pktCount - writtenInBatch, &writtenThis);
+
+        writtenInBatch += writtenThis;
+
+        if (writtenInBatch == pktCount) {
+            break;
+        }
+
+        CHECK_AND_RETURN_RET(ret == MidiStatusCode::WOULD_BLOCK, GetStatusCode(ret));
+
+        if (writtenThis == 0) {
+            FutexCode wret = ringBuffer_->WaitForSpace(WAIT_SLICE_NS,
+                sizeof(ShmMidiEventHeader) + SYSEX7_WORD_COUNT * sizeof(uint32_t));
+            if (wret == FUTEX_TIMEOUT) {
+                continue;
+            }
+            if (wret != FUTEX_SUCCESS) {
+                return OH_MIDI_STATUS_SYSTEM_ERROR;
+            }
+        }
+        continue;
+    }
+
+    return OH_MIDI_STATUS_OK;
+}
+
+int32_t MidiOutputPort::SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize)
+{
+    CHECK_AND_RETURN_RET_LOG(data, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "parameter is nullptr");
+    CHECK_AND_RETURN_RET_LOG(byteSize > 0, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "byteSize is invalid");
+    CHECK_AND_RETURN_RET_LOG(protocol_ == MIDI_PROTOCOL_1_0 || protocol_ == MIDI_PROTOCOL_2_0,
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "protocol is invalid");
+    CHECK_AND_RETURN_RET_LOG(ringBuffer_ != nullptr, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "ringBuffer_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(portIndex < PORT_GROUP_RANGE, OH_MIDI_STATUS_INVALID_PORT, "portIndex out of range");
+
+    const uint8_t group = static_cast<uint8_t>(portIndex & 0x0F);
+    const uint32_t totalPkts = (byteSize + (MAX_PACKET_BYTES - 1)) / MAX_PACKET_BYTES;
+
+    if (totalPkts == 0) {
+        return OH_MIDI_STATUS_OK; // No data to send
+    }
+
+    SysExPacketData packetData;
+
+    PrepareSysExPackets(group, data, byteSize, totalPkts, packetData);
+
+    const auto start = std::chrono::steady_clock::now();
+
+    return SendSysExPackets(packetData.innerEvents, totalPkts, start);
 }
 
 std::shared_ptr<MidiSharedRing> &MidiOutputPort::GetRingBuffer()
@@ -419,7 +542,7 @@ MidiOutputPort::~MidiOutputPort()
     MIDI_INFO_LOG("OutputPort destroy");
 }
 
-MidiClientPrivate::MidiClientPrivate() : ipc_(std::make_shared<MidiServiceClient>())
+MidiClientPrivate::MidiClientPrivate() : ipc_(std::make_shared<MidiServiceClient>()), clientId_(0)
 {
     MIDI_INFO_LOG("MidiClientPrivate created");
 }
@@ -431,119 +554,116 @@ MidiClientPrivate::~MidiClientPrivate()
 
 OH_MIDIStatusCode MidiClientPrivate::Init(OH_MIDICallbacks callbacks, void *userData)
 {
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
-    callback_ = sptr<MidiClientCallback>::MakeSptr(callbacks,
-        userData,
-        [this](OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info) { this->DeviceChange(change, info); });
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
+    callback_ = sptr<MidiClientCallback>::MakeSptr(callbacks, userData, this);
     auto ret = ipc_->Init(callback_, clientId_);
-    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::vector<std::map<int32_t, std::string>> deviceInfos;
-    ret = ipc_->GetDevices(deviceInfos);
-    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    for (auto deviceInfo : deviceInfos) {
-        OH_MIDIDeviceInformation info;
-        bool ret = ConvertToDeviceInformation(deviceInfo, info);
-        CHECK_AND_CONTINUE_LOG(ret, "ConvertToDeviceInformation failed");
-        deviceInfos_.push_back(info);
-    }
-    return MIDI_STATUS_OK;
-}
-
-void MidiClientPrivate::DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    MIDI_INFO_LOG("DeviceChange: %{public}d", change);
-    if (change == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
-        deviceInfos_.push_back(info);
-        return;
-    }
-    for (auto it = deviceInfos_.begin(); it != deviceInfos_.end();) {
-        if (it->midiDeviceId == info.midiDeviceId) {
-            it = deviceInfos_.erase(it);
-            break;
-        } else {
-            it++;
-        }
-    }
+    CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
+    return OH_MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevices(OH_MIDIDeviceInformation *infos, size_t *numDevices)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (*numDevices < deviceInfos_.size()) {
-        *numDevices = deviceInfos_.size();
-        return MIDI_STATUS_INSUFFICIENT_RESULT_SPACE;
-    }
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
 
-    *numDevices = deviceInfos_.size();
-    CHECK_AND_RETURN_RET(*numDevices != 0, MIDI_STATUS_OK);
-    CHECK_AND_RETURN_RET(infos != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
-    for (size_t i = 0; i < *numDevices; i++) {
-        infos[i] = deviceInfos_[i];
+    std::vector<std::map<int32_t, std::string>> deviceInfos;
+    auto ret = ipc_->GetDevices(deviceInfos);
+    CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
+    // Count query: return actual count
+    if (infos == nullptr) {
+        *numDevices = deviceInfos.size();
+        return OH_MIDI_STATUS_OK;
     }
-    return MIDI_STATUS_OK;
+    // Silent fill mode for GetDeviceInfos
+    size_t actualCount = std::min(*numDevices, deviceInfos.size());
+    *numDevices = actualCount;
+    CHECK_AND_RETURN_RET(actualCount != 0, OH_MIDI_STATUS_OK);
+    for (size_t i = 0; i < actualCount; i++) {
+        bool convRet = ConvertToDeviceInformation(deviceInfos[i], infos[i]);
+        CHECK_AND_CONTINUE_LOG(convRet, "ConvertToDeviceInformation failed");
+    }
+    return OH_MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **midiDevice)
 {
-    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "midiDevice is nullptr");
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiDevice is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto ret = ipc_->OpenDevice(deviceId);
-    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
+    CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
     auto newDevice = new MidiDevicePrivate(ipc_, deviceId);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        deviceHandlers_.push_back(newDevice);
+    }
     *midiDevice = newDevice;
     MIDI_INFO_LOG("Device opened: %{public}" PRId64, deviceId);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address, OH_MIDIOnDeviceOpened callback, void *userData)
+OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address,
+    OH_MIDIClient_OnDeviceOpened callback, void *userData)
 {
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
-    auto deivceOpenCallback = sptr<MidiClientDeviceOpenCallback>::MakeSptr(ipc_, callback, userData);
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
+    auto deivceOpenCallback = sptr<MidiClientDeviceOpenCallback>::MakeSptr(ipc_, callback, userData, this);
     auto ret = ipc_->OpenBleDevice(address, deivceOpenCallback);
     return ret;
 }
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::map<int32_t, std::string>> portInfos;
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);
-    CHECK_AND_RETURN_RET(ret == MIDI_STATUS_OK, ret);
-    if (*numPorts < portInfos.size()) {
+    CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
+    // Count query: return actual count
+    if (infos == nullptr) {
         *numPorts = portInfos.size();
-        return MIDI_STATUS_INSUFFICIENT_RESULT_SPACE;
+        return OH_MIDI_STATUS_OK;
     }
-    *numPorts = portInfos.size();
-    CHECK_AND_RETURN_RET(*numPorts != 0, MIDI_STATUS_OK);
-    CHECK_AND_RETURN_RET(infos != nullptr, MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    // Silent fill mode for GetPortInfos
+    size_t actualCount = std::min(*numPorts, portInfos.size());
+    *numPorts = actualCount;
+    CHECK_AND_RETURN_RET(actualCount != 0, OH_MIDI_STATUS_OK);
 
-    for (size_t i = 0; i < portInfos.size(); i++) {
+    for (size_t i = 0; i < actualCount; i++) {
         OH_MIDIPortInformation info;
         bool ret = ConvertToPortInformation(portInfos[i], deviceId, info);
         CHECK_AND_CONTINUE_LOG(ret, "ConvertToPortInformation failed");
         infos[i] = info;
     }
 
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 OH_MIDIStatusCode MidiClientPrivate::DestroyMidiClient()
 {
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "ipc_ is nullptr");
+    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     return ipc_->DestroyMidiClient();
 }
 
 OH_MIDIStatusCode MidiClient::CreateMidiClient(MidiClient **client, OH_MIDICallbacks callbacks, void *userData)
 {
-    CHECK_AND_RETURN_RET_LOG(client != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "client is nullptr");
+    CHECK_AND_RETURN_RET_LOG(client != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "client is nullptr");
     *client = new MidiClientPrivate();
     OH_MIDIStatusCode ret = (*client)->Init(callbacks, userData);
-    CHECK_AND_RETURN_RET(ret != MIDI_STATUS_OK, ret);
+    CHECK_AND_RETURN_RET(ret != OH_MIDI_STATUS_OK, ret);
     delete *client;
     return ret;
+}
+
+void MidiClientPrivate::MarkDeviceInValid()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto &device: deviceHandlers_) {
+        CHECK_AND_CONTINUE(device != nullptr);
+        device->SetInValid();
+    }
+}
+
+void MidiClientPrivate::AddDeviceHandler(MidiDevicePrivate *device)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    deviceHandlers_.push_back(device);
 }
 }  // namespace MIDI
 }  // namespace OHOS

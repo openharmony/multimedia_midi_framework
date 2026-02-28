@@ -21,7 +21,7 @@
 #include "midi_log.h"
 #include "midi_utils.h"
 #include "midi_device_ble.h"
-#include "ump_processor.h"
+#include "bluetooth_host.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -45,12 +45,25 @@ namespace {
     const int32_t HEX_STEP = 2;
     const int32_t BIT_SHIFT_FOUR = 4;
     const int32_t HEX_VAL_OFFSET = 10;
+
+    // Maximum data size to prevent memory exhaustion attacks
+    constexpr size_t MAX_BLE_MIDI_DATA_SIZE = 512;
+    // Maximum UMP packets to prevent integer overflow
+    constexpr size_t MAX_UMP_PACKETS = 128;
+    // Application UUID for BLE MIDI (standard Bluetooth MIDI UUID)
+    static constexpr const char *BLE_MIDI_APP_UUID = "00000000-0000-0000-0000-000000000001";
 }
 
-static BleMidiTransportDeviceDriver *instance;
+static std::atomic<BleMidiTransportDeviceDriver*> instance;
 
 static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector<uint8_t>& midi1Bytes)
 {
+    // Validate input parameters to prevent nullptr dereference
+    if (umpData == nullptr || count == 0 || count > MAX_UMP_PACKETS) {
+        MIDI_ERR_LOG("ConvertUmpToMidi1: Invalid input parameters");
+        return;
+    }
+
     for (size_t i = 0; i < count; ++i) {
         uint32_t ump = umpData[i];
         uint8_t mt = (ump >> UMP_SHIFT_MT) & UMP_MASK_NIBBLE; // Message Type
@@ -65,7 +78,7 @@ static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector
             uint8_t cmd = status & STATUS_MASK_CMD;
 
             midi1Bytes.push_back(status);
-            
+
             // Program Change (0xC0) and Channel Pressure (0xD0) are 2 bytes
             if (cmd == STATUS_PROG_CHANGE || cmd == STATUS_CHAN_PRESSURE) {
                 midi1Bytes.push_back(data1);
@@ -125,52 +138,72 @@ static int64_t GetCurNano()
 }
 
 
-static std::vector<PortInformation> GetPortInfo()
+static std::vector<PortInformation> GetPortInfo(const std::string &deviceName)
 {
     std::vector<PortInformation> portInfos;
     PortInformation out{};
     out.portId = 0;
-    out.name = "BLE-MIDI Out";
+    out.name = deviceName + " Out";
     out.direction = PORT_DIRECTION_OUTPUT;
     out.transportProtocol = PROTOCOL_1_0;
     portInfos.push_back(out);
     PortInformation in{};
     in.portId = 1;
-    in.name =  "BLE-MIDI In";
+    in.name =  deviceName + " In";
     in.direction = PORT_DIRECTION_INPUT;
     in.transportProtocol = PROTOCOL_1_0;
     portInfos.push_back(in);
     return portInfos;
 }
 
-static void NotifyManager(int32_t clientId, bool success)
+static void NotifyManager(DeviceCtx &d, bool success)
 {
-    CHECK_AND_RETURN(instance);
+    CHECK_AND_RETURN(instance.load() != nullptr);
     std::string name = ""; // Could fetch name from GATT
-    
-    auto it = instance->devices_.find(clientId);
-        
-    CHECK_AND_RETURN(it != instance->devices_.end());
-    
-    // Use a copy of callback to avoid holding lock while calling
-    auto &d = it->second;
     auto cb = d.deviceCallback;
-    
+
     CHECK_AND_RETURN(cb != nullptr);
     DeviceInformation devInfo;
     devInfo.driverDeviceId = d.id;
     devInfo.deviceType = DEVICE_TYPE_BLE;
     devInfo.transportProtocol = PROTOCOL_1_0;
     devInfo.address = d.address;
-    devInfo.productName = "";
-    devInfo.vendorName = "";
-    devInfo.portInfos = GetPortInfo();
+    devInfo.deviceName = d.deviceName;
+    devInfo.productId = d.productId;
+    devInfo.vendorId = d.vendorId;
+    devInfo.portInfos = GetPortInfo(d.deviceName);
     cb(success, devInfo);
 }
 
-static BtUuid MakeBtUuid(const std::string &s, std::string &storage)
+static bool g_cleanupDeviceAndNotifyFailure(std::unique_lock<std::mutex> &lock, int32_t clientId)
 {
-    storage = s;
+    // Load instance once to prevent TOCTOU issues
+    auto *inst = instance.load();
+    if (inst == nullptr) {
+        lock.unlock();
+        BleGattcDisconnect(clientId);
+        return false;
+    }
+    auto it = inst->devices_.find(clientId);
+    if (it != inst->devices_.end()) {
+        DeviceCtx device = it->second;
+        BleGattcUnRegister(clientId);
+        inst->devices_.erase(it);
+        lock.unlock();
+        BleGattcDisconnect(clientId);
+        NotifyManager(device, false);
+        return true;
+    }
+    lock.unlock();
+    BleGattcDisconnect(clientId);
+    return false;
+}
+
+// MakeBtUuid - Create BtUuid from string, using provided storage for ownership
+// Note: The returned BtUuid points to data within 'storage', which must outlive the BtUuid
+static BtUuid MakeBtUuid(const std::string &uuidStr, std::string &storage)
+{
+    storage = uuidStr;
     BtUuid u;
     u.uuid = storage.data();
     u.uuidLen = storage.size();
@@ -213,8 +246,11 @@ static bool ParseMac(const std::string &mac, BdAddr &out)
 static bool BtUuidEquals(const BtUuid &u, const char *canonical)
 {
     CHECK_AND_RETURN_RET(u.uuid && canonical, false);
-    size_t len = std::strlen(canonical);
-    CHECK_AND_RETURN_RET(u.uuidLen == len, false);
+    // Use strnlen to limit scan length and prevent buffer overruns
+    constexpr size_t MAX_UUID_LEN = 64;  // BLE UUID max length is 36 for standard format
+    size_t len = strnlen(canonical, MAX_UUID_LEN);
+    CHECK_AND_RETURN_RET(len < MAX_UUID_LEN && u.uuidLen == len, false);
+
     for (size_t i = 0; i < len; i++) {
         unsigned char cu = static_cast<unsigned char>(u.uuid[i]);
         unsigned char cc = static_cast<unsigned char>(canonical[i]);
@@ -223,135 +259,179 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
     return true;
 }
 
+static void GetDeviceInfo(DeviceCtx &d)
+{
+    int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
+    MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, d.deviceName.c_str());
+    uint16_t productId = 0;
+    err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(productId);
+    d.productId = std::to_string(productId);
+    MIDI_INFO_LOG("err: %{public}d, productId: %{private}s", err, d.productId.c_str());
+    uint16_t vendorId = 0;
+    err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
+        d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
+    d.vendorId = std::to_string(vendorId);
+    MIDI_INFO_LOG("err: %{public}d, vendorId: %{private}s", err, d.vendorId.c_str());
+}
+
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
 {
-    CHECK_AND_RETURN(instance != nullptr);
+    // Load instance once to prevent TOCTOU issues
+    auto *inst = instance.load();
+    CHECK_AND_RETURN(inst != nullptr);
     MIDI_INFO_LOG("client = %{public}d, connState = %{public}d, status = %{public}d", clientId, connState, status);
-    
+
     bool isDisconnect = (connState == OHOS_STATE_DISCONNECTED) || (status != 0 && connState != OHOS_STATE_CONNECTED);
 
     if (isDisconnect) {
-        std::unique_lock<std::mutex> lock(instance->lock_);
-        auto it = instance->devices_.find(clientId);
-        CHECK_AND_RETURN(it != instance->devices_.end());
+        std::unique_lock<std::mutex> lock(inst->lock_);
+        auto it = inst->devices_.find(clientId);
+        // Device may have already been cleaned up by active disconnect (e.g., in OnSearvicesComplete)
+        CHECK_AND_RETURN(it != inst->devices_.end());
         MIDI_INFO_LOG("Device disconnected or failed connection");
-        
-        // Notify Manager of disconnection
-        // Important: Only notify if we previously notified success,
-        // OR if this is the initial failure
-        lock.unlock();
-        NotifyManager(clientId, false);
-        lock.lock();
+        DeviceCtx device = it->second;
         BleGattcUnRegister(clientId);
-        instance->devices_.erase(it);
+        inst->devices_.erase(it);
+        lock.unlock();
+        NotifyManager(device, false);
         return;
     }
 
     if (connState == OHOS_STATE_CONNECTED) {
-        std::lock_guard<std::mutex> lock(instance->lock_);
-        auto &ctx = instance->devices_[clientId];
+        std::unique_lock<std::mutex> lock(inst->lock_);
+        auto &ctx = inst->devices_[clientId];
         ctx.connected = true;
-        
+
         // Don't notify Manager yet. Wait for Services & Notify.
         int32_t ret = BleGattcSearchServices(clientId);
-        CHECK_AND_RETURN(ret != 0);
-        MIDI_ERR_LOG("Search Service failed");
-        BleGattcDisconnect(clientId);
-        // Will trigger callback in disconnect path or here manually if needed
+        if (ret != 0) {
+            MIDI_ERR_LOG("Search Service failed");
+            g_cleanupDeviceAndNotifyFailure(lock, clientId);
+        }
     }
 }
 
 static void OnSearvicesComplete(int32_t clientId, int32_t status)
 {
-    CHECK_AND_RETURN(instance != nullptr);
+    // Load instance once to prevent TOCTOU issues
+    auto *inst = instance.load();
+    CHECK_AND_RETURN(inst != nullptr);
+    MIDI_INFO_LOG("OnServicesComplete: clientId=%{public}d, status=%{public}d", clientId, status);
     if (status != 0) {
-        BleGattcDisconnect(clientId);
+        // Service discovery failed - cleanup and notify failure
+        MIDI_ERR_LOG("Service discovery failed: clientId=%{public}d, status=%{public}d", clientId, status);
+        std::unique_lock<std::mutex> lock(inst->lock_);
+        g_cleanupDeviceAndNotifyFailure(lock, clientId);
         return;
     }
-    std::unique_lock<std::mutex> lock(instance->lock_);
-    auto it = instance->devices_.find(clientId);
-    CHECK_AND_RETURN(it != instance->devices_.end());
+    std::unique_lock<std::mutex> lock(inst->lock_);
+    auto it = inst->devices_.find(clientId);
+    CHECK_AND_RETURN(it != inst->devices_.end());
     auto &d = it->second;
-    std::string svcStr;
-    BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcStr);
+    // Use local temporary for service lookup (OK since BleGattcGetService is synchronous)
+    std::string svcTempStorage;
+    BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcTempStorage);
     if (BleGattcGetService(clientId, svc)) {
+        MIDI_INFO_LOG("MIDI service found: clientId=%{public}d", clientId);
         d.serviceReady = true;
+        // Store UUID strings for ownership
         d.serviceUuidStorage = MIDI_SERVICE_UUID;
         d.characteristicUuidStorage = MIDI_CHAR_UUID;
-        d.dataChar.serviceUuid = MakeBtUuid(d.serviceUuidStorage, d.serviceUuidStorage);
-        d.dataChar.characteristicUuid = MakeBtUuid(d.characteristicUuidStorage, d.characteristicUuidStorage);
+        // Use dedicated storage in DeviceCtx for dataChar UUIDs
+        d.dataCharServiceUuidStorage = MIDI_SERVICE_UUID;
+        d.dataCharCharacteristicUuidStorage = MIDI_CHAR_UUID;
+        d.dataChar.serviceUuid = MakeBtUuid(d.dataCharServiceUuidStorage, d.dataCharServiceUuidStorage);
+        d.dataChar.characteristicUuid = MakeBtUuid(d.dataCharCharacteristicUuidStorage,
+            d.dataCharCharacteristicUuidStorage);
         int32_t rc = BleGattcRegisterNotification(clientId, d.dataChar, true);
-        CHECK_AND_RETURN(rc != 0);
+        if (rc != 0) {
+            // Register notification failed - cleanup and notify failure
+            g_cleanupDeviceAndNotifyFailure(lock, clientId);
+            return;
+        }
+        // Wait for OnRegisterNotify callback
+        lock.unlock();
+    } else {
+        // MIDI service not found - cleanup and notify failure
+        MIDI_ERR_LOG("MIDI service not found: clientId=%{public}d", clientId);
+        g_cleanupDeviceAndNotifyFailure(lock, clientId);
     }
-    BleGattcDisconnect(clientId);
-    lock.unlock();
-    NotifyManager(clientId, false);
 }
 
 static void OnRegisterNotify(int32_t clientId, int32_t status)
 {
-    CHECK_AND_RETURN(instance != nullptr);
+    // Load instance once to prevent TOCTOU issues
+    auto *inst = instance.load();
+    CHECK_AND_RETURN(inst != nullptr);
     MIDI_INFO_LOG("OnRegisterNotify clientId %{public}d status %{public}d", clientId, status);
 
-    std::unique_lock<std::mutex> lock(instance->lock_);
-    auto it = instance->devices_.find(clientId);
-    CHECK_AND_RETURN(it != instance->devices_.end());
+    std::unique_lock<std::mutex> lock(inst->lock_);
+    auto it = inst->devices_.find(clientId);
+    CHECK_AND_RETURN(it != inst->devices_.end());
     auto &d = it->second;
-
     if (status == 0) {
         d.notifyEnabled = true;
         MIDI_INFO_LOG("BLE MIDI Device Fully Online. Notifying Manager.");
-        
+        // Copy device context before unlock to avoid dangling reference
+        GetDeviceInfo(d);
+        DeviceCtx device = it->second;
+        lock.unlock();
         // SUCCESS! This is the only place we confirm the device is open.
+        NotifyManager(device, true);
     } else {
         d.notifyEnabled = false;
         MIDI_ERR_LOG("Notify Enable Failed");
-        BleGattcDisconnect(clientId);
+        // Cleanup and notify failure
+        g_cleanupDeviceAndNotifyFailure(lock, clientId);
     }
-    lock.unlock();
-    NotifyManager(clientId, d.notifyEnabled);
-}
-static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)
-{
-    UmpProcessor processor;
-    std::vector<uint32_t> midi2;
-    processor.ProcessBytes(src, srcLen, [&](const UmpPacket& p) {
-        for (uint8_t i = 0; i < p.WordCount(); i++) {
-            midi2.push_back(p.Word(i));
-        }
-    });
-    return midi2;
 }
 
 static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t status)
 {
-    CHECK_AND_RETURN(instance != nullptr && status == 0 && data);
+    // Load instance once to prevent TOCTOU issues
+    auto *inst = instance.load();
+    CHECK_AND_RETURN(inst != nullptr && status == 0 && data);
     const BtGattCharacteristic &ch = data->attribute.characteristic;
     CHECK_AND_RETURN(BtUuidEquals(ch.serviceUuid, MIDI_SERVICE_UUID) &&
         BtUuidEquals(ch.characteristicUuid, MIDI_CHAR_UUID));
-    int64_t devId = 0;
+
+    const uint8_t* src = data->data;
+    size_t srcLen = data->dataLen;
+    // Validate data length to prevent memory exhaustion
+    CHECK_AND_RETURN(src && srcLen > 1 && srcLen <= MAX_BLE_MIDI_DATA_SIZE);
+    // Copy callback and events to avoid dangling reference
     UmpInputCallback cb = nullptr;
+    std::shared_ptr<UmpProcessor> processor;
     {
-        std::lock_guard<std::mutex> lock(instance->lock_);
-        for (auto &[id, d] : instance->devices_) {
+        std::lock_guard<std::mutex> lock(inst->lock_);
+        for (auto &[id, d] : inst->devices_) {
             CHECK_AND_CONTINUE(d.id == clientId && d.inputOpen && d.notifyEnabled);
-            devId = id;
+            // Copy callback pointer while holding lock
             cb = d.inputCallback;
+            processor = d.processor;
             break;
         }
     }
-    CHECK_AND_RETURN(cb && devId != 0);
-    const uint8_t* src = data->data;
-    size_t srcLen = data->dataLen;
-    CHECK_AND_RETURN(src && srcLen != 0);
-    std::ostringstream midiStream;
-    for (size_t i = 0; i < static_cast<size_t>(srcLen); i++) {
-        midiStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
+    CHECK_AND_RETURN(cb != nullptr && processor != nullptr);
+    // Log raw BLE MIDI data
+    std::ostringstream bleStream;
+    for (size_t i = 0; i < srcLen; i++) {
+        bleStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
             static_cast<uint32_t>(src[i]) << " ";
     }
-    MIDI_INFO_LOG("midiStream 1.0: %{public}s", midiStream.str().c_str());
+    MIDI_INFO_LOG("BLE MIDI raw: %{public}s", bleStream.str().c_str());
+    // Step 2: Convert MIDI 1.0 to UMP
+    std::vector<uint32_t> midi2;
+    processor->ProcessBytes(src + 1, srcLen -1, [&](const UmpPacket& p) {
+        for (uint8_t i = 0; i < p.WordCount(); i++) {
+            midi2.push_back(p.Word(i));
+        }
+    });
+    CHECK_AND_RETURN_LOG(!midi2.empty(), "Failed to parse UMP data");
+
     std::vector<MidiEventInner> events;
-    std::vector<uint32_t> midi2 = ParseUmpData(src, srcLen);
     MidiEventInner event = {
         .timestamp = GetCurNano(),
         .length = midi2.size(),
@@ -364,12 +444,20 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
 
 static void OnwriteComplete(int32_t clientId, BtGattCharacteristic *data, int32_t status)
 {
-    return;
+    if (status != 0) {
+        // Write operation failed - log the error and cleanup
+        MIDI_ERR_LOG("BLE write complete failed: clientId=%{public}d, status=%{public}d", clientId, status);
+    }
 }
 
 BleMidiTransportDeviceDriver::BleMidiTransportDeviceDriver()
 {
-    instance = this;
+    MIDI_INFO_LOG("BleMidiTransportDeviceDriver constructor");
+    BleMidiTransportDeviceDriver* expected = nullptr;
+    if (!instance.compare_exchange_strong(expected, this)) {
+        MIDI_ERR_LOG("Instance already exists!");
+        return;
+    }
     gattCallbacks_.ConnectionStateCb = &OnConnectionState;
     gattCallbacks_.connectParaUpdateCb = nullptr;
     gattCallbacks_.searchServiceCompleteCb = &OnSearvicesComplete;
@@ -385,13 +473,16 @@ BleMidiTransportDeviceDriver::BleMidiTransportDeviceDriver()
 
 BleMidiTransportDeviceDriver::~BleMidiTransportDeviceDriver()
 {
-    instance = nullptr;
+    instance.store(nullptr);
+    MIDI_INFO_LOG("BleMidiTransportDeviceDriver instance destroyed");
 }
 
 std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevices()
 {
+    MIDI_INFO_LOG("GetRegisteredDevices: enter");
     std::lock_guard<std::mutex> lock(lock_);
     std::vector<DeviceInformation> deviceInfos;
+    size_t connectedCount = 0;
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.connected);
         DeviceInformation devInfo;
@@ -399,11 +490,14 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
         devInfo.deviceType = DEVICE_TYPE_BLE;
         devInfo.transportProtocol = PROTOCOL_1_0;
         devInfo.address = d.address;
-        devInfo.productName = "";
-        devInfo.vendorName = "";
-        devInfo.portInfos = GetPortInfo();
+        devInfo.deviceName = d.deviceName;
+        devInfo.productId = d.productId;
+        devInfo.vendorId = d.vendorId;
+        devInfo.portInfos = GetPortInfo(d.deviceName);
         deviceInfos.push_back(devInfo);
+        connectedCount++;
     }
+    MIDI_INFO_LOG("GetRegisteredDevices: found %{public}zu connected devices", connectedCount);
     return deviceInfos;
 }
 
@@ -413,18 +507,25 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 
     auto it = devices_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
-    DeviceCtx& ctx = it->second;
-
-    int32_t ret = BleGattcDisconnect(ctx.id);
+    auto &ctx = it->second;
+    // Copy all needed data before erase to avoid dangling references
+    std::string address = ctx.address;
+    int32_t clientId = static_cast<int32_t>(ctx.id);
+    BleDriverCallback callback = ctx.deviceCallback;
+    int32_t ret = BleGattcDisconnect(clientId);
     MIDI_INFO_LOG("BleGattcDisconnect : %{public}d", ret);
-    BleGattcUnRegister(ctx.id);
-    MIDI_INFO_LOG("Unregistered client: %{public}" PRId64, ctx.id);
-    lock.unlock();
-    NotifyManager(deviceId, false);
-    lock.lock();
+    BleGattcUnRegister(clientId);
+    MIDI_INFO_LOG("Unregistered client: %{public}d", clientId);
     devices_.erase(it);
+    lock.unlock();
+    // Create DeviceCtx for callback after erase
+    DeviceCtx device;
+    device.id = clientId;
+    device.address = address;
+    device.deviceCallback = callback;
+    NotifyManager(device, false);
     MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
-        deviceId, GetEncryptStr(ctx.address).c_str());
+        deviceId, GetEncryptStr(address).c_str());
     return 0;
 }
 
@@ -435,15 +536,15 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 
 int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriverCallback deviceCallback)
 {
+    MIDI_INFO_LOG("OpenDevice: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
     std::lock_guard<std::mutex> lock(lock_);
-    
     // Check if address already exists
     for (auto &[id, d] : devices_) {
         if (d.address == deviceAddr) {
             MIDI_WARNING_LOG("Driver: Device %{public}s already has context", GetEncryptStr(deviceAddr).c_str());
             // If it's fully ready, we might callback immediately,
             // but Controller handles "Pending" logic usually.
-            return MIDI_STATUS_DEVICE_ALREADY_OPEN;
+            return OH_MIDI_STATUS_DEVICE_ALREADY_OPEN;
         }
     }
 
@@ -451,28 +552,39 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
     ctx.address = deviceAddr;
     ctx.deviceCallback = deviceCallback;
 
+    // Use standard BLE MIDI application UUID
+    // Note: uuidStorage is local but BleGattcRegister is called immediately (synchronous call)
     std::string uuidStorage;
-    BtUuid appUuid = MakeBtUuid("00000000-0000-0000-0000-000000000001", uuidStorage);
-    
+    BtUuid appUuid = MakeBtUuid(BLE_MIDI_APP_UUID, uuidStorage);
+
     int32_t clientId = BleGattcRegister(appUuid);
-    if (clientId <= 0) return -1;
+    if (clientId <= 0) {
+        MIDI_ERR_LOG("BleGattcRegister failed for address=%{public}s", GetEncryptStr(deviceAddr).c_str());
+        return -1;
+    }
+    MIDI_INFO_LOG("BleGattcRegister success: clientId=%{public}d, address=%{public}s",
+        clientId, GetEncryptStr(deviceAddr).c_str());
 
     ctx.id = clientId;
     devices_[clientId] = ctx;
 
     BdAddr bd{};
     if (!ParseMac(deviceAddr, bd)) {
+        MIDI_ERR_LOG("ParseMac failed: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
         BleGattcUnRegister(clientId);
         devices_.erase(clientId);
-        return MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
 
     if (BleGattcConnect(clientId, &gattCallbacks_, &bd, false, OHOS_BT_TRANSPORT_TYPE_LE) != 0) {
+        MIDI_ERR_LOG("BleGattcConnect failed: clientId=%{public}d, address=%{public}s",
+            clientId, GetEncryptStr(deviceAddr).c_str());
         BleGattcUnRegister(clientId);
         devices_.erase(clientId);
         return -1;
     }
-    
+    MIDI_INFO_LOG("BleGattcConnect initiated: clientId=%{public}d, address=%{public}s",
+        clientId, GetEncryptStr(deviceAddr).c_str());
     return 0; // Async process started
 }
 
@@ -485,8 +597,11 @@ int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t p
         CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
         d.inputCallback = cb;
         d.inputOpen = true;
+        d.processor = std::make_shared<UmpProcessor>();
+        MIDI_INFO_LOG("OpenInputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
+    MIDI_ERR_LOG("OpenInputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
@@ -499,8 +614,11 @@ int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t 
         CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
         d.inputCallback = nullptr;
         d.inputOpen = false;
+        d.processor = nullptr;
+        MIDI_INFO_LOG("CloseInputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
+    MIDI_ERR_LOG("CloseInputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
@@ -512,8 +630,10 @@ int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t 
         CHECK_AND_CONTINUE(d.id == deviceId);
         CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
         d.outputOpen = true;
+        MIDI_INFO_LOG("OpenOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
+    MIDI_ERR_LOG("OpenOutputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
@@ -525,12 +645,14 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
         CHECK_AND_CONTINUE(d.id == deviceId);
         CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
         d.outputOpen = false;
+        MIDI_INFO_LOG("CloseOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
+    MIDI_ERR_LOG("CloseOutputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
-int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t portIndex,
+int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
@@ -547,7 +669,10 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
         clientId = static_cast<int32_t>(d.id);
         dataChar = d.dataChar;
     }
+    MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
     for (auto midiEvent : list) {
+        // Validate data pointer before use
+        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "HandleUmpInput: midiEvent.data is nullptr");
         std::vector<uint8_t> midi1Buffer;
         ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
         CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
@@ -556,6 +681,8 @@ int32_t BleMidiTransportDeviceDriver::HanleUmpInput(int64_t deviceId, uint32_t p
         CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
             payloadLen, payload) == 0, "write characteristic failed");
     }
+    MIDI_DEBUG_LOG("HandleUmpInput completed: deviceId=%{public}" PRId64 ", processed %{public}zu events",
+        deviceId, list.size());
     return 0;
 }
 } // namespace MIDI

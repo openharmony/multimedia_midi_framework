@@ -21,6 +21,7 @@
 #include "midi_info.h"
 #include "midi_device_driver.h"
 #include "ohos_bt_gatt_client.h"
+#include "ump_processor.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -33,13 +34,20 @@ struct DeviceCtx {
     bool notifyEnabled{false}; // The source of truth for "Online"
     bool inputOpen{false};
     bool outputOpen{false};
+    // Store owning strings for UUIDs to prevent dangling pointers
     std::string serviceUuidStorage;
     std::string characteristicUuidStorage;
+    // Additional owning storage for BtGattCharacteristic UUID pointers
+    std::string dataCharServiceUuidStorage;
+    std::string dataCharCharacteristicUuidStorage;
     BtGattCharacteristic dataChar{};
     UmpInputCallback inputCallback{nullptr};
-    
     // The callback to Manager
     BleDriverCallback deviceCallback{nullptr};
+    std::shared_ptr<UmpProcessor> processor;
+    std::string deviceName;
+    std::string productId;
+    std::string vendorId;
     bool initialCallbackCalled{false}; // Prevent double callbacks
 };
 
@@ -62,7 +70,7 @@ public:
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t OpenOutputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) override;
-    int32_t HanleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) override;
+    int32_t HandleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) override;
 
     // Make these accessible to C-style static callbacks
     std::mutex lock_;

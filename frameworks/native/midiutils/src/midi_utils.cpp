@@ -20,9 +20,15 @@
 #include <cinttypes>
 #include <climits>
 #include <ctime>
+#include <cstdint>
+#include <iomanip>
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <array>
+#include <chrono>
+#include <vector>
+#include <algorithm>
 #include <unistd.h>
 
 
@@ -36,6 +42,7 @@ namespace {
     constexpr size_t MIN_LEN = 8;
     constexpr size_t HEAD_STR_LEN = 2;
     constexpr size_t TAIL_STR_LEN = 5;
+    constexpr size_t WIDE_LEN = 2;
 } // namespace
 
 int64_t ClockTime::GetCurNano()
@@ -84,6 +91,87 @@ std::string GetEncryptStr(const std::string &src)
     }
 
     return dst;
+}
+
+std::string BytesToString(uint32_t value)
+{
+    std::ostringstream out;
+    out << std::hex << std::uppercase << std::setfill('0');
+
+    for (int i = 3; i >= 0; --i) {
+        uint8_t byte = static_cast<uint8_t>((value >> (i * 8)) & 0xFFu);
+        out << std::setw(WIDE_LEN) << static_cast<unsigned>(byte);
+        if (i != 0) {
+            out << ' ';
+        }
+    }
+    return out.str();
+}
+
+std::string DumpOneEvent(uint64_t ts, size_t len, const uint32_t *data)
+{
+    std::ostringstream out;
+    out << "ts: " << ts << " len: " << len << " data: ";
+    if (len == 0) {
+        return out.str() + "<empty>";
+    }
+    if (data == nullptr) {
+        return out.str() + "<null>";
+    }
+    for (size_t i = 0; i < len; ++i) {
+        out << BytesToString(data[i]);
+        if (i + 1 != len) {
+            out << " | ";
+        }
+    }
+    return out.str();
+}
+
+std::string DumpMidiEvents(const std::vector<MidiEvent>& events)
+{
+    std::ostringstream out;
+    out << "MidiEvents count=" << events.size() << ":";
+    for (size_t i = 0; i < events.size(); ++i) {
+        out << "\n  [" << i << "] " << DumpOneEvent(events[i].timestamp, events[i].length, events[i].data);
+    }
+    return out.str();
+}
+
+std::string DumpMidiEvents(const std::vector<MidiEventInner>& events)
+{
+    std::ostringstream out;
+    out << "MidiEvents count=" << events.size() << ":";
+    for (size_t i = 0; i < events.size(); ++i) {
+        out << "\n  [" << i << "] " << DumpOneEvent(events[i].timestamp, events[i].length, events[i].data);
+    }
+    return out.str();
+}
+
+std::array<uint32_t, SYSEX7_WORD_COUNT> PackSysEx7Ump64(uint8_t group, uint8_t status,
+    const uint8_t* bytes, uint8_t nbytes)
+{
+    uint8_t b[MAX_PACKET_BYTES] = {0};
+    for (uint8_t i = 0; i < nbytes; ++i) {
+        b[i] = bytes[i];
+    }
+
+    uint32_t w0 = 0;
+    w0 |= (UMP_TYPE_3 & UMP_MASK) << SYSEX7_WORD0_TYPE_SHIFT;
+    w0 |= (group & UMP_MASK) << SYSEX7_WORD0_GROUP_SHIFT;
+    w0 |= (status & UMP_MASK) << SYSEX7_WORD0_STATUS_SHIFT;
+    w0 |= (static_cast<uint32_t>(nbytes) & UMP_MASK) << SYSEX7_WORD0_BYTES_NUM_SHIFT;
+
+    // word1 store b0, b1:word0[0:7] ->b0, word0[8:15] -> b1
+    for (uint32_t i = 0; i < SYSEX7_WORD_COUNT; ++i) {
+        w0 |= (static_cast<uint32_t>(b[i]) << (i * BITS_PER_BYTE));
+    }
+
+    // word1 store b2..b5
+    uint32_t w1 = 0;
+    for (uint32_t i = SYSEX7_WORD_COUNT; i < MAX_PACKET_BYTES; ++i) {
+        w1 |= (static_cast<uint32_t>(b[i]) << ((i - SYSEX7_WORD_COUNT)  * BITS_PER_BYTE));
+    }
+    return {w0, w1};
 }
 
 // ====== UniqueFd ======

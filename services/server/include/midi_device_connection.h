@@ -51,7 +51,7 @@ public:
     virtual int32_t AddClientConnection(uint32_t clientId, int64_t deviceHandle,
                                         std::shared_ptr<MidiSharedRing> &buffer);
     virtual void RemoveClientConnection(uint32_t clientId);
-    virtual bool IsEmptyClientConections();
+    virtual bool IsEmptyClientConnections();
     virtual bool HasClientConnection(uint32_t clientId) const;
 
 protected:
@@ -90,6 +90,8 @@ public:
     // todo: maybe not needed
     void SetPerClientMaxPendingEvents(size_t maxPendingEvents);
     void SetMaxSendCacheBytes(size_t maxSendCacheBytes);
+
+    void FlushClientCache(uint32_t clientId);
     
 private:
     // worker loop

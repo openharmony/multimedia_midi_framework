@@ -35,7 +35,7 @@ public:
     MOCK_METHOD(int32_t, CloseInputPort, (int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(int32_t, OpenOutputPort, (int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(int32_t, CloseOutputPort, (int64_t deviceId, uint32_t portIndex), (override));
-    MOCK_METHOD(int32_t, HanleUmpInput, (int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list),
+    MOCK_METHOD(int32_t, HandleUmpInput, (int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list),
         (override));
 };
 

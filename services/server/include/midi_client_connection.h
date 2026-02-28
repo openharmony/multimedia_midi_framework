@@ -66,6 +66,7 @@ public:
                             uint64_t timestamp);
     const PendingEvent* PeekPendingTop() const;
     bool PopPendingTop(PendingEvent& out);
+    void Flush();
 
 private:
     uint32_t clientId_ = 0;

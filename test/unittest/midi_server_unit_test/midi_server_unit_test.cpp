@@ -70,7 +70,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevices001, TestSize.Level0)
     std::vector<std::map<int32_t, std::string>> devices;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_EQ(MIDI_STATUS_OK, client.GetDevices(devices));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, client.GetDevices(devices));
     EXPECT_TRUE(devices.empty());
 }
 
@@ -88,7 +88,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevicePorts001, TestSize.Level0)
     std::vector<std::map<int32_t, std::string>> ports;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_EQ(MIDI_STATUS_OK, client.GetDevicePorts(deviceId, ports));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, client.GetDevicePorts(deviceId, ports));
     EXPECT_TRUE(ports.empty());
 }
 
@@ -105,7 +105,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_OpenDevice001, TestSize.Level0)
     int64_t deviceId = 12345;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_NE(MIDI_STATUS_OK, client.OpenDevice(deviceId));
+    EXPECT_NE(OH_MIDI_STATUS_OK, client.OpenDevice(deviceId));
 }
 
 /**
@@ -123,7 +123,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_OpenInputPort001, TestSize.Level0)
     uint32_t portIndex = 1;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_NE(MIDI_STATUS_OK, client.OpenInputPort(buffer, deviceId, portIndex));
+    EXPECT_NE(OH_MIDI_STATUS_OK, client.OpenInputPort(buffer, deviceId, portIndex));
 }
 
 /**
@@ -139,7 +139,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_CloseInputPort001, TestSize.Level0)
     int64_t deviceId = 12345;
     uint32_t portIndex = 1;
     MidiInServer client(id, mockCallback);
-    EXPECT_NE(MIDI_STATUS_OK, client.CloseInputPort(deviceId, portIndex));
+    EXPECT_NE(OH_MIDI_STATUS_OK, client.CloseInputPort(deviceId, portIndex));
 }
 
 /**
@@ -155,7 +155,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_CloseDevice001, TestSize.Level0)
     int64_t deviceId = 12345;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_NE(MIDI_STATUS_OK, client.CloseDevice(deviceId));
+    EXPECT_NE(OH_MIDI_STATUS_OK, client.CloseDevice(deviceId));
 }
 
 /**
@@ -170,7 +170,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_DestroyMidiClient001, TestSize.Level0)
     uint32_t id = 123;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_NE(MIDI_STATUS_OK, client.DestroyMidiClient());
+    EXPECT_NE(OH_MIDI_STATUS_OK, client.DestroyMidiClient());
 }
 
 /**
@@ -259,5 +259,5 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateMidiInServer001, TestSize.Level0)
     ASSERT_NE(object, nullptr);
 
     EXPECT_NE(nullptr, server->controller_);
-    EXPECT_EQ(MIDI_STATUS_OK, server->CreateMidiInServer(object, client, clientId));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, server->CreateMidiInServer(object, client, clientId));
 }

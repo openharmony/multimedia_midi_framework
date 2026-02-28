@@ -16,6 +16,13 @@
 #ifndef MIDI_SERVICE_CONTROLLER_H
 #define MIDI_SERVICE_CONTROLLER_H
 
+// Enable test helper methods when building unit tests
+#ifdef UNIT_TEST_SUPPORT
+#define MIDI_TEST_VISIBLE
+#else
+#define MIDI_TEST_VISIBLE
+#endif
+
 #include <map>
 #include <mutex>
 #include <vector>
@@ -53,6 +60,21 @@ struct PendingBleConnection {
 
 class MidiServiceController : public std::enable_shared_from_this<MidiServiceController> {
 public:
+    // Resource limits
+    static constexpr uint32_t MAX_CLIENTS = 8;           // Maximum number of clients
+    static constexpr uint32_t MAX_CLIENTS_PER_APP = 2;    // Maximum clients per application (UID)
+    static constexpr uint32_t MAX_DEVICES_PER_CLIENT = 16; // Maximum devices per client
+    static constexpr uint32_t MAX_PORTS_PER_CLIENT = 64;   // Maximum ports per client
+
+private:
+    // Helper structure to track resource usage per client
+    struct ClientResourceInfo {
+        uint32_t uid;                                    // Application UID that owns this client
+        std::unordered_set<int64_t> openDevices;  // List of opened device IDs
+        uint32_t openPortCount = 0;               // Total opened port count (input + output)
+    };
+
+public:
     MidiServiceController();
     ~MidiServiceController();
     static std::shared_ptr<MidiServiceController> GetInstance();
@@ -67,11 +89,47 @@ public:
         uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
     int32_t OpenOutputPort(
         uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex);
+    int32_t FlushOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t CloseOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     int32_t DestroyMidiClient(uint32_t clientId);
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation device);
     void NotifyError(int32_t code);
+
+    // Runtime configuration (callable from tests)
+    void SetUnloadDelay(int64_t delayMs) { unloadDelayTime_ = delayMs; }
+
+#ifdef UNIT_TEST_SUPPORT
+    /**
+     * @brief Test helper: Get the device manager instance for testing
+     * @return Shared pointer to the device manager
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    std::shared_ptr<MidiDeviceManager> GetDeviceManagerForTest() const { return deviceManager_; }
+
+    /**
+     * @brief Test helper: Clear all internal state for test isolation
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    void ClearStateForTest();
+
+    /**
+     * @brief Test helper: Check if a device has client context
+     * @param deviceId The device ID to check
+     * @return true if device context exists, false otherwise
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    bool HasDeviceContextForTest(int64_t deviceId) const;
+
+    /**
+     * @brief Test helper: Check if a client is associated with a device
+     * @param deviceId The device ID to check
+     * @param clientId The client ID to check
+     * @return true if client is associated with device, false otherwise
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    bool HasClientForDeviceForTest(int64_t deviceId, uint32_t clientId) const;
+#endif
 
 private:
     void ClosePortforDevice(
@@ -80,22 +138,37 @@ private:
     void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
         const std::map<int32_t, std::string> &deviceInfo);
 
+    // Helper functions for DestroyMidiClient
+    void CollectDevicesForClientDestruction(uint32_t clientId,
+        std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean);
+    void CleanupDeviceForClient(uint32_t clientId, int64_t deviceId);
+    void CleanupClientResources(uint32_t clientId, uint32_t clientUid);
+
+    // Helper function to check if a device is a Bluetooth device
+    bool IsBluetoothDevice(int64_t deviceId) const;
+
     void ScheduleUnloadTask();
     void CancelUnloadTask();
     int32_t CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     std::unordered_map<int64_t, std::shared_ptr<DeviceClientContext>> deviceClientContexts_;
     std::unordered_map<int32_t, sptr<MidiInServer>> clients_;
-    
+
     // Map Address -> DeviceId (For quickly checking if a BLE address is already active)
     std::unordered_map<std::string, int64_t> activeBleDevices_;
 
     // Map Address -> List of waiting clients
     std::unordered_map<std::string, std::list<PendingBleConnection>> pendingBleConnections_;
- 	 
+
+    // Track resource usage per client
+    std::unordered_map<uint32_t, ClientResourceInfo> clientResourceInfo_;
+
+    // Track clients per application (UID) for per-app limit enforcement
+    std::unordered_map<uint32_t, std::unordered_set<uint32_t>> appClientMap_;  // UID -> clientIds
+
     std::shared_ptr<MidiDeviceManager> deviceManager_;
     static std::atomic<uint32_t> currentClientId_;
-    std::mutex lock_;
-    const int64_t UNLOAD_DELAY_TIME = 5 * 60 * 1000; // 5 minutes
+    mutable std::mutex lock_;
+    int64_t unloadDelayTime_;  // Runtime-configurable unload delay (ms)
 
     std::atomic<bool> isUnloadPending_{false};
     std::mutex unloadMutex_;

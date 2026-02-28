@@ -70,13 +70,13 @@ int32_t DeviceConnectionBase::AddClientConnection(
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
-    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "creat client connection fail");
-    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer() == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "creat client connection fail");
+    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer() == OH_MIDI_STATUS_OK,
+        OH_MIDI_STATUS_SYSTEM_ERROR,
         "init client connection fail");
     buffer = clientConnection->GetRingBuffer();
     clients_.push_back(std::move(clientConnection));
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 void DeviceConnectionBase::RemoveClientConnection(uint32_t clientId)
@@ -98,7 +98,7 @@ bool DeviceConnectionBase::HasClientConnection(uint32_t clientId) const
         });
 }
 
-bool DeviceConnectionBase::IsEmptyClientConections()
+bool DeviceConnectionBase::IsEmptyClientConnections()
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     return clients_.empty();
@@ -147,38 +147,39 @@ int32_t DeviceConnectionForOutput::AddClientConnection(
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     int fd = dup(notifyEventFd_.Get());
+    CHECK_AND_RETURN_RET(fd >= 0, OH_MIDI_STATUS_SYSTEM_ERROR);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
-    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, MIDI_STATUS_UNKNOWN_ERROR, "creat client connection fail");
-    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer(fd) == MIDI_STATUS_OK,
-        MIDI_STATUS_UNKNOWN_ERROR,
+    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "creat client connection fail");
+    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer(fd) == OH_MIDI_STATUS_OK,
+        OH_MIDI_STATUS_SYSTEM_ERROR,
         "init client connection fail");
     buffer = clientConnection->GetRingBuffer();
     clients_.push_back(std::move(clientConnection));
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t DeviceConnectionForOutput::Start()
 {
     bool expected = false;
     if (!running_.compare_exchange_strong(expected, true)) {
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     int32_t rc = InitEpollAndFds();
-    if (rc != MIDI_STATUS_OK) {
+    if (rc != OH_MIDI_STATUS_OK) {
         running_.store(false);
         return rc;
     }
 
     worker_ = std::thread(&DeviceConnectionForOutput::ThreadMain, this);
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t DeviceConnectionForOutput::Stop()
 {
     bool expected = true;
     if (!running_.compare_exchange_strong(expected, false)) {
-        return MIDI_STATUS_OK;
+        return OH_MIDI_STATUS_OK;
     }
 
     WakeWorkerByEventFd();
@@ -186,7 +187,7 @@ int32_t DeviceConnectionForOutput::Stop()
     if (worker_.joinable()) {
         worker_.join();
     }
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 int DeviceConnectionForOutput::GetNotifyEventFdForClients() const
@@ -208,19 +209,22 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
 {
     int eventFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (eventFd < 0) {
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     notifyEventFd_.Reset(eventFd);
 
     int tfd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (tfd < 0) {
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        notifyEventFd_.Reset(-1);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     timerFd_.Reset(tfd);
 
     int epfd = ::epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0) {
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        timerFd_.Reset(-1);
+        notifyEventFd_.Reset(-1);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     epollFd_.Reset(epfd);
 
@@ -228,7 +232,7 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
     evNotify.events = EPOLLIN;
     evNotify.data.u64 = kEpollTagNotifyEventFd;
     if (::epoll_ctl(epollFd_.Get(), EPOLL_CTL_ADD, notifyEventFd_.Get(), &evNotify) != 0) {
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
     epoll_event evTimer{};
@@ -236,10 +240,13 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
     evTimer.data.u64 = kEpollTagTimerFd;
     if (::epoll_ctl(epollFd_.Get(), EPOLL_CTL_ADD, timerFd_.Get(), &evTimer) !=
         0) {  // todo: timer epoll maybe no need, one fd enough?
-        return MIDI_STATUS_UNKNOWN_ERROR;
+        epollFd_.Reset(-1);
+        timerFd_.Reset(-1);
+        notifyEventFd_.Reset(-1);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
-    return MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_OK;
 }
 
 void DeviceConnectionForOutput::WakeWorkerByEventFd()
@@ -274,7 +281,6 @@ void DeviceConnectionForOutput::ThreadMain()
             }
             break;
         }
-
         DrainEventFd();
         DrainTimerFd();
 
@@ -293,8 +299,8 @@ void DeviceConnectionForOutput::HandleWakeupOnce()
 // ---------------- Step1: drain ring ----------------
 void DeviceConnectionForOutput::DrainAllClientsRings()
 {
-    const auto clientsSnapshot = SnapshotClients();
-    for (const auto &clientConnection : clientsSnapshot) {
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    for (const auto &clientConnection : clients_) {
         if (!clientConnection) {
             continue;
         }
@@ -372,10 +378,8 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
     payloadWords.resize(payloadWordCount);
 
     if (payloadBytes > 0) {
-        (void)memcpy_s(payloadWords.data(),
-                       payloadBytes,
-                       ringEvent.payloadPtr,
-                       payloadBytes);
+        auto ret = memcpy_s(payloadWords.data(), payloadBytes, ringEvent.payloadPtr, payloadBytes);
+        CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
     }
 
     const bool enqueued = clientConnection.EnqueueNonRealtime(std::move(payloadWords), dueTime, ringEvent.timestamp);
@@ -390,11 +394,11 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
 // ---------------- Step2: collect due from per-client heaps ----------------
 void DeviceConnectionForOutput::CollectDueEventsFromClientHeaps()
 {
-    const auto clientsSnapshot = SnapshotClients();  // todo: make clientsSnapshot be clientsSnapshot_
+    std::lock_guard<std::mutex> lock(clientsMutex_);
     auto now = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point earliestDueTime {};
 
-    while (auto earliestClient = FindClientWithEarliestDue(clientsSnapshot, earliestDueTime)) {
+    while (auto earliestClient = FindClientWithEarliestDue(clients_, earliestDueTime)) {
         if (earliestDueTime > now) {
             break;
         }
@@ -450,9 +454,10 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
     MidiEventInner cachedEvent {};
     cachedEvent.timestamp = timestamp;
     cachedEvent.length = payloadWordCount;
-    cachedEvent.data = payloadBuffer.data();
+    cachedEvent.data = nullptr;
 
     sendCachePayloadBuffers_.push_back(std::move(payloadBuffer));
+    cachedEvent.data = sendCachePayloadBuffers_.back().data();
     sendCache_.push_back(cachedEvent);
 
     currentSendCacheBytes_ += payloadBytes;
@@ -490,7 +495,7 @@ void DeviceConnectionForOutput::FlushSendCacheToDriver()
         return;
     }
     CHECK_AND_RETURN_LOG(info_.driver != nullptr, "driver is null!");
-    info_.driver->HanleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
+    info_.driver->HandleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
     sendCache_.clear();
     sendCachePayloadBuffers_.clear();
     currentSendCacheBytes_ = 0;
@@ -504,12 +509,11 @@ void DeviceConnectionForOutput::SendToDriver(MidiEventInner event)
 // ---------------- Step4: timerfd ----------------
 void DeviceConnectionForOutput::UpdateNextTimer()
 {
-    const auto clientsSnapshot = SnapshotClients();
-
+    std::lock_guard<std::mutex> lock(clientsMutex_);
     bool hasDue = false;
     std::chrono::steady_clock::time_point earliestDueTime{};
 
-    for (const auto &clientConnection : clientsSnapshot) {
+    for (const auto &clientConnection : clients_) {
         if (!clientConnection) {
             continue;
         }
@@ -536,5 +540,15 @@ void DeviceConnectionForOutput::UpdateNextTimer()
 
     (void)::timerfd_settime(timerFd_.Get(), 0, &newValue, nullptr);
 }
+
+void DeviceConnectionForOutput::FlushClientCache(uint32_t clientId)
+{
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    for (auto client: clients_) {
+        CHECK_AND_CONTINUE(client->GetClientId() == clientId);
+        client->Flush();
+    }
+}
+
 }  // namespace MIDI
 }  // namespace OHOS

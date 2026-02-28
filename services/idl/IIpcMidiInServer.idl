@@ -23,6 +23,7 @@ interface IIpcMidiInServer {
     void OpenBleDevice([in] String address, [in] IRemoteObject object);
     void OpenInputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
     void OpenOutputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
+    void FlushOutputPort([in] long deviceId, [in] unsigned int portIndex);
     void CloseInputPort([in] long deviceId, [in] unsigned int portIndex);
     void CloseOutputPort([in] long deviceId, [in] unsigned int portIndex);
     void CloseDevice([in] long deviceId);
