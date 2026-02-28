@@ -25,7 +25,7 @@ using namespace std;
 
 namespace {
 constexpr int32_t HEX_WIDTH = 8;
-constexpr OH_MIDIProtocol MIDI_PROTOCOL_VERSION = MIDI_PROTOCOL_1_0;
+constexpr OH_MIDIProtocol MIDI_PROTOCOL_VERSION = OH_MIDI_PROTOCOL_1_0;
 constexpr int32_t NOTE_ON_DELAY_MS = 500;
 // MIDI 1.0 Note On (Ch0, Note 60, Vel 100)
 constexpr uint32_t NOTE_ON_MSG = 0x20903C64;
@@ -49,9 +49,9 @@ void PrintUmpData(const uint32_t *data, size_t length)
 static void OnDeviceChange(void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation info)
 {
     (void)userData;
-    if (action == MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
+    if (action == OH_MIDI_DEVICE_CHANGE_ACTION_CONNECTED) {
         cout << "[Hotplug] Device Connected: ID=" << info.midiDeviceId << ", Name=" << info.deviceName << endl;
-    } else if (action == MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
+    } else if (action == OH_MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
         cout << "[Hotplug] Device Disconnected: ID=" << info.midiDeviceId << endl;
     }
 }
@@ -115,12 +115,12 @@ static void SetupPorts(OH_MIDIClient *client, OH_MIDIDevice *device, int64_t dev
         const auto &port = ports[i];
         OH_MIDIPortDescriptor desc = {port.portIndex, MIDI_PROTOCOL_VERSION};
 
-        if (port.direction == MIDI_PORT_DIRECTION_INPUT) {
+        if (port.direction == OH_MIDI_PORT_DIRECTION_INPUT) {
             if (OH_MIDIDevice_OpenInputPort(device, desc, OnMidiReceived, nullptr) == OH_MIDI_STATUS_OK) {
                 cout << "Input Port " << port.portIndex << " opened (Listening...)" << endl;
                 outOpenedPorts.push_back(port.portIndex);
             }
-        } else if (port.direction == MIDI_PORT_DIRECTION_OUTPUT) {
+        } else if (port.direction == OH_MIDI_PORT_DIRECTION_OUTPUT) {
             if (OH_MIDIDevice_OpenOutputPort(device, desc) == OH_MIDI_STATUS_OK) {
                 cout << "Output Port " << port.portIndex << " opened." << endl;
                 outOpenedPorts.push_back(port.portIndex);
