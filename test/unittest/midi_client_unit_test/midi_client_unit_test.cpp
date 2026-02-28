@@ -195,15 +195,15 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
     EXPECT_EQ(infoArray[0].deviceType, OH_MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
-    EXPECT_EQ(infoArray[0].vendorId, 4311);
-    EXPECT_EQ(infoArray[0].productId, 1234);
+    EXPECT_EQ(infoArray[0].vendorId, 17169);
+    EXPECT_EQ(infoArray[0].productId, 4660);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, OH_MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
-    EXPECT_EQ(infoArray[1].vendorId, 4321);
-    EXPECT_EQ(infoArray[1].productId, 5678);
+    EXPECT_EQ(infoArray[1].vendorId, 17185);
+    EXPECT_EQ(infoArray[1].productId, 22136);
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 
@@ -278,15 +278,15 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_EQ(infoArray[0].deviceType, OH_MIDI_DEVICE_TYPE_USB);
     EXPECT_EQ(infoArray[0].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[0].deviceName, "Mock_Piano");
-    EXPECT_EQ(infoArray[0].vendorId, 4311);
-    EXPECT_EQ(infoArray[0].productId, 1234);
+    EXPECT_EQ(infoArray[0].vendorId, 17169);
+    EXPECT_EQ(infoArray[0].productId, 4660);
     EXPECT_STREQ(infoArray[0].deviceAddress, "");
     EXPECT_EQ(infoArray[1].midiDeviceId, 1002);
     EXPECT_EQ(infoArray[1].deviceType, OH_MIDI_DEVICE_TYPE_BLE);
     EXPECT_EQ(infoArray[1].nativeProtocol, OH_MIDI_PROTOCOL_1_0);
     EXPECT_STREQ(infoArray[1].deviceName, "Mock_Drum");
-    EXPECT_EQ(infoArray[1].vendorId, 4321);
-    EXPECT_EQ(infoArray[1].productId, 5678);
+    EXPECT_EQ(infoArray[1].vendorId, 17185);
+    EXPECT_EQ(infoArray[1].productId, 22136);
     EXPECT_STREQ(infoArray[1].deviceAddress, "aabbcc");
 }
 

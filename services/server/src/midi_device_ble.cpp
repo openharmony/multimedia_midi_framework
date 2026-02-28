@@ -21,7 +21,6 @@
 #include "midi_log.h"
 #include "midi_utils.h"
 #include "midi_device_ble.h"
-#include "ump_processor.h"
 #include "bluetooth_host.h"
 
 namespace OHOS {
@@ -389,18 +388,6 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
     }
 }
 
-static std::vector<uint32_t> ParseUmpData(const uint8_t* src, size_t srcLen)
-{
-    UmpProcessor processor;
-    std::vector<uint32_t> midi2;
-    processor.ProcessBytes(src, srcLen, [&](const UmpPacket& p) {
-        for (uint8_t i = 0; i < p.WordCount(); i++) {
-            midi2.push_back(p.Word(i));
-        }
-    });
-    return midi2;
-}
-
 static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t status)
 {
     // Load instance once to prevent TOCTOU issues
@@ -413,19 +400,21 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
     const uint8_t* src = data->data;
     size_t srcLen = data->dataLen;
     // Validate data length to prevent memory exhaustion
-    CHECK_AND_RETURN(src && srcLen > 0 && srcLen <= MAX_BLE_MIDI_DATA_SIZE);
+    CHECK_AND_RETURN(src && srcLen > 1 && srcLen <= MAX_BLE_MIDI_DATA_SIZE);
     // Copy callback and events to avoid dangling reference
     UmpInputCallback cb = nullptr;
+    std::shared_ptr<UmpProcessor> processor;
     {
         std::lock_guard<std::mutex> lock(inst->lock_);
         for (auto &[id, d] : inst->devices_) {
             CHECK_AND_CONTINUE(d.id == clientId && d.inputOpen && d.notifyEnabled);
             // Copy callback pointer while holding lock
             cb = d.inputCallback;
+            processor = d.processor;
             break;
         }
     }
-    CHECK_AND_RETURN(cb != nullptr);
+    CHECK_AND_RETURN(cb != nullptr && processor != nullptr);
     // Log raw BLE MIDI data
     std::ostringstream bleStream;
     for (size_t i = 0; i < srcLen; i++) {
@@ -433,22 +422,13 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
             static_cast<uint32_t>(src[i]) << " ";
     }
     MIDI_INFO_LOG("BLE MIDI raw: %{public}s", bleStream.str().c_str());
-
-    // Step 1: Decode BLE MIDI to standard MIDI 1.0 byte stream
-    UmpProcessor processor;
-    std::vector<uint8_t> midi1Data = processor.DecodeBleMidi(src, srcLen);
-    CHECK_AND_RETURN_LOG(!midi1Data.empty(), "Failed to decode BLE MIDI data");
-
-    // Log decoded MIDI 1.0 data
-    std::ostringstream midi1Stream;
-    for (size_t i = 0; i < midi1Data.size(); i++) {
-        midi1Stream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
-            static_cast<uint32_t>(midi1Data[i]) << " ";
-    }
-    MIDI_INFO_LOG("MIDI 1.0 decoded: %{public}s", midi1Stream.str().c_str());
-
     // Step 2: Convert MIDI 1.0 to UMP
-    std::vector<uint32_t> midi2 = ParseUmpData(midi1Data.data(), midi1Data.size());
+    std::vector<uint32_t> midi2;
+    processor->ProcessBytes(src + 1, srcLen -1, [&](const UmpPacket& p) {
+        for (uint8_t i = 0; i < p.WordCount(); i++) {
+            midi2.push_back(p.Word(i));
+        }
+    });
     CHECK_AND_RETURN_LOG(!midi2.empty(), "Failed to parse UMP data");
 
     std::vector<MidiEventInner> events;
@@ -617,6 +597,7 @@ int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t p
         CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
         d.inputCallback = cb;
         d.inputOpen = true;
+        d.processor = std::make_shared<UmpProcessor>();
         MIDI_INFO_LOG("OpenInputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
@@ -633,6 +614,7 @@ int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t 
         CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
         d.inputCallback = nullptr;
         d.inputOpen = false;
+        d.processor = nullptr;
         MIDI_INFO_LOG("CloseInputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
