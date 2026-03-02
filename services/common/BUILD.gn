@@ -33,6 +33,7 @@ ohos_shared_library("midi_common") {
     "src/midi_shared_ring.cpp",
     "src/ump_packet.cpp",
     "src/ump_processor.cpp",
+    "src/ump_converter.cpp",
   ]
 
   include_dirs = [

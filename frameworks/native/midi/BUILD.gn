@@ -41,6 +41,7 @@ ohos_shared_library("midi_client") {
 
   deps = [
     "${midi_framework_root}/services/idl:midi_framework_interface",
+    "${midi_framework_root}/services/common:midi_common"
   ]
 
   external_deps = [

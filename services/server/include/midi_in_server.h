@@ -26,7 +26,7 @@ public:
     virtual ~MidiInServer();
     int32_t GetDevices(std::vector<std::map<int32_t, std::string>> &devices) override;
     int32_t GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports) override;
-    int32_t OpenDevice(int64_t deviceId) override;
+    int32_t OpenDevice(int64_t deviceId, std::map<int32_t, std::string> &deviceInfo) override;
     int32_t OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object) override;
     int32_t CloseDevice(int64_t deviceId) override;
     int32_t OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex) override;

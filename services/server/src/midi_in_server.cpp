@@ -59,9 +59,10 @@ int32_t MidiInServer::GetDevicePorts(int64_t deviceId, std::vector<std::map<int3
     return OH_MIDI_STATUS_OK;
 }
 
-int32_t MidiInServer::OpenDevice(int64_t deviceId)
+int32_t MidiInServer::OpenDevice(int64_t deviceId, std::map<int32_t, std::string> &deviceInfo)
 {
     MIDI_INFO_LOG("OpenDevice");
+    deviceInfo = MidiServiceController::GetInstance()->GetDevice(deviceId);
     return MidiServiceController::GetInstance()->OpenDevice(clientId_, deviceId);
 }
 
