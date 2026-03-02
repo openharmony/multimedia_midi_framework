@@ -70,7 +70,7 @@ public:
     int32_t OpenDevice(int64_t deviceId) override
     {
         if (openedDevices_.count(deviceId) > 0) {
-            return MIDI_STATUS_DEVICE_ALREADY_OPEN;
+            return OH_MIDI_STATUS_DEVICE_ALREADY_OPEN;
         }
         openedDevices_.insert(deviceId);
         return OH_MIDI_STATUS_OK;
