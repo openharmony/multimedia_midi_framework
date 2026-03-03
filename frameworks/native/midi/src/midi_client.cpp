@@ -42,6 +42,42 @@ public:
     MidiClientPrivate *client_ = nullptr;
 };
 
+static void ParseOptionalDecField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
+    const char *fieldName, uint32_t &outValue)
+{
+    auto it = deviceInfo.find(key);
+    if (it != deviceInfo.end()) {
+        bool ret = StringToDecNum(it->second, outValue);
+        JUDGE_AND_ERR_LOG(!ret, "parse %{public}s failed, use default value", fieldName);
+    } else {
+        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
+    }
+}
+
+static void ParseOptionalHexField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
+    const char *fieldName, uint64_t &outValue)
+{
+    auto it = deviceInfo.find(key);
+    if (it != deviceInfo.end()) {
+        bool ret = StringToHexNum(it->second, outValue);
+        JUDGE_AND_ERR_LOG(!ret, "parse %{public}s failed, use default value", fieldName);
+    } else {
+        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
+    }
+}
+
+static void ParseOptionalStringField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
+    const char *fieldName, char *buffer, size_t bufferSize)
+{
+    auto it = deviceInfo.find(key);
+    if (it != deviceInfo.end()) {
+        errno_t ret = strncpy_s(buffer, bufferSize, it->second.c_str(), it->second.length());
+        JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy %{public}s failed, use default value", fieldName);
+    } else {
+        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
+    }
+}
+
 static bool ConvertToDeviceInformation(
     const std::map<int32_t, std::string> &deviceInfo, OH_MIDIDeviceInformation &outInfo)
 {
@@ -51,34 +87,6 @@ static bool ConvertToDeviceInformation(
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceId error");
     CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.midiDeviceId), false, "parse deviceId failed");
 
-    it = deviceInfo.find(DEVICE_TYPE);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceType error");
-    uint32_t typeVal = 0;
-    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, typeVal), false, "parse deviceType failed");
-    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(typeVal);
-
-    it = deviceInfo.find(MIDI_PROTOCOL);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "protocol error");
-    uint32_t protocolVal = 0;
-    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, protocolVal), false, "parse protocol failed");
-    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(protocolVal);
-
-    it = deviceInfo.find(DEVICE_NAME);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceName error");
-    CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName), it->second.c_str(), it->second.length()) ==
-            OH_MIDI_STATUS_OK,
-        false,
-        "copy deviceName failed");
-
-    it = deviceInfo.find(PRODUCT_ID);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "productId error");
-    CHECK_AND_RETURN_RET_LOG(StringToHexNum(it->second, outInfo.productId), false, "parse productId hex failed");
-
-    it = deviceInfo.find(VENDOR_ID);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "vendorId error");
-    CHECK_AND_RETURN_RET_LOG(StringToHexNum(it->second, outInfo.vendorId), false, "parse vendorId hex failed");
-
     it = deviceInfo.find(ADDRESS);
     CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
     CHECK_AND_RETURN_RET_LOG(
@@ -86,6 +94,18 @@ static bool ConvertToDeviceInformation(
             OH_MIDI_STATUS_OK,
         false,
         "copy deviceAddress failed");
+
+    uint32_t typeVal = 0;
+    ParseOptionalDecField(deviceInfo, DEVICE_TYPE, "deviceType", typeVal);
+    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(typeVal);
+
+    uint32_t protocolVal = 0;
+    ParseOptionalDecField(deviceInfo, MIDI_PROTOCOL, "protocol", protocolVal);
+    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(protocolVal);
+
+    ParseOptionalStringField(deviceInfo, DEVICE_NAME, "deviceName", outInfo.deviceName, sizeof(outInfo.deviceName));
+    ParseOptionalHexField(deviceInfo, PRODUCT_ID, "productId", outInfo.productId);
+    ParseOptionalHexField(deviceInfo, VENDOR_ID, "vendorId", outInfo.vendorId);
 
     return true;
 }
@@ -131,12 +151,13 @@ static bool ConvertToPortInformation(
     outInfo.direction = static_cast<OH_MIDIPortDirection>(directionVal);
 
     it = portInfo.find(PORT_NAME);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end() && !it->second.empty(), false, "port name error");
+    if (it != portInfo.end()) {
+        errno_t nameRet = strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length());
+        JUDGE_AND_ERR_LOG(nameRet != OH_MIDI_STATUS_OK, "copy portName failed, use default value");
+    } else {
+        MIDI_ERR_LOG("portName not found, use default value");
+    }
 
-    CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length()) == OH_MIDI_STATUS_OK,
-        false,
-        "copy port name failed");
     return true;
 }
 
