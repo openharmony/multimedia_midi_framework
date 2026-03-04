@@ -340,7 +340,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
     std::list<PendingBleConnection> waitingClients;
 
     {
-        std::lock_guard lock(lock_);
+        std::unique_lock<std::mutex> lock(lock_);
         auto it = pendingBleConnections_.find(address);
         if (it != pendingBleConnections_.end()) {
             waitingClients = std::move(it->second);
@@ -368,8 +368,8 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
                 deviceClientContexts_.emplace(deviceId, std::move(context));
             } else {
                 MIDI_WARNING_LOG("All waiting clients died before BLE connected.");
-                // Should we close the device immediately? For now, keep it or let Manager handle.
-                deviceManager_->CloseDevice(deviceId); // Optional strategy
+                lock.unlock();
+                deviceManager_->CloseDevice(deviceId);
             }
         }
     }
