@@ -36,24 +36,25 @@ MidiInServer::~MidiInServer()
     MIDI_INFO_LOG("~MidiInServer clientId:%{public}u", clientId_);
 }
 
-int32_t MidiInServer::GetDevices(std::vector<std::map<int32_t, std::string>> &devices)
+int32_t MidiInServer::GetDevices(std::vector<MidiDeviceInfo> &devices)
 {
-    devices = MidiServiceController::GetInstance()->GetDevices();
+    auto deviceList = MidiServiceController::GetInstance()->GetDevices();
     UpdateBluetoothPermission();
     if (hasBluetoothPermission_) {
+        devices = deviceList;
         return OH_MIDI_STATUS_OK;
     }
-    auto endIter = std::remove_if(devices.begin(), devices.end(),
-        [this](const std::map<int32_t, std::string> &device) {
-            return IsBluetoothDevice(device);
-        });
-    devices.erase(endIter, devices.end());
+    for (const auto &device : deviceList) {
+        if (!IsBluetoothDevice(device)) {
+            devices.push_back(device);
+        }
+    }
 
     MIDI_INFO_LOG("Filtered BLE devices, remaining count: %{public}zu", devices.size());
     return OH_MIDI_STATUS_OK;
 }
 
-int32_t MidiInServer::GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports)
+int32_t MidiInServer::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &ports)
 {
     ports = MidiServiceController::GetInstance()->GetDevicePorts(deviceId);
     return OH_MIDI_STATUS_OK;
@@ -116,7 +117,7 @@ int32_t MidiInServer::DestroyMidiClient()
     return MidiServiceController::GetInstance()->DestroyMidiClient(clientId_);
 }
 
-void MidiInServer::NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo)
+void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
     CHECK_AND_RETURN(callback_ != nullptr);
 
@@ -124,6 +125,8 @@ void MidiInServer::NotifyDeviceChange(DeviceChangeType change, std::map<int32_t,
         MIDI_INFO_LOG("Filtered BLE device change notification, no permission");
         return;
     }
+    callback_->NotifyDeviceChange(change, deviceInfo);
+}
     callback_->NotifyDeviceChange(change, deviceInfo);
 }
 
@@ -140,15 +143,10 @@ void MidiInServer::UpdateBluetoothPermission()
         clientId_, hasBluetoothPermission_);
 }
 
-bool MidiInServer::IsBluetoothDevice(const std::map<int32_t, std::string> &deviceInfo) const
+bool MidiInServer::IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const
+
 {
-    auto it = deviceInfo.find(DEVICE_TYPE);
-    if (it == deviceInfo.end()) {
-        return false;
-    }
-    uint32_t typeVal = 0;
-    CHECK_AND_RETURN_RET(StringToDecNum(it->second, typeVal), false);
-    return typeVal == static_cast<uint32_t>(DEVICE_TYPE_BLE);
+    return deviceInfo.deviceType == DeviceType::DEVICE_TYPE_BLE;
 }
 }  // namespace MIDI
 }  // namespace OHOS

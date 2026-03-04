@@ -17,6 +17,7 @@ midi_framework_root = "../.."
 
 idl_gen_interface("midi_service_idl_interface") {
     sources = [
+        "MidiTypes.idl",
         "IIpcMidiInServer.idl",
         "IMidiCallback.idl",
         "IMidiDeviceOpenCallback.idl",

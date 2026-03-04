@@ -14,10 +14,37 @@
  */
 
 package OHOS.MIDI;
-import OHOS.MIDI.MidiTypes;
-sequenceable OHOS.IRemoteObject;
 
-interface IMidiCallback {
-    [ipccode 0] void NotifyDeviceChange([in] int change, [in] struct MidiDeviceInfo deviceInfo);
-    void NotifyError([in] int code);
-}
+enum PortDirection {
+    PORT_DIRECTION_INPUT = 0,
+    PORT_DIRECTION_OUTPUT = 1,
+};
+
+enum DeviceType {
+    DEVICE_TYPE_USB = 0,
+    DEVICE_TYPE_BLE = 1,
+};
+
+enum TransportProtocol {
+    PROTOCOL_1_0 = 1,
+    PROTOCOL_2_0 = 2,
+};
+
+struct MidiPortInfo {
+    long portId;
+    String name;
+    PortDirection direction;
+    TransportProtocol transportProtocol;
+};
+
+struct MidiDeviceInfo {
+    long deviceId;
+    long driverDeviceId;
+    DeviceType deviceType;
+    TransportProtocol transportProtocol;
+    String address;
+    String deviceName;
+    String productId;
+    String vendorId;
+    List<struct MidiPortInfo> portInfos;
+};

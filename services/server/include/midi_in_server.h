@@ -24,8 +24,8 @@ class MidiInServer : public IpcMidiInServerStub {
 public:
     MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback);
     virtual ~MidiInServer();
-    int32_t GetDevices(std::vector<std::map<int32_t, std::string>> &devices) override;
-    int32_t GetDevicePorts(int64_t deviceId, std::vector<std::map<int32_t, std::string>> &ports) override;
+    int32_t GetDevices(std::vector<MidiDeviceInfo> &devices) override;
+    int32_t GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &ports) override;
     int32_t OpenDevice(int64_t deviceId) override;
     int32_t OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object) override;
     int32_t CloseDevice(int64_t deviceId) override;
@@ -35,11 +35,11 @@ public:
     int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) override;
     int32_t DestroyMidiClient() override;
-    void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo);
+    void NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo);
     void NotifyError(int32_t code);
     void UpdateBluetoothPermission();
 
-    bool IsBluetoothDevice(const std::map<int32_t, std::string> &deviceInfo) const;
+    bool IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const;
 
 private:
     uint32_t clientId_;

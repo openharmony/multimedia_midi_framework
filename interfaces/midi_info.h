@@ -21,46 +21,13 @@
 #include <memory>
 #include <vector>
 #include "native_midi_base.h"
+#include "midi_types.h"
 
 namespace OHOS {
 namespace MIDI {
-enum DeviceInformationProperty { DEVICE_ID, DEVICE_TYPE, MIDI_PROTOCOL, DEVICE_NAME, PRODUCT_ID, VENDOR_ID, ADDRESS};
-
-enum ProtInformationProperty { PORT_INDEX, DIRECTION, PORT_NAME };
-
-enum PortDirection { PORT_DIRECTION_INPUT = 0, PORT_DIRECTION_OUTPUT = 1 };
-
-enum DeviceType { DEVICE_TYPE_USB = 0, DEVICE_TYPE_BLE = 1 };
-
 enum DeviceChangeType {
     ADD = 0,
     REMOVED = 1,
-};
-
-enum TransportProtocol {
-    PROTOCOL_1_0 = 1,
-    PROTOCOL_2_0 = 2,
-};
-
-struct PortInformation {
-    int64_t portId;
-    std::string name;
-    PortDirection direction;
-    TransportProtocol transportProtocol;
-};
-
-struct DeviceInformation {
-    int64_t deviceId;
-    int64_t driverDeviceId;
-    DeviceType deviceType;
-    TransportProtocol transportProtocol;
-    std::string address;
-    std::string deviceName;
-    std::string productId;
-    std::string vendorId;
-    std::vector<PortInformation> portInfos;
-    DeviceInformation(): deviceId(0),  driverDeviceId(0),
-        deviceType(DeviceType::DEVICE_TYPE_USB), transportProtocol(TransportProtocol::PROTOCOL_1_0) {}
 };
 
 struct MidiEvent {
@@ -94,7 +61,7 @@ struct MidiEventInner {
 class MidiServiceCallback {
 public:
     virtual ~MidiServiceCallback() = default;
-    virtual void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) = 0;
+    virtual void NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo) = 0;
     virtual void NotifyError(int32_t code) = 0;
 };
 } // namespace MIDI

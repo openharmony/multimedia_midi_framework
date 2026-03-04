@@ -69,7 +69,7 @@ OH_MIDIStatusCode MidiServiceClient::Init(sptr<MidiCallbackStub> callback, uint3
     return OH_MIDI_STATUS_OK;
 }
 
-OH_MIDIStatusCode MidiServiceClient::GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos)
+OH_MIDIStatusCode MidiServiceClient::GetDevices(std::vector<MidiDeviceInfo> &deviceInfos)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
@@ -102,7 +102,7 @@ OH_MIDIStatusCode MidiServiceClient::CloseDevice(int64_t deviceId)
 }
 
 OH_MIDIStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId,
-                                                    std::vector<std::map<int32_t, std::string>> &portInfos)
+                                                    std::vector<MidiPortInfo> &portInfos)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");

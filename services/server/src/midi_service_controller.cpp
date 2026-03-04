@@ -37,17 +37,27 @@ constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
 constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_MS = 60 * 1000;
 }
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
-static  std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device)
+static MidiDeviceInfo ConvertDeviceInfo(const DeviceInformation &device)
 {
-    std::map<int32_t, std::string> deviceInfo;
+    MidiDeviceInfo deviceInfo;
 
-    deviceInfo[DEVICE_ID] = std::to_string(device.deviceId);
-    deviceInfo[DEVICE_TYPE] = std::to_string(device.deviceType);
-    deviceInfo[MIDI_PROTOCOL] = std::to_string(device.transportProtocol);
-    deviceInfo[DEVICE_NAME] = device.deviceName;
-    deviceInfo[PRODUCT_ID] = device.productId;
-    deviceInfo[VENDOR_ID] = device.vendorId;
-    deviceInfo[ADDRESS] = device.address;
+    deviceInfo.deviceId = device.deviceId;
+    deviceInfo.driverDeviceId = device.driverDeviceId;
+    deviceInfo.deviceType = static_cast<DeviceType>(device.deviceType);
+    deviceInfo.transportProtocol = static_cast<TransportProtocol>(device.transportProtocol);
+    deviceInfo.address = device.address;
+    deviceInfo.deviceName = device.deviceName;
+    deviceInfo.productId = device.productId;
+    deviceInfo.vendorId = device.vendorId;
+
+    for (const auto &port : device.portInfos) {
+        MidiPortInfo portInfo;
+        portInfo.portId = port.portId;
+        portInfo.name = port.name;
+        portInfo.direction = static_cast<PortDirection>(port.direction);
+        portInfo.transportProtocol = static_cast<TransportProtocol>(port.transportProtocol);
+        deviceInfo.portInfos.push_back(portInfo);
+    }
 
     return deviceInfo;
 }
@@ -183,9 +193,9 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
     return OH_MIDI_STATUS_OK;
 }
 
-std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevices()
+std::vector<MidiDeviceInfo> MidiServiceController::GetDevices()
 {
-    std::vector<std::map<int32_t, std::string>> ret;
+    std::vector<MidiDeviceInfo> ret;
     auto result = deviceManager_->GetDevices();
     for (const auto &d : result) {
         ret.push_back(ConvertDeviceInfo(d));
@@ -193,16 +203,17 @@ std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevices()
     return ret;
 }
 
-std::vector<std::map<int32_t, std::string>> MidiServiceController::GetDevicePorts(int64_t deviceId)
+std::vector<MidiPortInfo> MidiServiceController::GetDevicePorts(int64_t deviceId)
 {
-    std::vector<std::map<int32_t, std::string>> ret;
+    std::vector<MidiPortInfo> ret;
     auto result = deviceManager_->GetDevicePorts(deviceId);
     for (const auto &p : result) {
-        std::map<int32_t, std::string> portInfo;
-        portInfo[PORT_INDEX] = std::to_string(p.portId);
-        portInfo[DIRECTION] = std::to_string(p.direction);
-        portInfo[PORT_NAME] = p.name;
-        ret.push_back(std::move(portInfo));
+        MidiPortInfo portInfo;
+        portInfo.portId = p.portId;
+        portInfo.name = p.name;
+        portInfo.direction = static_cast<PortDirection>(p.direction);
+        portInfo.transportProtocol = static_cast<TransportProtocol>(p.transportProtocol);
+        ret.push_back(portInfo);
     }
     return ret;
 }
@@ -287,7 +298,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
                 GetEncryptStr(address).c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
-            std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
+            MidiDeviceInfo deviceInfo = ConvertDeviceInfo(device);
             lock.unlock();
             callback->NotifyDeviceOpened(true, deviceInfo);
             return OH_MIDI_STATUS_OK;
@@ -326,7 +337,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
 }
 
 void MidiServiceController::HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
-    const std::map<int32_t, std::string> &deviceInfo)
+    const MidiDeviceInfo &deviceInfo)
 {
     MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
                 GetEncryptStr(address).c_str(), success, deviceId);
@@ -743,7 +754,7 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 
 void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
-    std::map<int32_t, std::string> deviceInfo = ConvertDeviceInfo(device);
+    MidiDeviceInfo deviceInfo = ConvertDeviceInfo(device);
     std::vector<sptr<MidiInServer>> clientsToNotify;
 
     {
@@ -755,6 +766,23 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
                     activeBleDevices_.erase(it);
                     break;
                 }
+            }
+            auto it = deviceClientContexts_.find(device.deviceId);
+            if (it != deviceClientContexts_.end()) {
+                deviceClientContexts_.erase(it);
+            }
+        }
+        clientsToNotify.reserve(clients_.size());
+        for (auto& [id, client] : clients_) {
+            if (client != nullptr) {
+                clientsToNotify.push_back(client);
+            }
+        }
+    }
+    for (auto& client : clientsToNotify) {
+        client->NotifyDeviceChange(change, deviceInfo);
+    }
+}
             }
             auto it = deviceClientContexts_.find(device.deviceId);
             if (it != deviceClientContexts_.end()) {
