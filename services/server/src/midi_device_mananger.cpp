@@ -363,7 +363,7 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
         }
     }
 
-    if (callback) {
+    if (!exists && callback) {
         callback(false, midiDeviceId, ConvertDeviceInfo(foundInfo));
     }
     if (exists) {
