@@ -380,8 +380,10 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
     MidiSharedRing ring(128);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    // payload1: 21 words => 84 bytes payload, totalBytes = 16 + 84 = 100
-    std::vector<uint32_t> payload1(21, 0x1);
+    // Use 19 words (76 bytes) payload so total is 24 + 76 = 100 bytes
+    // This leaves 128 - 100 = 28 bytes tail space, enough for 24-byte wrap header
+    // (header is 24 bytes: 8 timestamp + 4 length + 4 flags + 4 sequence + 4 padding)
+    std::vector<uint32_t> payload1(19, 0x1);
     MidiEventInner ev1 = MakeEvent(10, payload1);
 
     uint32_t written = 0;
@@ -389,6 +391,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
     ASSERT_EQ(1u, written);
 
     const uint32_t writeAfterEv1 = ring.GetWritePosition();
+    ASSERT_EQ(100u, writeAfterEv1);  // 24 + 19*4 = 100
 
     // release space to make event2 possible while tail is insufficient
     auto *ctrl = ring.GetControlHeader();
@@ -511,8 +514,10 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     MidiSharedRing ring(128);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    // event1 totalBytes = 16 + 21*4 = 100, so writePosition becomes 100.
-    std::vector<uint32_t> payload1(21, 0);
+    // Use 19 words (76 bytes) payload so total is 24 + 76 = 100 bytes
+    // This leaves 128 - 100 = 28 bytes tail space, enough for 24-byte wrap header
+    // (header is 24 bytes: 8 timestamp + 4 length + 4 flags + 4 sequence + 4 padding)
+    std::vector<uint32_t> payload1(19, 0);
     FillU32(payload1, 0x10);
     MidiEventInner ev1 = MakeEvent(10, payload1);
 
@@ -520,13 +525,13 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
     ASSERT_EQ(1u, written);
     uint32_t writeAfterEv1 = ring.GetWritePosition();
-    ASSERT_EQ(100u, writeAfterEv1);
+    ASSERT_EQ(100u, writeAfterEv1);  // 24 + 19*4 = 100
 
     // Read event1 first.
     MidiSharedRing::PeekedEvent p1{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p1));
     EXPECT_EQ(10u, p1.timestamp);
-    EXPECT_EQ(21u, p1.length);
+    EXPECT_EQ(19u, p1.length);  // Changed from 21 to 19
     ring.CommitRead(p1);
     EXPECT_EQ(writeAfterEv1, ring.GetReadPosition());
 
@@ -587,12 +592,12 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCommitRead_001, TestSize.Level0)
 
     MidiSharedRing::PeekedEvent ev{};
     ev.endOffset = 128; // == capacity
-    ring.CommitRead(ev);
+    EXPECT_TRUE(ring.CommitRead(ev));
     EXPECT_EQ(0u, ring.GetReadPosition());
 
     ctrl->readPosition.store(10);
     ev.endOffset = 129; // > capacity
-    ring.CommitRead(ev);
+    EXPECT_TRUE(ring.CommitRead(ev));
     EXPECT_EQ(0u, ring.GetReadPosition());
 }
 

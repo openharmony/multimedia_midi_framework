@@ -100,7 +100,7 @@ public:
 
     MidiStatusCode PeekNext(PeekedEvent &outEvent);
 
-    void CommitRead(const PeekedEvent &event);
+    bool CommitRead(const PeekedEvent &event);
     void DrainToBatch(std::vector<MidiEvent> &outEvents, std::vector<std::vector<uint32_t>> &outPayloadBuffers,
         uint32_t maxEvents = 0);
     void Flush();

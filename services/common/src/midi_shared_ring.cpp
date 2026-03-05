@@ -29,6 +29,7 @@
 #include <memory>
 #include <securec.h>
 #include <sys/mman.h>
+#include <thread>
 
 #include "futex_tool.h"
 #include "message_parcel.h"
@@ -462,6 +463,10 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
     }
 
     if (localWritten == 0) {
+        // If eventCount was 0, this is a valid empty write, not a "would block" situation
+        if (eventCount == 0) {
+            return MidiStatusCode::OK;
+        }
         return MidiStatusCode::WOULD_BLOCK;
     }
 
@@ -483,6 +488,13 @@ static bool ReadHeaderSafely(const ShmMidiEventHeader *header, ShmMidiEventHeade
 {
     // Read sequence first (acquire ensures visibility of header data)
     uint32_t seq1 = __atomic_load_n(&header->sequence, __ATOMIC_ACQUIRE);
+
+    // FIXED: Check if sequence is odd (writer is currently modifying)
+    // Writer pattern: seq+1 (odd) -> write data -> seq+2 (even)
+    if (seq1 & 1) {
+        return false; // Writer is active, retry needed
+    }
+
     __atomic_thread_fence(__ATOMIC_ACQUIRE);
 
     // Copy header data
@@ -548,15 +560,16 @@ MidiStatusCode MidiSharedRing::PeekNext(PeekedEvent &outEvent)
     return MidiStatusCode::WOULD_BLOCK; // Too many retries
 }
 
-void MidiSharedRing::CommitRead(const PeekedEvent &ev)
+bool MidiSharedRing::CommitRead(const PeekedEvent &ev)
 {
     // FIXED: Verify header hasn't changed before committing (TOCTOU protection)
     uint32_t readIndex = ev.beginOffset;
     const ShmMidiEventHeader *header = reinterpret_cast<const ShmMidiEventHeader *>(ringBase_ + readIndex);
     uint32_t currentSeq = __atomic_load_n(&header->sequence, __ATOMIC_ACQUIRE);
     if (currentSeq != ev.sequence) {
-        // Header was modified, data may be corrupt
-        MIDI_WARNING_LOG("Header modified between peek and commit, possible data corruption");
+        // Header was modified, data may be corrupt - reject this event
+        MIDI_WARNING_LOG("Header modified between peek and commit, discarding event");
+        return false;
     }
 
     uint32_t end = ev.endOffset;
@@ -566,6 +579,7 @@ void MidiSharedRing::CommitRead(const PeekedEvent &ev)
     // FIXED: Use release ordering
     controler_->readPosition.store(end, std::memory_order_release);
     WakeFutex(); // wake who is waiting to write data
+    return true;
 }
 
 void MidiSharedRing::DrainToBatch(
@@ -585,11 +599,17 @@ void MidiSharedRing::DrainToBatch(
         std::vector<uint32_t> payloadBuffer;
         MidiEvent copiedEvent = CopyOut(peekedEvent, payloadBuffer);
 
-        outEvents.push_back(copiedEvent);
-        outPayloadBuffers.push_back(std::move(payloadBuffer));
-
-        CommitRead(peekedEvent);
-        ++count;
+        // FIXED: Only add event to output if commit succeeds (sequence verified)
+        if (CommitRead(peekedEvent)) {
+            outEvents.push_back(copiedEvent);
+            outPayloadBuffers.push_back(std::move(payloadBuffer));
+            ++count;
+        } else {
+            // Event was corrupted between peek and commit, discard it
+            // The writer has modified the data, we can't trust copiedEvent
+            MIDI_INFO_LOG("Discarding corrupted event at offset %{public}u", peekedEvent.beginOffset);
+            // Continue to try next event
+        }
     }
 }
 
@@ -603,7 +623,8 @@ void MidiSharedRing::Flush()
                                                         std::memory_order_acquire,
                                                         std::memory_order_relaxed)) {
         expected = 0;
-        // Brief spin before yielding
+        // FIXED: Yield CPU to prevent busy-wait spin
+        std::this_thread::yield();
     }
 
     // Now we have exclusive access
@@ -705,8 +726,9 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
 
     uint8_t *payload = dst + sizeof(ShmMidiEventHeader);
     const size_t payloadBytes = event.length * sizeof(uint32_t);
-    CHECK_AND_RETURN_LOG(payloadBytes > 0, "copy length is zero!");
-    memcpy_s(payload, payloadBytes, reinterpret_cast<const void *>(event.data), payloadBytes);
+    if (payloadBytes > 0) {
+        memcpy_s(payload, payloadBytes, reinterpret_cast<const void *>(event.data), payloadBytes);
+    }
 
     // FIXED: Increment sequence after writing
     __atomic_thread_fence(__ATOMIC_RELEASE);
