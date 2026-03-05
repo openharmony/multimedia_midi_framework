@@ -48,8 +48,8 @@ public:
 
 class MockIpcMidiInServer : public IIpcMidiInServer {
 public:
-    MOCK_METHOD(int32_t, GetDevices, (std::vector<MidiDeviceInfo> & devices), (override));
-    MOCK_METHOD(int32_t, OpenDevice, (int64_t), (override));
+    MOCK_METHOD(int32_t, GetDevices, ((std::vector<MidiDeviceInfo> & devices)), (override));
+    MOCK_METHOD(int32_t, OpenDevice, (int64_t, (MidiDeviceInfo &)), (override));
     MOCK_METHOD(int32_t, OpenBleDevice, (const std::string &address, const sptr<IRemoteObject> &object), (override));
     MOCK_METHOD(int32_t, CloseDevice, (int64_t), (override));
     MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, std::vector<MidiPortInfo> &), (override));
@@ -133,7 +133,8 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, OpenDevice_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    EXPECT_EQ(client.OpenDevice(1), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    std::map<int32_t, std::string> deviceInfo;
+    EXPECT_EQ(client.OpenDevice(1, deviceInfo), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
 /**
@@ -149,8 +150,19 @@ HWTEST_F(MidiServiceClientUnitTest, OpenDevice_002, TestSize.Level0)
     InjectIpcForTest(client, mockIpc);
 
     int64_t deviceId = 1001;
-    EXPECT_CALL(*mockIpc, OpenDevice(deviceId)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
-    EXPECT_EQ(client.OpenDevice(deviceId), OH_MIDI_STATUS_OK);
+    std::map<int32_t, std::string> info;
+
+    EXPECT_CALL(*mockIpc, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t, std::map<int32_t, std::string> &info) {
+        info = {{DEVICE_ID, "1001"},
+                {DEVICE_TYPE, "0"},
+                {MIDI_PROTOCOL, "1"},
+                {DEVICE_NAME, "Mock_Piano"},
+                {PRODUCT_ID, "1234"},
+                {VENDOR_ID, "4311"},
+                {ADDRESS, ""}};
+        return OH_MIDI_STATUS_OK;
+    }));
+    EXPECT_EQ(client.OpenDevice(deviceId, info), OH_MIDI_STATUS_OK);
 }
 
 /**

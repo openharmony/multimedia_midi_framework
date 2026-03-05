@@ -180,6 +180,12 @@ std::vector<MidiDeviceInfo> MidiServiceController::GetDevices()
     return ret;
 }
 
+MidiDeviceInfo MidiServiceController::GetDevice(int64_t deviceId)
+{
+    auto ret = deviceManager_->GetDeviceForDeviceId(deviceId);
+    return ret.midiDeviceInfo;
+}
+
 std::vector<MidiPortInfo> MidiServiceController::GetDevicePorts(int64_t deviceId)
 {
     std::vector<MidiPortInfo> ret;

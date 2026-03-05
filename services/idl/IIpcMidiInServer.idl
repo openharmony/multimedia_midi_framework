@@ -19,8 +19,8 @@ sequenceable midi_shared_ring..OHOS.MIDI.MidiSharedRing;
 
 interface IIpcMidiInServer {
     [ipccode 0] void GetDevices([out] List<struct MidiDeviceInfo> devices);
-    void GetDevicePorts([in] long deviceId, [out] List<struct MidiPortInfo> ports);
-    void OpenDevice([in] long deviceId);
+    void GetDevicePorts([in] long deviceId, [out] List<struct MidiPortInfo>> ports);
+    void OpenDevice([in] long deviceId, [out] struct MidiDeviceInfo deviceInfo);
     void OpenBleDevice([in] String address, [in] IRemoteObject object);
     void OpenInputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);
     void OpenOutputPort([out] sharedptr<MidiSharedRing> buffer, [in] long deviceId, [in] unsigned int portIndex);

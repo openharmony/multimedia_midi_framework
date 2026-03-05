@@ -95,6 +95,7 @@ public:
     int32_t DestroyMidiClient(uint32_t clientId);
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation device);
     void NotifyError(int32_t code);
+    std::map<int32_t, std::string> GetDevice(int64_t deviceId);
 
     // Runtime configuration (callable from tests)
     void SetUnloadDelay(int64_t delayMs) { unloadDelayTime_ = delayMs; }

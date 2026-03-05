@@ -37,11 +37,17 @@ struct SysExPacketData {
     std::vector<std::array<uint32_t, SYSEX7_WORD_COUNT >> payloadWords;
 };
 
+enum ProtocolDirection {
+    MIDI_NONE = 0,
+    MIDI_1_0_TO_MIDI_2_0 = 1,
+    MIDI_2_0_TO_MIDI_1_0 = 2
+};
+
 class MidiClientCallback;
     
 class MidiInputPort {
 public:
-    MidiInputPort(OH_MIDIDevice_OnReceived callback, void *userData, OH_MIDIProtocol protocol);
+    MidiInputPort(OH_MIDIDevice_OnReceived callback, void *userData, ProtocolDirection dir);
     ~MidiInputPort();
     std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 
@@ -60,29 +66,29 @@ private:
     std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
     std::thread receiverThread_;
     void *userData_ = nullptr;
-    OH_MIDIProtocol protocol_;
+    ProtocolDirection direction_;
 };
 
 class MidiOutputPort {
 public:
-    MidiOutputPort(OH_MIDIProtocol protocol);
+    MidiOutputPort(ProtocolDirection dir);
     ~MidiOutputPort();
-    int32_t Send(OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
-    int32_t SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize);
+    int32_t Send(const OH_MIDIEvent *events, uint32_t eventCount, uint32_t *eventsWritten);
+    int32_t SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize);
     std::shared_ptr<MidiSharedRing> &GetRingBuffer();
 private:
-    void PrepareSysExPackets(uint8_t group, uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
+    void PrepareSysExPackets(uint8_t group, const uint8_t *data, uint32_t byteSize, uint32_t totalPkts,
             SysExPacketData &packetData);
     int32_t SendSysExPackets(const std::vector<MidiEventInner> &innerEvents, uint32_t pktCount,
             const std::chrono::steady_clock::time_point &start);
 
     std::shared_ptr<MidiSharedRing> ringBuffer_ = nullptr;
-    OH_MIDIProtocol protocol_;
+    ProtocolDirection direction_;
 };
 
 class MidiDevicePrivate : public MidiDevice {
 public:
-    MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, int64_t deviceId);
+    MidiDevicePrivate(std::shared_ptr<MidiServiceInterface> midiServiceInterface, OH_MIDIDeviceInformation info);
     virtual ~MidiDevicePrivate();
     OH_MIDIStatusCode CloseDevice() override;
     OH_MIDIStatusCode OpenInputPort(OH_MIDIPortDescriptor descriptor,
@@ -90,11 +96,12 @@ public:
     OH_MIDIStatusCode OpenOutputPort(OH_MIDIPortDescriptor descriptor) override;
     OH_MIDIStatusCode CloseInputPort(uint32_t portIndex) override;
     OH_MIDIStatusCode CloseOutputPort(uint32_t portIndex) override;
-    OH_MIDIStatusCode Send(uint32_t portIndex, OH_MIDIEvent *events,
-                            uint32_t eventCount, uint32_t *eventsWritten) override;
-    OH_MIDIStatusCode SendSysEx(uint32_t portIndex, uint8_t *data, uint32_t byteSize) override;
+    OH_MIDIStatusCode Send(uint32_t portIndex, const OH_MIDIEvent *events,
+                           uint32_t eventCount, uint32_t *eventsWritten) override;
+    OH_MIDIStatusCode SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
     void SetInValid();
+    int64_t GetDeviceId() const;
 
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
@@ -104,6 +111,7 @@ private:
     std::unordered_map<uint32_t, std::shared_ptr<MidiInputPort>> inputPortsMap_;
     std::unordered_map<uint32_t, std::shared_ptr<MidiOutputPort>> outputPortsMap_;
     std::atomic<bool> isValid_{true};
+    OH_MIDIDeviceInformation info_;
 };
 
 class MidiClientPrivate : public MidiClient {
@@ -121,6 +129,7 @@ public:
     void AddDeviceHandler(MidiDevicePrivate *device);
 private:
     void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
+    bool IsDeviceOpened(int64_t deviceId);
     std::shared_ptr<MidiServiceInterface> ipc_;
     uint32_t clientId_;
     sptr<MidiClientCallback> callback_;

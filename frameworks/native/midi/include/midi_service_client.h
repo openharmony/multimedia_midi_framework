@@ -32,7 +32,7 @@ public:
     virtual ~MidiServiceClient();
     OH_MIDIStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) override;
     OH_MIDIStatusCode GetDevices(std::vector<MidiDeviceInfo> &deviceInfos) override;
-    OH_MIDIStatusCode OpenDevice(int64_t deviceId) override;
+    OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDeviceInfo &deviceInfo) override;
     OH_MIDIStatusCode OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback) override;
     OH_MIDIStatusCode CloseDevice(int64_t deviceId) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos) override;

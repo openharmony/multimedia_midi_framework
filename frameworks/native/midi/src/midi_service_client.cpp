@@ -77,11 +77,11 @@ OH_MIDIStatusCode MidiServiceClient::GetDevices(std::vector<MidiDeviceInfo> &dev
     return GetMidiStatusCode(ret);
 }
 
-OH_MIDIStatusCode MidiServiceClient::OpenDevice(int64_t deviceId)
+OH_MIDIStatusCode MidiServiceClient::OpenDevice(int64_t deviceId, std::map<int32_t, std::string> &deviceInfo)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
-    auto ret = ipc_->OpenDevice(deviceId);
+    auto ret = ipc_->OpenDevice(deviceId, deviceInfo);
     return GetMidiStatusCode(ret);
 }
 
