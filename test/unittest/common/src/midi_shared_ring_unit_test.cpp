@@ -434,8 +434,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_008, TestSize.Leve
 
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peek));
-    EXPECT_EQ(77u, peek.timestamp);
-    EXPECT_EQ(0u, peek.length);
+    EXPECT_EQ(77u, peek.localHeader.timestamp);
+    EXPECT_EQ(0u, peek.localHeader.length);
 }
 
 /**
@@ -530,8 +530,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     // Read event1 first.
     MidiSharedRing::PeekedEvent p1{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p1));
-    EXPECT_EQ(10u, p1.timestamp);
-    EXPECT_EQ(19u, p1.length);  // Changed from 21 to 19
+    EXPECT_EQ(10u, p1.localHeader.timestamp);
+    EXPECT_EQ(19u, p1.localHeader.length);  // Changed from 21 to 19
     ring.CommitRead(p1);
     EXPECT_EQ(writeAfterEv1, ring.GetReadPosition());
 
@@ -544,8 +544,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     // Now readIndex points to WRAP header; PeekNext should consume it and return event2 at offset 0.
     MidiSharedRing::PeekedEvent p2{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p2));
-    EXPECT_EQ(20u, p2.timestamp);
-    EXPECT_EQ(4u, p2.length);
+    EXPECT_EQ(20u, p2.localHeader.timestamp);
+    EXPECT_EQ(4u, p2.localHeader.length);
     EXPECT_EQ(0u, p2.beginOffset);
 }
 
@@ -668,7 +668,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_002, TestSize.Level0
     // still has one event
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peek));
-    EXPECT_EQ(2u, peek.timestamp);
+    EXPECT_EQ(2u, peek.localHeader.timestamp);
 }
 
 /**
@@ -743,12 +743,12 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRaceCondition_001, TestSize.Level
     auto *header = reinterpret_cast<ShmMidiEventHeader *>(base + readPos);
 
     // Record original values
-    uint64_t origTs = header->timestamp;
+    // uint64_t origTs (unused) = header->timestamp;
     uint32_t origLen = header->length;
 
     // Simulate what PeekNext does: read header values
     uint64_t peekTs = header->timestamp;
-    uint32_t peekLen = header->length;
+    // uint32_t peekLen (unused) = header->length;
 
     // Simulate concurrent modification (what a malicious or buggy writer might do)
     header->length = 0xFFFFFFFF;

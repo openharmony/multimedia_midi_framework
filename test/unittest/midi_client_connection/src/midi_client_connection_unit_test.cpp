@@ -105,8 +105,8 @@ HWTEST_F(MidiClientConnectionUnitTest, ClientConnectionInServerTrySendToClient_0
 
     MidiSharedRing::PeekedEvent peekedEvent{};
     EXPECT_EQ(MidiStatusCode::OK, sharedRing->PeekNext(peekedEvent));
-    EXPECT_EQ(12345u, peekedEvent.timestamp);
-    EXPECT_EQ(payloadWords.size(), peekedEvent.length);
+    EXPECT_EQ(12345u, peekedEvent.localHeader.timestamp);
+    EXPECT_EQ(payloadWords.size(), peekedEvent.localHeader.length);
 }
 
 /**
