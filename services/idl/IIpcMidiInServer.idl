@@ -13,9 +13,11 @@
  * limitations under the License.
  */
 package OHOS.MIDI;
-import MidiTypes;
+
 sequenceable OHOS.IRemoteObject;
 sequenceable midi_shared_ring..OHOS.MIDI.MidiSharedRing;
+sequenceable midi_info..OHOS.MIDI.MidiDeviceInfo;
+sequenceable midi_info..OHOS.MIDI.MidiPortInfo;
 
 interface IIpcMidiInServer {
     [ipccode 0] void GetDevices([out] List<struct MidiDeviceInfo> devices);

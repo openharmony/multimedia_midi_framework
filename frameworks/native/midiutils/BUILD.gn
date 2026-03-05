@@ -38,9 +38,7 @@ ohos_shared_library("midiutils") {
     "${midi_framework_root}/interfaces/kits/c/midi",
   ]
 
-  deps = [
-    "${midi_framework_root}/services/idl:midi_framework_interface",
-  ]
+  deps = []
 
   external_deps = [
     "hilog:libhilog",

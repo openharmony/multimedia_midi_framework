@@ -14,17 +14,105 @@
  */
 #ifndef MIDI_INFO_H
 #define MIDI_INFO_H
-#include <stddef.h>
-#include <stdint.h>
+#include <new>
+#include <parcel.h>
 #include <string>
+#include <vector>
 #include <map>
 #include <memory>
-#include <vector>
+#include <cstdint>
 #include "native_midi_base.h"
-#include "midi_types.h"
 
 namespace OHOS {
 namespace MIDI {
+
+enum PortDirection {
+    PORT_DIRECTION_INPUT = 0,
+    PORT_DIRECTION_OUTPUT = 1,
+};
+
+enum DeviceType {
+    DEVICE_TYPE_USB = 0,
+    DEVICE_TYPE_BLE = 1,
+};
+
+enum TransportProtocol {
+    PROTOCOL_1_0 = 1,
+    PROTOCOL_2_0 = 2,
+};
+
+struct MidiPortInfo : public Parcelable {
+    int64_t portId;
+    std::string name;
+    PortDirection direction;
+    TransportProtocol transportProtocol;
+
+    bool Marshalling(Parcel &parcel) const override
+    {
+        parcel.WriteInt64(portId);
+        parcel.WriteString(name);
+        parcel.WriteInt32(static_cast<int32_t>(direction));
+        parcel.WriteInt32(static_cast<int32_t>(transportProtocol));
+        return true;
+    }
+
+    static MidiPortInfo *Unmarshalling(Parcel &parcel)
+    {
+        auto portInfo = new(std::nothrow) MidiPortInfo();
+        if (portInfo == nullptr) {
+            return nullptr;
+        }
+
+        portInfo->portId = parcel.ReadInt64();
+        portInfo->name = parcel.ReadString();
+        portInfo->direction = static_cast<PortDirection>(parcel.ReadInt32());
+        portInfo->transportProtocol = static_cast<TransportProtocol>(parcel.ReadInt32());
+        return portInfo;
+    }
+};
+
+struct MidiDeviceInfo : public Parcelable {
+    int64_t deviceId;
+    int64_t driverDeviceId;
+    DeviceType deviceType;
+    TransportProtocol transportProtocol;
+    std::string address;
+    std::string deviceName;
+    uint64_t productId;
+    uint64_t vendorId;
+
+    bool Marshalling(Parcel &parcel) const override
+    {
+        parcel.WriteInt64(deviceId);
+        parcel.WriteInt64(driverDeviceId);
+        parcel.WriteInt32(static_cast<int32_t>(deviceType));
+        parcel.WriteInt32(static_cast<int32_t>(transportProtocol));
+        parcel.WriteString(address);
+        parcel.WriteString(deviceName);
+        parcel.WriteUint64(productId);
+        parcel.WriteUint64(vendorId);
+        return true;
+    }
+
+    static MidiDeviceInfo *Unmarshalling(Parcel &parcel)
+    {
+        auto deviceInfo = new(std::nothrow) MidiDeviceInfo();
+        if (deviceInfo == nullptr) {
+            return nullptr;
+        }
+
+        deviceInfo->deviceId = parcel.ReadInt64();
+        deviceInfo->driverDeviceId = parcel.ReadInt64();
+        deviceInfo->deviceType = static_cast<DeviceType>(parcel.ReadInt32());
+        deviceInfo->transportProtocol = static_cast<TransportProtocol>(parcel.ReadInt32());
+        deviceInfo->address = parcel.ReadString();
+        deviceInfo->deviceName = parcel.ReadString();
+        deviceInfo->productId = parcel.ReadUint64();
+        deviceInfo->vendorId = parcel.ReadUint64();
+        return deviceInfo;
+    }
+};
+
 enum DeviceChangeType {
     ADD = 0,
     REMOVED = 1,

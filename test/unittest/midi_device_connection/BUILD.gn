@@ -44,7 +44,6 @@ ohos_unittest("midi_device_connection_unittest") {
     "${midi_framework_root}/services/common:midi_common",
     "${midi_framework_root}/services:midi_service",
     "${midi_framework_root}/frameworks/native/midiutils:midiutils",
-    "${midi_framework_root}/services/idl:midi_framework_interface",
   ]
 
   external_deps = [

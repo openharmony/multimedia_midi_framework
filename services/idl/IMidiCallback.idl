@@ -14,8 +14,8 @@
  */
 
 package OHOS.MIDI;
-import MidiTypes;
 sequenceable OHOS.IRemoteObject;
+sequenceable midi_info..OHOS.MIDI.MidiDeviceInfo;
 
 interface IMidiCallback {
     [ipccode 0] void NotifyDeviceChange([in] int change, [in] struct MidiDeviceInfo deviceInfo);
