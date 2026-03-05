@@ -44,7 +44,6 @@ struct MidiDeviceInfo {
     TransportProtocol transportProtocol;
     String address;
     String deviceName;
-    String productId;
-    String vendorId;
-    List<struct MidiPortInfo> portInfos;
+    unsigned long productId;
+    unsigned long vendorId;
 };

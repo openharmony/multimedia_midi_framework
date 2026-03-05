@@ -26,6 +26,7 @@ namespace OHOS {
 namespace MIDI {
 
 UsbMidiTransportDeviceDriver::UsbMidiTransportDeviceDriver() { midiHdi_ = IMidiInterface::Get(true); }
+
 static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceInfo device)
 {
     std::vector<PortInformation> portInfos;
@@ -53,12 +54,19 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
         CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(PROTOCOL_1_0) || device.protocol ==
             static_cast<int32_t>(PROTOCOL_2_0), "Invalid MIDI protocol: %{public}d", device.protocol);
         DeviceInformation devInfo;
-        devInfo.driverDeviceId = device.deviceId;
-        devInfo.deviceType = DEVICE_TYPE_USB;
-        devInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
-        devInfo.deviceName = device.productName;
-        devInfo.productId = device.productName;
-        devInfo.vendorId = device.vendorName;
+        devInfo.midiDeviceInfo.driverDeviceId = device.deviceId;
+        devInfo.midiDeviceInfo.deviceType = DEVICE_TYPE_USB;
+        devInfo.midiDeviceInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
+        devInfo.midiDeviceInfo.address = "";
+        devInfo.midiDeviceInfo.deviceName = device.productName;
+        
+        uint64_t productId = 0;
+        uint64_t vendorId = 0;
+        StringToHexNum(device.productName, productId);
+        StringToHexNum(device.vendorName, vendorId);
+        devInfo.midiDeviceInfo.productId = productId;
+        devInfo.midiDeviceInfo.vendorId = vendorId;
+        
         devInfo.portInfos = ConvertToDeviceInformation(device);
         deviceInfos.push_back(devInfo);
     }

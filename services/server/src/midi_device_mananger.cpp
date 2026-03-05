@@ -158,9 +158,9 @@ void MidiDeviceManager::UpdateDevices()
 
     std::vector<DeviceInformation> newDevices;
     for (auto &device : driverDevices) {
-        int64_t deviceId = GetOrCreateDeviceId(device.driverDeviceId, device.deviceType);
+        int64_t deviceId = GetOrCreateDeviceId(device.midiDeviceInfo.driverDeviceId, device.midiDeviceInfo.deviceType);
         DeviceInformation newDevice = device;
-        newDevice.deviceId = deviceId;
+        newDevice.midiDeviceInfo.deviceId = deviceId;
 
         newDevices.push_back(newDevice);
     }
@@ -183,28 +183,30 @@ void MidiDeviceManager::CompareDevices(
     std::vector<int64_t> removedDriverIds;
     for (const auto &newDevice : newDevices) {
         auto it = std::find_if(oldDevices.begin(), oldDevices.end(), [&newDevice](const DeviceInformation &oldDevice) {
-            return oldDevice.driverDeviceId == newDevice.driverDeviceId && oldDevice.deviceType == newDevice.deviceType;
+            return oldDevice.midiDeviceInfo.driverDeviceId == newDevice.midiDeviceInfo.driverDeviceId && 
+                   oldDevice.midiDeviceInfo.deviceType == newDevice.midiDeviceInfo.deviceType;
         });
         if (it == oldDevices.end()) {
             addedDevices.push_back(newDevice);
             MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
-                newDevice.deviceId,
-                newDevice.driverDeviceId,
-                newDevice.productId.c_str());
+                newDevice.midiDeviceInfo.deviceId,
+                newDevice.midiDeviceInfo.driverDeviceId,
+                newDevice.midiDeviceInfo.deviceName.c_str());
         }
     }
 
     for (const auto &oldDevice : oldDevices) {
         auto it = std::find_if(newDevices.begin(), newDevices.end(), [&oldDevice](const DeviceInformation &newDevice) {
-            return newDevice.driverDeviceId == oldDevice.driverDeviceId && newDevice.deviceType == oldDevice.deviceType;
+            return newDevice.midiDeviceInfo.driverDeviceId == oldDevice.midiDeviceInfo.driverDeviceId && 
+                   newDevice.midiDeviceInfo.deviceType == oldDevice.midiDeviceInfo.deviceType;
         });
         if (it == newDevices.end()) {
             removedDevices.push_back(oldDevice);
-            removedDriverIds.push_back(oldDevice.driverDeviceId);
+            removedDriverIds.push_back(oldDevice.midiDeviceInfo.driverDeviceId);
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
-                oldDevice.deviceId,
-                oldDevice.driverDeviceId,
-                oldDevice.productId.c_str());
+                oldDevice.midiDeviceInfo.deviceId,
+                oldDevice.midiDeviceInfo.driverDeviceId,
+                oldDevice.midiDeviceInfo.deviceName.c_str());
         }
     }
     if (!removedDriverIds.empty()) {

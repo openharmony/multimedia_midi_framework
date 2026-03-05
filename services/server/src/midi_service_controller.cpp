@@ -39,28 +39,9 @@ constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_MS = 60 * 1000;
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
 static MidiDeviceInfo ConvertDeviceInfo(const DeviceInformation &device)
 {
-    MidiDeviceInfo deviceInfo;
-
-    deviceInfo.deviceId = device.deviceId;
-    deviceInfo.driverDeviceId = device.driverDeviceId;
-    deviceInfo.deviceType = static_cast<DeviceType>(device.deviceType);
-    deviceInfo.transportProtocol = static_cast<TransportProtocol>(device.transportProtocol);
-    deviceInfo.address = device.address;
-    deviceInfo.deviceName = device.deviceName;
-    deviceInfo.productId = device.productId;
-    deviceInfo.vendorId = device.vendorId;
-
-    for (const auto &port : device.portInfos) {
-        MidiPortInfo portInfo;
-        portInfo.portId = port.portId;
-        portInfo.name = port.name;
-        portInfo.direction = static_cast<PortDirection>(port.direction);
-        portInfo.transportProtocol = static_cast<TransportProtocol>(port.transportProtocol);
-        deviceInfo.portInfos.push_back(portInfo);
-    }
-
-    return deviceInfo;
+    return device.midiDeviceInfo;
 }
+
 DeviceClientContext::~DeviceClientContext()
 {
     MIDI_INFO_LOG("~DeviceClientContext");
@@ -766,23 +747,6 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
                     activeBleDevices_.erase(it);
                     break;
                 }
-            }
-            auto it = deviceClientContexts_.find(device.deviceId);
-            if (it != deviceClientContexts_.end()) {
-                deviceClientContexts_.erase(it);
-            }
-        }
-        clientsToNotify.reserve(clients_.size());
-        for (auto& [id, client] : clients_) {
-            if (client != nullptr) {
-                clientsToNotify.push_back(client);
-            }
-        }
-    }
-    for (auto& client : clientsToNotify) {
-        client->NotifyDeviceChange(change, deviceInfo);
-    }
-}
             }
             auto it = deviceClientContexts_.find(device.deviceId);
             if (it != deviceClientContexts_.end()) {

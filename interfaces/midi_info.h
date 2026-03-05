@@ -29,7 +29,12 @@ enum DeviceChangeType {
     ADD = 0,
     REMOVED = 1,
 };
-
+ 
+ struct DeviceInformation { 
+    MidiDeviceInfo midiDeviceInfo;
+    std::vector<MidiPortInfo> portInfos; 
+ };
+ 
 struct MidiEvent {
     /**
      * @brief Timestamp in nanoseconds.
