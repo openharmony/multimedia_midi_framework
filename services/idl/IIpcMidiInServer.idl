@@ -13,7 +13,6 @@
  * limitations under the License.
  */
 package OHOS.MIDI;
-
 sequenceable OHOS.IRemoteObject;
 sequenceable midi_shared_ring..OHOS.MIDI.MidiSharedRing;
 sequenceable midi_info..OHOS.MIDI.MidiDeviceInfo;
