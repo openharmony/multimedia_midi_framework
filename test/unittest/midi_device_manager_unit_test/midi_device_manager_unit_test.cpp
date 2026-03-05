@@ -204,7 +204,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level0)
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices)
         .WillOnce(Return(std::vector<DeviceInformation>{CreateDriverDeviceInfo(driverId, "To Remove")}));
     manager_->UpdateDevices();
-    ASSERT_EQ(manager_->GetDevices().size(),1);
+    ASSERT_EQ(manager_->GetDevices().size(), 1);
     int64_t oldGlobalId = manager_->GetDevices()[0].midiDeviceInfo.deviceId;
 
     EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices).WillOnce(Return(std::vector<DeviceInformation>{}));
@@ -244,7 +244,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level0)
     manager_->UpdateDevices();
     auto allDevices = manager_->GetDevices();
 
-    EXPECT_EQ(allDevices.size(),2);
+    EXPECT_EQ(allDevices.size(), 2);
 
     bool foundUsb = false;
     bool foundBle = false;

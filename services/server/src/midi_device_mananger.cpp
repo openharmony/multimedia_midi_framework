@@ -170,7 +170,7 @@ void MidiDeviceManager::CompareDevices(
     std::vector<int64_t> removedDriverIds;
     for (const auto &newDevice : newDevices) {
         auto it = std::find_if(oldDevices.begin(), oldDevices.end(), [&newDevice](const DeviceInformation &oldDevice) {
-            return oldDevice.midiDeviceInfo.driverDeviceId == newDevice.midiDeviceInfo.driverDeviceId && 
+            return oldDevice.midiDeviceInfo.driverDeviceId == newDevice.midiDeviceInfo.driverDeviceId &&
                    oldDevice.midiDeviceInfo.deviceType == newDevice.midiDeviceInfo.deviceType;
         });
         if (it == oldDevices.end()) {
@@ -184,7 +184,7 @@ void MidiDeviceManager::CompareDevices(
 
     for (const auto &oldDevice : oldDevices) {
         auto it = std::find_if(newDevices.begin(), newDevices.end(), [&oldDevice](const DeviceInformation &newDevice) {
-            return newDevice.midiDeviceInfo.driverDeviceId == oldDevice.midiDeviceInfo.driverDeviceId && 
+            return newDevice.midiDeviceInfo.driverDeviceId == oldDevice.midiDeviceInfo.driverDeviceId &&
                    newDevice.midiDeviceInfo.deviceType == oldDevice.midiDeviceInfo.deviceType;
         });
         if (it == newDevices.end()) {
@@ -266,7 +266,8 @@ int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
     if (!driver) {
-        MIDI_ERR_LOG("Driver not found for device type: %{public}d", static_cast<int32_t>(device.midiDeviceInfo.deviceType));
+        MIDI_ERR_LOG("Driver not found for device type: %{public}d",
+            static_cast<int32_t>(device.midiDeviceInfo.deviceType));
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
@@ -382,7 +383,8 @@ int32_t MidiDeviceManager::OpenInputPort(
     std::weak_ptr<DeviceConnectionForInput> weakConnection = connection;
     // register DeviceConnectionForInput::HandleDeviceUmpInput
     auto ret = driver->OpenInputPort(
-        device.midiDeviceInfo.driverDeviceId, static_cast<size_t>(portIndex), [weakConnection](std::vector<MidiEventInner> &events) {
+        device.midiDeviceInfo.driverDeviceId, static_cast<size_t>(portIndex), [weakConnection]
+        (std::vector<MidiEventInner> &events) {
             if (auto locked = weakConnection.lock()) {
                 locked->HandleDeviceUmpInput(events);
             }
@@ -453,7 +455,8 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
     if (!driver) {
-        MIDI_ERR_LOG("Driver not found for device type: %{public}d", static_cast<int32_t>(device.midiDeviceInfo.deviceType));
+        MIDI_ERR_LOG("Driver not found for device type: %{public}d",
+            static_cast<int32_t>(device.midiDeviceInfo.deviceType));
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 

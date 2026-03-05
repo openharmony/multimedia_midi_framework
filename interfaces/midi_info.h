@@ -30,10 +30,10 @@ enum DeviceChangeType {
     REMOVED = 1,
 };
  
- struct DeviceInformation { 
+struct DeviceInformation {
     MidiDeviceInfo midiDeviceInfo;
-    std::vector<MidiPortInfo> portInfos; 
- };
+    std::vector<MidiPortInfo> portInfos;
+};
  
 struct MidiEvent {
     /**
