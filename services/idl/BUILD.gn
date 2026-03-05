@@ -28,7 +28,7 @@ idl_gen_interface("midi_service_idl_interface") {
     subsystem_name = "multimedia"
     part_name = "midi_framework"
 
-    log_domainid = "0xD003900"
+    log_domainid = "0xD002B8D"
     log_tag = "MidiServiceIdl"
 }
 
@@ -61,6 +61,7 @@ ohos_shared_library("midi_framework_interface") {
     external_deps = [
         "c_utils:utils",
         "hilog:libhilog",
+        "ipc:ipc_core",
         "ipc:ipc_core",
         "samgr:samgr_proxy"
     ]
