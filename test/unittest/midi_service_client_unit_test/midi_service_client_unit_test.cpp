@@ -25,6 +25,20 @@ using namespace MIDI;
 using namespace testing;
 using namespace testing::ext;
 
+namespace {
+bool operator==(const MidiDeviceInfo &lhs, const MidiDeviceInfo &rhs)
+{
+    return lhs.deviceId == rhs.deviceId &&
+           lhs.driverDeviceId == rhs.driverDeviceId &&
+           lhs.deviceType == rhs.deviceType &&
+           lhs.transportProtocol == rhs.transportProtocol &&
+           lhs.address == rhs.address &&
+           lhs.deviceName == rhs.deviceName &&
+           lhs.productId == rhs.productId &&
+           lhs.vendorId == rhs.vendorId;
+}
+}
+
 class MockMidiCallbackStub : public MidiCallbackStub {
 public:
     MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
@@ -34,11 +48,11 @@ public:
 
 class MockIpcMidiInServer : public IIpcMidiInServer {
 public:
-    MOCK_METHOD(int32_t, GetDevices, ((std::vector<std::map<int32_t, std::string>> & devices)), (override));
+    MOCK_METHOD(int32_t, GetDevices, (std::vector<MidiDeviceInfo> & devices), (override));
     MOCK_METHOD(int32_t, OpenDevice, (int64_t), (override));
     MOCK_METHOD(int32_t, OpenBleDevice, (const std::string &address, const sptr<IRemoteObject> &object), (override));
     MOCK_METHOD(int32_t, CloseDevice, (int64_t), (override));
-    MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, (std::vector<std::map<int32_t, std::string>> &)), (override));
+    MOCK_METHOD(int32_t, GetDevicePorts, (int64_t, std::vector<MidiPortInfo> &), (override));
     MOCK_METHOD(int32_t, OpenInputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, OpenOutputPort, (std::shared_ptr<MidiSharedRing> &, int64_t, uint32_t), (override));
     MOCK_METHOD(int32_t, FlushOutputPort, (int64_t, uint32_t), (override));
@@ -73,7 +87,7 @@ static void InjectIpcForTest(MidiServiceClient &client, const sptr<IIpcMidiInSer
 HWTEST_F(MidiServiceClientUnitTest, GetDevices_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    std::vector<std::map<int32_t, std::string>> deviceInfos;
+    std::vector<MidiDeviceInfo> deviceInfos;
     EXPECT_EQ(client.GetDevices(deviceInfos), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
@@ -89,18 +103,26 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_002, TestSize.Level0)
     ASSERT_NE(mockIpc, nullptr);
     InjectIpcForTest(client, mockIpc);
 
-    std::vector<std::map<int32_t, std::string>> deviceInfos;
+    std::vector<MidiDeviceInfo> deviceInfos;
     EXPECT_CALL(*mockIpc, GetDevices(_))
         .Times(1)
-        .WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &devices) {
+        .WillOnce(Invoke([](std::vector<MidiDeviceInfo> &devices) {
             devices.clear();
-            devices.push_back({{0, "dev0"}, {1, "usb"}});
+            MidiDeviceInfo dev;
+            dev.deviceId = 1001;
+            dev.deviceType = DeviceType::DEVICE_TYPE_USB;
+            dev.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            dev.address = "";
+            dev.deviceName = "dev0";
+            dev.productId = 0x1234;
+            dev.vendorId = 0x5678;
+            devices.push_back(dev);
             return OH_MIDI_STATUS_OK;
         }));
 
     EXPECT_EQ(client.GetDevices(deviceInfos), OH_MIDI_STATUS_OK);
     ASSERT_EQ(deviceInfos.size(), 1u);
-    EXPECT_EQ(deviceInfos[0].at(0), "dev0");
+    EXPECT_EQ(deviceInfos[0].deviceId, 1001);
 }
 
 /**
@@ -167,7 +189,7 @@ HWTEST_F(MidiServiceClientUnitTest, CloseDevice_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    std::vector<std::map<int32_t, std::string>> portInfos;
+    std::vector<MidiPortInfo> portInfos;
     EXPECT_EQ(client.GetDevicePorts(1, portInfos), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
@@ -184,14 +206,25 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevicePorts_002, TestSize.Level0)
     InjectIpcForTest(client, mockIpc);
 
     int64_t deviceId = 1002;
-    std::vector<std::map<int32_t, std::string>> portInfos;
+    std::vector<MidiPortInfo> portInfos;
 
     EXPECT_CALL(*mockIpc, GetDevicePorts(deviceId, _))
         .Times(1)
-        .WillOnce(Invoke([](int64_t, std::vector<std::map<int32_t, std::string>> &ports) {
+        .WillOnce(Invoke([](int64_t, std::vector<MidiPortInfo> &ports) {
             ports.clear();
-            ports.push_back({{0, "port0"}, {1, "input"}});
-            ports.push_back({{0, "port1"}, {1, "output"}});
+            MidiPortInfo port1;
+            port1.portId = 0;
+            port1.direction = PortDirection::PORT_DIRECTION_INPUT;
+            port1.name = "Input Port";
+            port1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            ports.push_back(port1);
+
+            MidiPortInfo port2;
+            port2.portId = 1;
+            port2.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+            port2.name = "Output Port";
+            port2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            ports.push_back(port2);
             return OH_MIDI_STATUS_OK;
         }));
 

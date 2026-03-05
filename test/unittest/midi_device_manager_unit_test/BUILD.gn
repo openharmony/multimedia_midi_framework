@@ -42,6 +42,7 @@ ohos_unittest("midi_device_manager_unit_test") {
     "${midi_framework_root}/services/idl:midi_framework_interface",
     "${midi_framework_root}/services:midi_service",
     "${midi_framework_root}/services/common:midi_common",
+    "${midi_framework_root}/services/idl:midi_framework_interface",
   ]
 
   sanitize = {

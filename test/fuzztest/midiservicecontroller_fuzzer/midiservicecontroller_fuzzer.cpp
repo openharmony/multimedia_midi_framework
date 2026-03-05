@@ -129,12 +129,12 @@ public:
     void AddMockDevice(int64_t driverId, const std::string &name, DeviceType type)
     {
         DeviceInformation info;
-        info.driverDeviceId = driverId;
-        info.deviceType = type;
-        info.deviceName = name;
-        info.productId = "1234";
-        info.vendorId = "5678";
-        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.midiDeviceInfo.driverDeviceId = driverId;
+        info.midiDeviceInfo.deviceType = type;
+        info.midiDeviceInfo.deviceName = name;
+        info.midiDeviceInfo.productId = 0x1234;
+        info.midiDeviceInfo.vendorId = 0x5678;
+        info.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
 
         MidiPortInfo port1;
         port1.portId = 0;
@@ -363,7 +363,7 @@ void MidiServiceControllerInit()
 
     auto devices = midiServiceController_->GetDeviceManagerForTest()->GetDevices();
     for (const auto &dev : devices) {
-        activeDevices_.push_back(dev.deviceId);
+        activeDevices_.push_back(dev.midiDeviceInfo.deviceId);
     }
 }
 

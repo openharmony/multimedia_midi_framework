@@ -296,11 +296,10 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
 
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
-    auto completeCallback = [weakSelf, address](bool success, int64_t deviceId,
-        const MidiDeviceInfo &deviceInfo) {
+    auto completeCallback = [weakSelf, address](bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo) {
         auto self = weakSelf.lock();
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
-        self->HandleBleOpenComplete(address, success, deviceId, info);
+        self->HandleBleOpenComplete(address, success, deviceId, deviceInfo);
     };
 
     int32_t ret = deviceManager_->OpenBleDevice(address, completeCallback);
