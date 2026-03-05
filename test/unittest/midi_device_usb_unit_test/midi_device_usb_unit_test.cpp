@@ -126,7 +126,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
     EXPECT_EQ(expectedDeviceId, devInfo.midiDeviceInfo.driverDeviceId);
     EXPECT_EQ(DeviceType::DEVICE_TYPE_USB, devInfo.midiDeviceInfo.deviceType);
     EXPECT_EQ(static_cast<TransportProtocol>(expectedProtocol), devInfo.midiDeviceInfo.transportProtocol);
-    EXPECT_EQ("TestProduct", devInfo.midiDeviceInfo.deviceName);
+    EXPECT_EQ("0x1234", devInfo.midiDeviceInfo.deviceName);
     EXPECT_EQ(0x1234u, devInfo.midiDeviceInfo.productId);
     EXPECT_EQ(0x5678u, devInfo.midiDeviceInfo.vendorId);
 

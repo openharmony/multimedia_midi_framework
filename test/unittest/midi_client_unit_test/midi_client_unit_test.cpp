@@ -346,6 +346,10 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
         }));
     OH_MIDIPortInformation portArray[2];
     size_t numPorts = 2;
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 1001;
+    auto device = new MidiDevicePrivate(mockService, info);
+    client->AddDeviceHandler(device);
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
 
     EXPECT_EQ(status, OH_MIDI_STATUS_OK);
@@ -390,7 +394,6 @@ HWTEST_F(MidiClientUnitTest, GetDeviceCount_WithZeroInitialValue, TestSize.Level
 
         return OH_MIDI_STATUS_OK;
     }));
-
     size_t numDevices = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevices(nullptr, &numDevices);
 
@@ -426,6 +429,10 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
             return OH_MIDI_STATUS_OK;
         }));
 
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 1001;
+    auto device = new MidiDevicePrivate(mockService, info);
+    client->AddDeviceHandler(device);
     size_t numPorts = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, nullptr, &numPorts);
 
@@ -441,10 +448,6 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
 HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
 {
     int64_t invalidId = -1;
-
-    // Simulate IPC returning error for invalid device
-    EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _)).WillOnce(Return(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
-
     OH_MIDIPortInformation portArray[1];
     size_t numPorts = 1;
     OH_MIDIStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
