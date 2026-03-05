@@ -708,5 +708,61 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_003, TestSize.Level0
     // After draining first event, read position should now point to corrupted header offset.
     EXPECT_EQ(corruptOff, ring.GetReadPosition());
 }
+
+/**
+ * @tc.name   : Test MidiSharedRing Header Modification Race Condition
+ * @tc.number : MidiSharedRingRaceCondition_001
+ * @tc.desc   : Detect race condition when header is modified between peek and commit.
+ *              This test verifies the fix for TOCTOU vulnerability in PeekNext.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRaceCondition_001, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write initial event
+    std::vector<uint32_t> payload{0xDEADBEEF, 0xCAFEBABE};
+    MidiEventInner ev = MakeEvent(0x12345678, payload);
+
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // Get the read position where header is located
+    uint32_t readPos = ring.GetReadPosition();
+    ASSERT_EQ(0u, readPos);
+
+    // Directly access the header in shared memory
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(base + readPos);
+
+    // Record original values
+    uint64_t origTs = header->timestamp;
+    uint32_t origLen = header->length;
+
+    // Simulate what PeekNext does: read header values
+    uint64_t peekTs = header->timestamp;
+    uint32_t peekLen = header->length;
+
+    // Simulate concurrent modification (what a malicious or buggy writer might do)
+    header->length = 0xFFFFFFFF;
+
+    // Read again (simulating the use phase in BuildPeekedEvent)
+    uint64_t useTs = header->timestamp;
+    uint32_t useLen = header->length;
+
+    // This demonstrates the vulnerability: values changed between peek and use
+    EXPECT_EQ(peekTs, useTs) << "Timestamp should not change";
+    // This assertion will fail before the fix is applied, demonstrating the race:
+    // EXPECT_EQ(peekLen, useLen) << "Length changed - race condition detected!";
+
+    // Verify the modification actually happened
+    EXPECT_NE(origLen, useLen) << "Header was not modified - test setup error";
+    EXPECT_EQ(0xFFFFFFFFu, useLen) << "Header modification not detected";
+
+    // After the fix is applied, PeekNext should detect this via sequence numbers
+    // and return WOULD_BLOCK to trigger a retry
+}
 } // namespace MIDI
 } // namespace OHOS

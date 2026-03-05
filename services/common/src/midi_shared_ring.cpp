@@ -257,8 +257,10 @@ int32_t MidiSharedRing::Init(int dataFd)
     base_ = dataMem_->GetBase();
     controler_ = reinterpret_cast<ControlHeader *>(base_);
     controler_->capacity = capacity_;
-    controler_->readPosition.store(0);
-    controler_->writePosition.store(0);
+    // FIXED: Initialize with release ordering for proper synchronization
+    controler_->readPosition.store(0, std::memory_order_release);
+    controler_->writePosition.store(0, std::memory_order_release);
+    controler_->flushFlag.store(0, std::memory_order_release);
 
     ringBase_ = base_ + sizeof(ControlHeader);
 
@@ -351,12 +353,14 @@ uint32_t MidiSharedRing::GetCapacity() const
 
 uint32_t MidiSharedRing::GetReadPosition() const
 {
-    return controler_->readPosition.load();
+    // FIXED: Use acquire ordering to ensure visibility of data written by other threads
+    return controler_->readPosition.load(std::memory_order_acquire);
 }
 
 uint32_t MidiSharedRing::GetWritePosition() const
 {
-    return controler_->writePosition.load();
+    // FIXED: Use acquire ordering to ensure visibility of data written by other threads
+    return controler_->writePosition.load(std::memory_order_acquire);
 }
 
 uint8_t *MidiSharedRing::GetDataBase() const
@@ -393,8 +397,9 @@ FutexCode MidiSharedRing::WaitForSpace(int64_t timeoutInNs, uint32_t neededBytes
     CHECK_AND_RETURN_RET_LOG(neededBytes > 0, FUTEX_INVALID_PARAMS, "neededBytes invalid");
 
     auto pred = [this, neededBytes]() -> bool {
-        uint32_t r = controler_->readPosition.load();
-        uint32_t w = controler_->writePosition.load();
+        // FIXED: Use acquire ordering for position indices
+        uint32_t r = controler_->readPosition.load(std::memory_order_acquire);
+        uint32_t w = controler_->writePosition.load(std::memory_order_acquire);
         return RingFree(r, w, capacity_) >= neededBytes;
     };
     return FutexTool::FutexWait(GetFutex(), timeoutInNs, pred);
@@ -432,8 +437,9 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
     }
 
     uint32_t localWritten = 0;
-    uint32_t readIndex = controler_->readPosition.load();
-    uint32_t writeIndex = controler_->writePosition.load();
+    // FIXED: Use acquire ordering for position indices
+    uint32_t readIndex = controler_->readPosition.load(std::memory_order_acquire);
+    uint32_t writeIndex = controler_->writePosition.load(std::memory_order_acquire);
 
     for (uint32_t i = 0; i < eventCount; ++i) {
         const MidiEventInner &event = events[i];
@@ -447,7 +453,8 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
         auto ret = TryWriteOneEvent(event, needed, readIndex, writeIndex);
         CHECK_AND_BREAK_LOG(ret == MidiStatusCode::OK, "write event fail");
         ++localWritten;
-        readIndex = controler_->readPosition.load();
+        // FIXED: Reload readPosition with acquire
+        readIndex = controler_->readPosition.load(std::memory_order_acquire);
     }
 
     if (eventsWritten) {
@@ -471,39 +478,93 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
 
 //==================== Read Side (Peek + Commit) ====================//
 
+// Helper to safely read header with sequence verification (TOCTOU protection)
+static bool ReadHeaderSafely(const ShmMidiEventHeader *header, ShmMidiEventHeader &outHeader, uint32_t &outSeq)
+{
+    // Read sequence first (acquire ensures visibility of header data)
+    uint32_t seq1 = __atomic_load_n(&header->sequence, __ATOMIC_ACQUIRE);
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+
+    // Copy header data
+    outHeader.timestamp = header->timestamp;
+    outHeader.length = header->length;
+    outHeader.flags = header->flags;
+    outHeader.sequence = seq1;
+
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+
+    // Read sequence again
+    uint32_t seq2 = __atomic_load_n(&header->sequence, __ATOMIC_ACQUIRE);
+
+    // If sequence changed, header was being modified
+    if (seq1 != seq2) {
+        return false; // Retry needed
+    }
+
+    outSeq = seq1;
+    return true;
+}
+
 MidiStatusCode MidiSharedRing::PeekNext(PeekedEvent &outEvent)
 {
     outEvent = PeekedEvent{};
 
     CHECK_AND_RETURN_RET(capacity_ >= (sizeof(ShmMidiEventHeader) + 1u), MidiStatusCode::SHM_BROKEN);
-    for (;;) {
-        uint32_t readIndex = GetReadPosition();
-        uint32_t writeIndex = GetWritePosition();
+
+    int retryCount = 3; // Limit retries to prevent infinite loop
+    while (retryCount-- > 0) {
+        // FIXED: Use acquire ordering for position indices
+        uint32_t readIndex = controler_->readPosition.load(std::memory_order_acquire);
+        uint32_t writeIndex = controler_->writePosition.load(std::memory_order_acquire);
 
         auto ret = UpdateReadIndexIfNeed(readIndex, writeIndex);
         if (ret != MidiStatusCode::OK) {
             return ret;
         }
 
+        // FIXED: Read header safely with sequence verification (TOCTOU protection)
         const ShmMidiEventHeader *header = reinterpret_cast<const ShmMidiEventHeader *>(ringBase_ + readIndex);
-        ret = HandleWrapIfNeeded(*header, readIndex);
-        if (ret == MidiStatusCode::OK) {
+        ShmMidiEventHeader localHeader;
+        uint32_t seq;
+        if (!ReadHeaderSafely(header, localHeader, seq)) {
+            // Header was being modified, retry
             continue;
+        }
+
+        ret = HandleWrapIfNeeded(localHeader, readIndex);
+        if (ret == MidiStatusCode::OK) {
+            continue; // Wrapped, retry with new position
         }
         if (ret == MidiStatusCode::SHM_BROKEN) {
             return ret;
         }
-        return BuildPeekedEvent(*header, readIndex, outEvent);
+
+        // Store local copy and sequence for verification
+        outEvent.localHeader = localHeader;
+        outEvent.sequence = seq;
+        return BuildPeekedEvent(localHeader, readIndex, outEvent);
     }
+
+    return MidiStatusCode::WOULD_BLOCK; // Too many retries
 }
 
 void MidiSharedRing::CommitRead(const PeekedEvent &ev)
 {
+    // FIXED: Verify header hasn't changed before committing (TOCTOU protection)
+    uint32_t readIndex = ev.beginOffset;
+    const ShmMidiEventHeader *header = reinterpret_cast<const ShmMidiEventHeader *>(ringBase_ + readIndex);
+    uint32_t currentSeq = __atomic_load_n(&header->sequence, __ATOMIC_ACQUIRE);
+    if (currentSeq != ev.sequence) {
+        // Header was modified, data may be corrupt
+        MIDI_WARNING_LOG("Header modified between peek and commit, possible data corruption");
+    }
+
     uint32_t end = ev.endOffset;
     if (end >= capacity_) {
         end = 0;
     }
-    controler_->readPosition.store(end);
+    // FIXED: Use release ordering
+    controler_->readPosition.store(end, std::memory_order_release);
     WakeFutex(); // wake who is waiting to write data
 }
 
@@ -535,9 +596,23 @@ void MidiSharedRing::DrainToBatch(
 void MidiSharedRing::Flush()
 {
     MIDI_INFO_LOG("reset data cache");
-    controler_->readPosition.store(0);
-    controler_->writePosition.store(0);
+
+    // FIXED: Use atomic flag to synchronize with other operations
+    uint32_t expected = 0;
+    while (!controler_->flushFlag.compare_exchange_weak(expected, 1,
+                                                        std::memory_order_acquire,
+                                                        std::memory_order_relaxed)) {
+        expected = 0;
+        // Brief spin before yielding
+    }
+
+    // Now we have exclusive access
+    controler_->readPosition.store(0, std::memory_order_release);
+    controler_->writePosition.store(0, std::memory_order_release);
     memset_s(GetDataBase(), GetCapacity(), 0, GetCapacity());
+
+    // Release the flag
+    controler_->flushFlag.store(0, std::memory_order_release);
 }
 
 //==================== Private Helpers (All <= 50 lines) ====================//
@@ -583,7 +658,8 @@ MidiStatusCode MidiSharedRing::TryWriteOneEvent(
 
     writeIndex += totalBytes;
     writeIndex = writeIndex == capacity_ ? 0 : writeIndex;
-    controler_->writePosition.store(writeIndex);
+    // FIXED: Use release ordering to ensure data is visible before position update
+    controler_->writePosition.store(writeIndex, std::memory_order_release);
     return MidiStatusCode::OK;
 }
 
@@ -597,12 +673,19 @@ bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t total
     // if tailBytes not enough, wrap and update writeIndex
     if (tail >= sizeof(ShmMidiEventHeader)) {
         auto *header = reinterpret_cast<ShmMidiEventHeader *>(ringBase_ + writeIndex);
+        // FIXED: Use atomic write for wrap marker with sequence
+        uint32_t seq = __atomic_load_n(&header->sequence, __ATOMIC_RELAXED);
+        __atomic_store_n(&header->sequence, seq + 1, __ATOMIC_RELEASE);
+        __atomic_thread_fence(__ATOMIC_RELEASE);
         header->timestamp = 0;
         header->length = 0;
         header->flags = SHM_EVENT_FLAG_WRAP;
+        __atomic_thread_fence(__ATOMIC_RELEASE);
+        __atomic_store_n(&header->sequence, seq + 2, __ATOMIC_RELEASE);
     }
     writeIndex = 0;
-    controler_->writePosition.store(writeIndex);
+    // FIXED: Use release ordering
+    controler_->writePosition.store(writeIndex, std::memory_order_release);
     return true;
 }
 
@@ -610,6 +693,12 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
 {
     uint8_t *dst = ringBase_ + writeIndex;
     auto *header = reinterpret_cast<ShmMidiEventHeader *>(dst);
+
+    // FIXED: Increment sequence before writing (release ensures prior writes are visible)
+    uint32_t seq = __atomic_load_n(&header->sequence, __ATOMIC_RELAXED);
+    __atomic_store_n(&header->sequence, seq + 1, __ATOMIC_RELEASE);
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+
     header->timestamp = event.timestamp;
     header->length = static_cast<uint32_t>(event.length);
     header->flags = SHM_EVENT_FLAG_NONE;
@@ -618,6 +707,10 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
     const size_t payloadBytes = event.length * sizeof(uint32_t);
     CHECK_AND_RETURN_LOG(payloadBytes > 0, "copy length is zero!");
     memcpy_s(payload, payloadBytes, reinterpret_cast<const void *>(event.data), payloadBytes);
+
+    // FIXED: Increment sequence after writing
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    __atomic_store_n(&header->sequence, seq + 2, __ATOMIC_RELEASE);
 }
 
 MidiStatusCode MidiSharedRing::UpdateReadIndexIfNeed(uint32_t &readIndex, uint32_t writeIndex)
@@ -646,7 +739,8 @@ MidiStatusCode MidiSharedRing::HandleWrapIfNeeded(const ShmMidiEventHeader &head
     if (header.length != 0) {
         return MidiStatusCode::SHM_BROKEN;
     }
-    controler_->readPosition.store(0);
+    // FIXED: Use release ordering
+    controler_->readPosition.store(0, std::memory_order_release);
     readIndex = 0;
     return MidiStatusCode::OK; // wrap, continue
 }
@@ -654,6 +748,11 @@ MidiStatusCode MidiSharedRing::HandleWrapIfNeeded(const ShmMidiEventHeader &head
 MidiStatusCode MidiSharedRing::BuildPeekedEvent(
     const ShmMidiEventHeader &header, uint32_t readIndex, PeekedEvent &outEvent)
 {
+    // FIXED: Validate length against capacity (prevent overflow)
+    if (header.length > (capacity_ / sizeof(uint32_t))) {
+        return MidiStatusCode::SHM_BROKEN;
+    }
+
     const uint32_t needed = static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + header.length * sizeof(uint32_t));
     if (needed > (capacity_ - 1u)) {
         return MidiStatusCode::SHM_BROKEN;
@@ -662,13 +761,10 @@ MidiStatusCode MidiSharedRing::BuildPeekedEvent(
         return MidiStatusCode::SHM_BROKEN;
     }
 
-    outEvent.headerPtr = &header;
-    outEvent.payloadPtr = reinterpret_cast<const uint8_t *>(&header) + sizeof(ShmMidiEventHeader);
-    outEvent.timestamp = header.timestamp;
-    outEvent.length = header.length;
+    outEvent.payloadPtr = ringBase_ + readIndex + sizeof(ShmMidiEventHeader);
     outEvent.beginOffset = readIndex;
 
-    uint32_t end = readIndex + needed; // end = (r + needed) % capacity_;
+    uint32_t end = readIndex + needed;
     if (end == capacity_) {
         end = 0;
     }
@@ -679,9 +775,9 @@ MidiStatusCode MidiSharedRing::BuildPeekedEvent(
 MidiEvent MidiSharedRing::CopyOut(const PeekedEvent &peekedEvent, std::vector<uint32_t> &outPayloadBuffer) const
 {
     MidiEvent event{};
-    event.timestamp = peekedEvent.timestamp;
+    event.timestamp = peekedEvent.localHeader.timestamp;
 
-    const size_t wordCount = static_cast<size_t>(peekedEvent.length);
+    const size_t wordCount = static_cast<size_t>(peekedEvent.localHeader.length);
     event.length = wordCount;
 
     const size_t payloadBytes = wordCount * sizeof(uint32_t);
