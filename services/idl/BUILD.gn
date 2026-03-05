@@ -17,13 +17,12 @@ midi_framework_root = "../.."
 
 idl_gen_interface("midi_service_idl_interface") {
     sources = [
-        "MidiTypes.idl",
         "IIpcMidiInServer.idl",
         "IMidiCallback.idl",
         "IMidiDeviceOpenCallback.idl",
         "IMidiService.idl",
     ]
-
+    sources_common = [ "MidiTypes.idl" ]
     configs = [ ":midi_service_sa_idl_config" ]
 
     subsystem_name = "multimedia"

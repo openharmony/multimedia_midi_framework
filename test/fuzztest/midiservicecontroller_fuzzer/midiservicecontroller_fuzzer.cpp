@@ -136,13 +136,13 @@ public:
         info.vendorId = "5678";
         info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
 
-        PortInformation port1;
+        MidiPortInfo port1;
         port1.portId = 0;
         port1.direction = PortDirection::PORT_DIRECTION_INPUT;
         port1.name = "Input Port";
         info.portInfos.push_back(port1);
 
-        PortInformation port2;
+        MidiPortInfo port2;
         port2.portId = 1;
         port2.direction = PortDirection::PORT_DIRECTION_OUTPUT;
         port2.name = "Output Port";
@@ -160,7 +160,7 @@ private:
 
 class MidiServiceCallbackFuzzer : public MidiCallbackStub {
 public:
-    int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override
+    int32_t NotifyDeviceChange(int32_t change, const MidiDeviceInfo &deviceInfo) override
     {
         return 0;
     };

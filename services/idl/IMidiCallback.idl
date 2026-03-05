@@ -14,7 +14,7 @@
  */
 
 package OHOS.MIDI;
-import OHOS.MIDI.MidiTypes;
+import MidiTypes;
 sequenceable OHOS.IRemoteObject;
 
 interface IMidiCallback {

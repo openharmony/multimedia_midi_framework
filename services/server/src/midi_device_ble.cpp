@@ -138,20 +138,20 @@ static int64_t GetCurNano()
 }
 
 
-static std::vector<PortInformation> GetPortInfo(const std::string &deviceName)
+static std::vector<MidiPortInfo> GetPortInfo(const std::string &deviceName)
 {
-    std::vector<PortInformation> portInfos;
-    PortInformation out{};
+    std::vector<MidiPortInfo> portInfos;
+    MidiPortInfo out{};
     out.portId = 0;
     out.name = deviceName + " Out";
-    out.direction = PORT_DIRECTION_OUTPUT;
-    out.transportProtocol = PROTOCOL_1_0;
+    out.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+    out.transportProtocol = TransportProtocol::PROTOCOL_1_0;
     portInfos.push_back(out);
-    PortInformation in{};
+    MidiPortInfo in{};
     in.portId = 1;
     in.name =  deviceName + " In";
-    in.direction = PORT_DIRECTION_INPUT;
-    in.transportProtocol = PROTOCOL_1_0;
+    in.direction = PortDirection::PORT_DIRECTION_INPUT;
+    in.transportProtocol = TransportProtocol::PROTOCOL_1_0;
     portInfos.push_back(in);
     return portInfos;
 }
@@ -165,8 +165,8 @@ static void NotifyManager(DeviceCtx &d, bool success)
     CHECK_AND_RETURN(cb != nullptr);
     DeviceInformation devInfo;
     devInfo.midiDeviceInfo.driverDeviceId = d.id;
-    devInfo.midiDeviceInfo.deviceType = DEVICE_TYPE_BLE;
-    devInfo.midiDeviceInfo.transportProtocol = PROTOCOL_1_0;
+    devInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    devInfo.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
     devInfo.midiDeviceInfo.address = d.address;
     devInfo.midiDeviceInfo.deviceName = d.deviceName;
     devInfo.midiDeviceInfo.productId = d.productId;
@@ -273,7 +273,7 @@ static void GetDeviceInfo(DeviceCtx &d)
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
     d.vendorId = vendorId;
-    MIDI_INFO_LOG("err: %{public}d, vendorId: %{public}" PRIu64, err, d.vendorId.c_str());
+    MIDI_INFO_LOG("err: %{public}d, vendorId: %{public}" PRIu64, err, d.vendorId);
 }
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
@@ -487,8 +487,8 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
         CHECK_AND_CONTINUE(d.connected);
         DeviceInformation devInfo;
         devInfo.midiDeviceInfo.driverDeviceId = d.id;
-        devInfo.midiDeviceInfo.deviceType = DEVICE_TYPE_BLE;
-        devInfo.midiDeviceInfo.transportProtocol = PROTOCOL_1_0;
+        devInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+        devInfo.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
         devInfo.midiDeviceInfo.address = d.address;
         devInfo.midiDeviceInfo.deviceName = d.deviceName;
         devInfo.midiDeviceInfo.productId = d.productId;

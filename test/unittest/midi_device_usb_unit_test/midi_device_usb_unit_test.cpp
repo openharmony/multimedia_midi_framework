@@ -124,7 +124,7 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
     const auto &devInfo = deviceInfos[0];
 
     EXPECT_EQ(expectedDeviceId, devInfo.driverDeviceId);
-    EXPECT_EQ(DEVICE_TYPE_USB, devInfo.deviceType);
+    EXPECT_EQ(DeviceType::DEVICE_TYPE_USB, devInfo.deviceType);
     EXPECT_EQ(static_cast<TransportProtocol>(expectedProtocol), devInfo.transportProtocol);
     EXPECT_EQ("TestProduct", devInfo.productId);
     EXPECT_EQ("TestVendor", devInfo.vendorId);

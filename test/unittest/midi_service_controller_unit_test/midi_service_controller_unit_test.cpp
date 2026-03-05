@@ -63,7 +63,7 @@ public:
         info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
 
         // Port info
-        PortInformation port;
+        MidiPortInfo port;
         port.portId = 0;
         port.direction = PortDirection::PORT_DIRECTION_INPUT;
         port.name = "Test Port";

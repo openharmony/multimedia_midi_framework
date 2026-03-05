@@ -35,48 +35,12 @@ class MidiClientCallback : public MidiCallbackStub {
 public:
     MidiClientCallback(OH_MIDICallbacks callbacks, void *userData, MidiClientPrivate *client);
     ~MidiClientCallback() = default;
-    int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override;
+    int32_t NotifyDeviceChange(int32_t change, const MidiDeviceInfo &deviceInfo) override;
     int32_t NotifyError(int32_t code) override;
     OH_MIDICallbacks callbacks_;
     void *userData_;
     MidiClientPrivate *client_ = nullptr;
 };
-
-static void ParseOptionalDecField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
-    const char *fieldName, uint32_t &outValue)
-{
-    auto it = deviceInfo.find(key);
-    if (it != deviceInfo.end()) {
-        bool ret = StringToDecNum(it->second, outValue);
-        JUDGE_AND_ERR_LOG(!ret, "parse %{public}s failed, use default value", fieldName);
-    } else {
-        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
-    }
-}
-
-static void ParseOptionalHexField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
-    const char *fieldName, uint64_t &outValue)
-{
-    auto it = deviceInfo.find(key);
-    if (it != deviceInfo.end()) {
-        bool ret = StringToHexNum(it->second, outValue);
-        JUDGE_AND_ERR_LOG(!ret, "parse %{public}s failed, use default value", fieldName);
-    } else {
-        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
-    }
-}
-
-static void ParseOptionalStringField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
-    const char *fieldName, char *buffer, size_t bufferSize)
-{
-    auto it = deviceInfo.find(key);
-    if (it != deviceInfo.end()) {
-        errno_t ret = strncpy_s(buffer, bufferSize, it->second.c_str(), it->second.length());
-        JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy %{public}s failed, use default value", fieldName);
-    } else {
-        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
-    }
-}
 
 static bool ConvertToDeviceInformation(
     const MidiDeviceInfo &deviceInfo, OH_MIDIDeviceInformation &outInfo)
@@ -95,21 +59,8 @@ static bool ConvertToDeviceInformation(
     ret = strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName),
                    deviceInfo.deviceName.c_str(), deviceInfo.deviceName.length());
     JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy deviceName failed, use default value");
-
-    if (!deviceInfo.productId.empty()) {
-        uint64_t pid = 0;
-        if (StringToHexNum(deviceInfo.productId, pid)) {
-            outInfo.productId = pid;
-        }
-    }
-
-    if (!deviceInfo.vendorId.empty()) {
-        uint64_t vid = 0;
-        if (StringToHexNum(deviceInfo.vendorId, vid)) {
-            outInfo.vendorId = vid;
-        }
-    }
-
+    outInfo.productId = deviceInfo.productId;
+    outInfo.vendorId = deviceInfo.vendorId;
     return true;
 }
 
@@ -127,15 +78,6 @@ int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const Midi
         callback_(userData_, opened, nullptr, info);
         return 0;
     }
-    bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
-    auto newDevice = new MidiDevicePrivate(ipc_.lock(), info.midiDeviceId);
-    if (client_) {
-        client_->AddDeviceHandler(newDevice);
-    }
-    callback_(userData_, opened, (OH_MIDIDevice *)newDevice, info);
-    return 0;
-}
     bool ret = ConvertToDeviceInformation(deviceInfo, info);
     CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
     auto newDevice = new MidiDevicePrivate(ipc_.lock(), info.midiDeviceId);
@@ -177,7 +119,7 @@ MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userDat
     : callbacks_(callbacks), userData_(userData), client_(client)
 {}
 
-int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo)
+int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const MidiDeviceInfo &deviceInfo)
 {
     CHECK_AND_RETURN_RET_LOG(
         callbacks_.onDeviceChange != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callbacks_.onDeviceChange is nullptr");

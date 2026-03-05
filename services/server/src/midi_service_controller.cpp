@@ -37,10 +37,6 @@ constexpr uint32_t MAX_CLIENTID = 0xFFFFFFFF;
 constexpr uint32_t UNLOAD_DELAY_DEFAULT_TIME_IN_MS = 60 * 1000;
 }
 std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
-static MidiDeviceInfo ConvertDeviceInfo(const DeviceInformation &device)
-{
-    return device.midiDeviceInfo;
-}
 
 DeviceClientContext::~DeviceClientContext()
 {
@@ -179,7 +175,7 @@ std::vector<MidiDeviceInfo> MidiServiceController::GetDevices()
     std::vector<MidiDeviceInfo> ret;
     auto result = deviceManager_->GetDevices();
     for (const auto &d : result) {
-        ret.push_back(ConvertDeviceInfo(d));
+        ret.push_back(d.midiDeviceInfo);
     }
     return ret;
 }
@@ -279,7 +275,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
                 GetEncryptStr(address).c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
-            MidiDeviceInfo deviceInfo = ConvertDeviceInfo(device);
+            MidiDeviceInfo deviceInfo = device.midiDeviceInfo;
             lock.unlock();
             callback->NotifyDeviceOpened(true, deviceInfo);
             return OH_MIDI_STATUS_OK;
@@ -301,7 +297,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     auto completeCallback = [weakSelf, address](bool success, int64_t deviceId,
-        const std::map<int32_t, std::string> &info) {
+        const MidiDeviceInfo &deviceInfo) {
         auto self = weakSelf.lock();
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
         self->HandleBleOpenComplete(address, success, deviceId, info);
@@ -735,20 +731,20 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 
 void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
-    MidiDeviceInfo deviceInfo = ConvertDeviceInfo(device);
+    MidiDeviceInfo deviceInfo = device.midiDeviceInfo;
     std::vector<sptr<MidiInServer>> clientsToNotify;
 
     {
         std::lock_guard lock(lock_);
         if (change == REMOVED) {
-            MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, device.deviceId);
+            MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, deviceInfo.deviceId);
             for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
-                if (it->second == device.deviceId) {
+                if (it->second == deviceInfo.deviceId) {
                     activeBleDevices_.erase(it);
                     break;
                 }
             }
-            auto it = deviceClientContexts_.find(device.deviceId);
+            auto it = deviceClientContexts_.find(deviceInfo.deviceId);
             if (it != deviceClientContexts_.end()) {
                 deviceClientContexts_.erase(it);
             }

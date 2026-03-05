@@ -101,8 +101,7 @@ OH_MIDIStatusCode MidiServiceClient::CloseDevice(int64_t deviceId)
     return GetMidiStatusCode(ret);
 }
 
-OH_MIDIStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId,
-                                                    std::vector<MidiPortInfo> &portInfos)
+OH_MIDIStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos)
 {
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");

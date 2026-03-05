@@ -31,8 +31,7 @@ public:
     virtual OH_MIDIStatusCode GetDevices(std::vector<MidiDeviceInfo> &deviceInfos) = 0;
     virtual OH_MIDIStatusCode OpenDevice(int64_t deviceId) = 0;
     virtual OH_MIDIStatusCode CloseDevice(int64_t deviceId) = 0;
-    virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId,
-                                             std::vector<MidiPortInfo> &portInfos) = 0;
+    virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos) = 0;
     virtual OH_MIDIStatusCode OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback) = 0;
     virtual OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                             uint32_t portIndex) = 0;

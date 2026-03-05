@@ -27,13 +27,14 @@ namespace MIDI {
 
 UsbMidiTransportDeviceDriver::UsbMidiTransportDeviceDriver() { midiHdi_ = IMidiInterface::Get(true); }
 
-static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceInfo device)
+static std::vector<MidiPortInfo> ConvertToDeviceInformation(const OHOS::HDI::Midi::V1_0::MidiDeviceInfo device)
 {
-    std::vector<PortInformation> portInfos;
+    std::vector<MidiPortInfo> portInfos;
     for (const auto &port : device.ports) {
-        CHECK_AND_CONTINUE_LOG(port.direction == static_cast<int32_t>(PORT_DIRECTION_INPUT) || port.direction ==
-            static_cast<int32_t>(PORT_DIRECTION_OUTPUT), "Invalid port direction: %{public}d", port.direction);
-        PortInformation portInfo;
+        CHECK_AND_CONTINUE_LOG(port.direction == static_cast<int32_t>(PortDirection::PORT_DIRECTION_INPUT) ||
+            port.direction == static_cast<int32_t>(PortDirection::PORT_DIRECTION_OUTPUT),
+            "Invalid port direction: %{public}d", port.direction);
+        MidiPortInfo portInfo;
         portInfo.portId = port.portId;
         portInfo.name = port.name;
         portInfo.direction = static_cast<PortDirection>(port.direction);
@@ -45,17 +46,18 @@ static std::vector<PortInformation> ConvertToDeviceInformation(const MidiDeviceI
 
 std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevices()
 {
-    std::vector<MidiDeviceInfo> deviceList;
+    std::vector<OHOS::HDI::Midi::V1_0::MidiDeviceInfo> deviceList;
     std::vector<DeviceInformation> deviceInfos;
     CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, deviceInfos, "midiHdi_ is nullptr");
     auto ret = midiHdi_->GetDeviceList(deviceList);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, deviceInfos, "GetDeviceList failed: %{public}d", ret);
     for (const auto &device : deviceList) {
-        CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(PROTOCOL_1_0) || device.protocol ==
-            static_cast<int32_t>(PROTOCOL_2_0), "Invalid MIDI protocol: %{public}d", device.protocol);
+        CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(TransportProtocol::PROTOCOL_1_0) ||
+            device.protocol == static_cast<int32_t>(TransportProtocol::PROTOCOL_2_0),
+            "Invalid MIDI protocol: %{public}d", device.protocol);
         DeviceInformation devInfo;
         devInfo.midiDeviceInfo.driverDeviceId = device.deviceId;
-        devInfo.midiDeviceInfo.deviceType = DEVICE_TYPE_USB;
+        devInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
         devInfo.midiDeviceInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
         devInfo.midiDeviceInfo.address = "";
         devInfo.midiDeviceInfo.deviceName = device.productName;

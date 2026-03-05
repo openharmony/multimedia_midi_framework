@@ -27,7 +27,7 @@ using namespace testing::ext;
 
 class MockMidiCallbackStub : public MidiCallbackStub {
 public:
-    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
+    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
                 (override));
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
 };

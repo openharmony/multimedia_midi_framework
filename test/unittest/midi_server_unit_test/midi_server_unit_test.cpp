@@ -36,7 +36,7 @@ using namespace testing::ext;
 
 class MockIMidiCallback : public IMidiCallback {
 public:
-    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
+    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
                 (override));
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
     MOCK_METHOD(sptr<IRemoteObject>, AsObject, (), (override));
@@ -44,7 +44,7 @@ public:
 
 class TestMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
-    int32_t NotifyDeviceChange(int32_t, const std::map<int32_t, std::string> &) override { return 0; }
+    int32_t NotifyDeviceChange(int32_t, const MidiDeviceInfo &) override { return 0; }
     int32_t NotifyError(int32_t) override { return 0; }
 };
 

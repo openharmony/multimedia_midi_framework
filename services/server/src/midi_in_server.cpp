@@ -127,8 +127,6 @@ void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceI
     }
     callback_->NotifyDeviceChange(change, deviceInfo);
 }
-    callback_->NotifyDeviceChange(change, deviceInfo);
-}
 
 void MidiInServer::NotifyError(int32_t code)
 {
