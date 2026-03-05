@@ -571,6 +571,11 @@ bool MidiSharedRing::CommitRead(const PeekedEvent &ev)
         MIDI_WARNING_LOG("Header modified between peek and commit, discarding event");
         return false;
     }
+        // Header was modified, data may be corrupt - reject this event
+        MIDI_WARNING_LOG("Header modified between peek and commit, discarding event");
+        return false;
+    }
+    }
 
     uint32_t end = ev.endOffset;
     if (end >= capacity_) {
