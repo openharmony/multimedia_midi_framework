@@ -34,20 +34,6 @@ using namespace MIDI;
 using namespace testing;
 using namespace testing::ext;
 
-namespace {
-bool operator==(const MidiDeviceInfo &lhs, const MidiDeviceInfo &rhs)
-{
-    return lhs.deviceId == rhs.deviceId &&
-           lhs.driverDeviceId == rhs.driverDeviceId &&
-           lhs.deviceType == rhs.deviceType &&
-           lhs.transportProtocol == rhs.transportProtocol &&
-           lhs.address == rhs.address &&
-           lhs.deviceName == rhs.deviceName &&
-           lhs.productId == rhs.productId &&
-           lhs.vendorId == rhs.vendorId;
-}
-}
-
 class MockIMidiCallback : public IMidiCallback {
 public:
     MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
@@ -117,7 +103,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_OpenDevice001, TestSize.Level0)
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
-    std::map<int32_t, std::string> deviceInfo;
+    MidiDeviceInfo deviceInfo;
 
     MidiInServer client(id, mockCallback);
     EXPECT_NE(OH_MIDI_STATUS_OK, client.OpenDevice(deviceId, deviceInfo));

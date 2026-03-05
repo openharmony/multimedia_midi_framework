@@ -25,20 +25,6 @@
 namespace OHOS {
 namespace MIDI {
 
-namespace {
-bool operator==(const MidiDeviceInfo &lhs, const MidiDeviceInfo &rhs)
-{
-    return lhs.deviceId == rhs.deviceId &&
-           lhs.driverDeviceId == rhs.driverDeviceId &&
-           lhs.deviceType == rhs.deviceType &&
-           lhs.transportProtocol == rhs.transportProtocol &&
-           lhs.address == rhs.address &&
-           lhs.deviceName == rhs.deviceName &&
-           lhs.productId == rhs.productId &&
-           lhs.vendorId == rhs.vendorId;
-}
-}
-
 class MockMidiDeviceDriver : public MidiDeviceDriver {
 public:
     MOCK_METHOD(std::vector<DeviceInformation>, GetRegisteredDevices, (), (override));
@@ -55,7 +41,7 @@ public:
 
 class MockMidiServiceCallback : public MidiServiceCallback {
 public:
-    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, MidiDeviceInfo deviceInfo),
+    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, const MidiDeviceInfo &deviceInfo),
                 (override));
     MOCK_METHOD(void, NotifyError, (int32_t code), (override));
 };
