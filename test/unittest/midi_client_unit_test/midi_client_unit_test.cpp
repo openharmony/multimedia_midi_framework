@@ -144,15 +144,14 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
     MidiDevice *device = nullptr;
 
     // Expect OpenDevice to be called twice on the IPC layer
-    EXPECT_CALL(*mockService, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t,
-        std::map<int32_t, std::string> &info) {
-        info = {{DEVICE_ID, "1001"},
-                {DEVICE_TYPE, "0"},
-                {MIDI_PROTOCOL, "1"},
-                {DEVICE_NAME, "Mock_Piano"},
-                {PRODUCT_ID, "1234"},
-                {VENDOR_ID, "4311"},
-                {ADDRESS, ""}};
+    EXPECT_CALL(*mockService, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 1001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.address = "";
+        info.deviceName = "Mock_Piano";
+        info.vendorId = 17169;
+        info.productId = 4660;
         return OH_MIDI_STATUS_OK;
     }));
 

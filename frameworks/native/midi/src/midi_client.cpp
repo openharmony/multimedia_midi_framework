@@ -583,7 +583,7 @@ OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **m
 {
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiDevice is nullptr");
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
-    std::map<int32_t, std::string> deviceInfo;
+    MidiDeviceInfo deviceInfo;
     auto ret = ipc_->OpenDevice(deviceId, deviceInfo);
     CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
     OH_MIDIDeviceInformation info;
