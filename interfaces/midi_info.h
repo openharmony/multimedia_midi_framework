@@ -62,7 +62,6 @@ struct MidiPortInfo : public Parcelable {
         if (portInfo == nullptr) {
             return nullptr;
         }
-
         portInfo->portId = parcel.ReadInt64();
         portInfo->name = parcel.ReadString();
         portInfo->direction = static_cast<PortDirection>(parcel.ReadInt32());
