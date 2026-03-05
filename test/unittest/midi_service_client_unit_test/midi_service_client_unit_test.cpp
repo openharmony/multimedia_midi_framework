@@ -25,20 +25,6 @@ using namespace MIDI;
 using namespace testing;
 using namespace testing::ext;
 
-namespace {
-bool operator==(const MidiDeviceInfo &lhs, const MidiDeviceInfo &rhs)
-{
-    return lhs.deviceId == rhs.deviceId &&
-           lhs.driverDeviceId == rhs.driverDeviceId &&
-           lhs.deviceType == rhs.deviceType &&
-           lhs.transportProtocol == rhs.transportProtocol &&
-           lhs.address == rhs.address &&
-           lhs.deviceName == rhs.deviceName &&
-           lhs.productId == rhs.productId &&
-           lhs.vendorId == rhs.vendorId;
-}
-}
-
 class MockMidiCallbackStub : public MidiCallbackStub {
 public:
     MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
@@ -133,7 +119,7 @@ HWTEST_F(MidiServiceClientUnitTest, GetDevices_002, TestSize.Level0)
 HWTEST_F(MidiServiceClientUnitTest, OpenDevice_001, TestSize.Level0)
 {
     MidiServiceClient client;
-    std::map<int32_t, std::string> deviceInfo;
+    MidiDeviceInfo deviceInfo;
     EXPECT_EQ(client.OpenDevice(1, deviceInfo), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }
 
@@ -150,16 +136,16 @@ HWTEST_F(MidiServiceClientUnitTest, OpenDevice_002, TestSize.Level0)
     InjectIpcForTest(client, mockIpc);
 
     int64_t deviceId = 1001;
-    std::map<int32_t, std::string> info;
+    MidiDeviceInfo info;
 
-    EXPECT_CALL(*mockIpc, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t, std::map<int32_t, std::string> &info) {
-        info = {{DEVICE_ID, "1001"},
-                {DEVICE_TYPE, "0"},
-                {MIDI_PROTOCOL, "1"},
-                {DEVICE_NAME, "Mock_Piano"},
-                {PRODUCT_ID, "1234"},
-                {VENDOR_ID, "4311"},
-                {ADDRESS, ""}};
+    EXPECT_CALL(*mockIpc, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &dev) {
+            dev.deviceId = 1001;
+            dev.deviceType = DeviceType::DEVICE_TYPE_USB;
+            dev.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            dev.address = "";
+            dev.deviceName = "dev0";
+            dev.productId = 0x1234;
+            dev.vendorId = 0x5678;
         return OH_MIDI_STATUS_OK;
     }));
     EXPECT_EQ(client.OpenDevice(deviceId, info), OH_MIDI_STATUS_OK);
