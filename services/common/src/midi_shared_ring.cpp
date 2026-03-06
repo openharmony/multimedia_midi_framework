@@ -506,7 +506,6 @@ static bool ReadHeaderSafely(const ShmMidiEventHeader *header, ShmMidiEventHeade
     outHeader.length = header->length;
     outHeader.flags = header->flags;
     outHeader.sequence = seq1;
-
     std::atomic_thread_fence(std::memory_order_acquire);
 
     // Read sequence again
