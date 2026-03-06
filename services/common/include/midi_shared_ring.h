@@ -52,7 +52,8 @@ struct ShmMidiEventHeader {
     std::atomic<uint32_t> sequence{0};  // Sequence number for detecting concurrent modification (TOCTOU protection)
 
     // Custom copy assignment operator to handle atomic field
-    ShmMidiEventHeader& operator=(const ShmMidiEventHeader& other) {
+    ShmMidiEventHeader& operator=(const ShmMidiEventHeader& other)
+    {
         if (this != &other) {
             timestamp = other.timestamp;
             length = other.length;
@@ -109,7 +110,8 @@ public:
         uint32_t sequence = 0;     // Header sequence for verification
 
         // Custom copy assignment operator
-        PeekedEvent& operator=(const PeekedEvent& other) {
+        PeekedEvent& operator=(const PeekedEvent& other)
+        {
             if (this != &other) {
                 localHeader = other.localHeader;
                 payloadPtr = other.payloadPtr;
