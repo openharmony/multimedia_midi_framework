@@ -22,13 +22,12 @@ idl_gen_interface("midi_service_idl_interface") {
         "IMidiDeviceOpenCallback.idl",
         "IMidiService.idl",
     ]
-
     configs = [ ":midi_service_sa_idl_config" ]
 
     subsystem_name = "multimedia"
     part_name = "midi_framework"
 
-    log_domainid = "0xD003900"
+    log_domainid = "0xD002B8D"
     log_tag = "MidiServiceIdl"
 }
 
@@ -62,6 +61,7 @@ ohos_shared_library("midi_framework_interface") {
         "c_utils:utils",
         "hilog:libhilog",
         "ipc:ipc_core",
+        "ipc:ipc_single",
         "samgr:samgr_proxy"
     ]
 

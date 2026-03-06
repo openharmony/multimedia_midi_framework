@@ -33,7 +33,7 @@
 
 namespace OHOS {
 namespace MIDI {
-using BleOpenCallback = std::function<void(bool success, int64_t deviceId, const std::map<int32_t, std::string> &info)>;
+using BleOpenCallback = std::function<void(bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo)>;
 
 struct DevicePortContext {
     int64_t portId;
@@ -59,7 +59,7 @@ public:
     ~MidiDeviceManager();
     void Init();
     std::vector<DeviceInformation> GetDevices();
-    std::vector<PortInformation> GetDevicePorts(int64_t deviceId);
+    std::vector<MidiPortInfo> GetDevicePorts(int64_t deviceId);
     void UpdateDevices();
     int32_t OpenDevice(int64_t deviceId);
     int32_t OpenBleDevice(const std::string &address, BleOpenCallback callback);
@@ -109,7 +109,6 @@ private:
     std::vector<DeviceInformation> devices_{};
     std::shared_ptr<EventSubscriber> eventSubscriber_{nullptr};
     std::unordered_map<int64_t, int64_t> driverIdToMidiId_;
-    std::map<int32_t, std::string> ConvertDeviceInfo(const DeviceInformation &device);
 
     std::atomic<int64_t> nextDeviceId_{1000};
     std::mutex devicesMutex_;

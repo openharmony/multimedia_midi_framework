@@ -55,15 +55,15 @@ public:
     int64_t SimulateDeviceConnection(int64_t driverId, const std::string &name)
     {
         DeviceInformation info;
-        info.driverDeviceId = driverId;
-        info.deviceType = DeviceType::DEVICE_TYPE_USB;
-        info.deviceName = name;
-        info.productId = "1234";
-        info.vendorId = "5678";
-        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.midiDeviceInfo.driverDeviceId = driverId;
+        info.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.midiDeviceInfo.deviceName = name;
+        info.midiDeviceInfo.productId = 0x1234;
+        info.midiDeviceInfo.vendorId = 0x5678;
+        info.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
 
         // Port info
-        PortInformation port;
+        MidiPortInfo port;
         port.portId = 0;
         port.direction = PortDirection::PORT_DIRECTION_INPUT;
         port.name = "Test Port";
@@ -71,7 +71,7 @@ public:
 
         std::vector<DeviceInformation> devices = {info};
 
-        EXPECT_CALL(*rawMockDriver_, GetRegisteredDevices()).WillOnce(Return(devices));
+        EXPECT_CALL(*rawMockDriver_, GetRegisteredDevices).WillOnce(Return(devices));
 
         controller_->GetDeviceManagerForTest()->UpdateDevices();
 
@@ -79,7 +79,7 @@ public:
         if (allDevices.empty()) {
             return -1;
         }
-        return allDevices[0].deviceId;
+        return allDevices[0].midiDeviceInfo.deviceId;
     }
 
 protected:
@@ -133,12 +133,12 @@ HWTEST_F(MidiServiceControllerUnitTest, GetDevices001, TestSize.Level0)
     auto result = controller_->GetDevices();
     ASSERT_EQ(result.size(), 1);
 
-    EXPECT_EQ(result[0][DEVICE_ID], std::to_string(deviceId));
-    EXPECT_EQ(result[0][DEVICE_TYPE], std::to_string(DeviceType::DEVICE_TYPE_USB));
-    EXPECT_EQ(result[0][MIDI_PROTOCOL], std::to_string(TransportProtocol::PROTOCOL_1_0));
-    EXPECT_EQ(result[0][DEVICE_NAME], "Yamaha Keyboard");
-    EXPECT_EQ(result[0][PRODUCT_ID], "1234");
-    EXPECT_EQ(result[0][VENDOR_ID], "5678");
+    EXPECT_EQ(result[0].deviceId, deviceId);
+    EXPECT_EQ(result[0].deviceType, DeviceType::DEVICE_TYPE_USB);
+    EXPECT_EQ(result[0].transportProtocol, TransportProtocol::PROTOCOL_1_0);
+    EXPECT_EQ(result[0].deviceName, "Yamaha Keyboard");
+    EXPECT_EQ(result[0].productId, 0x1234);
+    EXPECT_EQ(result[0].vendorId, 0x5678);
 }
 
 /**

@@ -46,8 +46,8 @@ struct DeviceCtx {
     BleDriverCallback deviceCallback{nullptr};
     std::shared_ptr<UmpProcessor> processor;
     std::string deviceName;
-    std::string productId;
-    std::string vendorId;
+    uint64_t productId;
+    uint64_t vendorId;
     bool initialCallbackCalled{false}; // Prevent double callbacks
 };
 

@@ -98,14 +98,14 @@ static void MidiReceivedTrampoline(void *userData, const OH_MIDIEvent *events, s
 class MidiServiceMock : public MidiServiceInterface {
 public:
     MOCK_METHOD(OH_MIDIStatusCode, Init, (sptr<MidiCallbackStub> callback, uint32_t &clientId), (override));
-    MOCK_METHOD(OH_MIDIStatusCode, GetDevices, ((std::vector<std::map<int32_t, std::string>>)&deviceInfos), (override));
+    MOCK_METHOD(OH_MIDIStatusCode, GetDevices, ((std::vector<MidiDeviceInfo>)&deviceInfos), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenDevice,
-        (int64_t deviceId, (std::map<int32_t, std::string> &deviceInfo)), (override));
+        (int64_t deviceId, (MidiDeviceInfo &deviceInfo)), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenBleDevice,
         (std::string address, sptr<MidiDeviceOpenCallbackStub> callback), (override));
     MOCK_METHOD(OH_MIDIStatusCode, CloseDevice, (int64_t deviceId), (override));
     MOCK_METHOD(OH_MIDIStatusCode, GetDevicePorts,
-        (int64_t deviceId, (std::vector<std::map<int32_t, std::string>>)&portInfos), (override));
+        (int64_t deviceId, std::vector<MidiPortInfo> &portInfos), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenInputPort,
         ((std::shared_ptr<MidiSharedRing>)&buffer, int64_t deviceId, uint32_t portIndex), (override));
     MOCK_METHOD(OH_MIDIStatusCode, OpenOutputPort,
@@ -144,15 +144,14 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
     MidiDevice *device = nullptr;
 
     // Expect OpenDevice to be called twice on the IPC layer
-    EXPECT_CALL(*mockService, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t,
-        std::map<int32_t, std::string> &info) {
-        info = {{DEVICE_ID, "1001"},
-                {DEVICE_TYPE, "0"},
-                {MIDI_PROTOCOL, "1"},
-                {DEVICE_NAME, "Mock_Piano"},
-                {PRODUCT_ID, "1234"},
-                {VENDOR_ID, "4311"},
-                {ADDRESS, ""}};
+    EXPECT_CALL(*mockService, OpenDevice(deviceId, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 1001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.address = "";
+        info.deviceName = "Mock_Piano";
+        info.vendorId = 17169;
+        info.productId = 4660;
         return OH_MIDI_STATUS_OK;
     }));
 
@@ -170,28 +169,33 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
 {
     // 1. Prepare mock data from IPC
     EXPECT_CALL(*mockService, Init(_, _)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
-    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
-        infos.push_back({{DEVICE_ID, "1001"},
-            {DEVICE_TYPE, "0"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Piano"},
-            {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "4311"},
-            {ADDRESS, ""}});
-        infos.push_back({{DEVICE_ID, "1002"},
-            {DEVICE_TYPE, "1"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Drum"},
-            {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "4321"},
-            {ADDRESS, "aabbcc"}});
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<MidiDeviceInfo> &infos) {
+        MidiDeviceInfo dev1;
+        dev1.deviceId = 1001;
+        dev1.deviceType = DeviceType::DEVICE_TYPE_USB;
+        dev1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev1.address = "";
+        dev1.deviceName = "Mock_Piano";
+        dev1.vendorId = 17169;
+        dev1.productId = 4660;
+        infos.push_back(dev1);
+
+        MidiDeviceInfo dev2;
+        dev2.deviceId = 1002;
+        dev2.deviceType = DeviceType::DEVICE_TYPE_BLE;
+        dev2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev2.address = "aabbcc";
+        dev2.deviceName = "Mock_Drum";
+        dev2.vendorId = 17185;
+        dev2.productId = 22136;
+        infos.push_back(dev2);
+
         return OH_MIDI_STATUS_OK;
     }));
     OH_MIDICallbacks callbacks;
     callbacks.onDeviceChange =
         [](void *userData, OH_MIDIDeviceChangeAction action, OH_MIDIDeviceInformation deviceInfo) {};
     callbacks.onError = [](void *userData, OH_MIDIStatusCode code) {
-
     };
     void *userData = nullptr;
     client->Init(callbacks, userData);
@@ -226,21 +230,27 @@ HWTEST_F(MidiClientUnitTest, GetDevices_001, TestSize.Level0)
 HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
 {
     EXPECT_CALL(*mockService, Init(_, _)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
-    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
-        infos.push_back({{DEVICE_ID, "1001"},
-            {DEVICE_TYPE, "0"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Piano"},
-            {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "4311"},
-            {ADDRESS, ""}});
-        infos.push_back({{DEVICE_ID, "1002"},
-            {DEVICE_TYPE, "1"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Drum"},
-            {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "4321"},
-            {ADDRESS, "aabbcc"}});
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<MidiDeviceInfo> &infos) {
+        MidiDeviceInfo dev1;
+        dev1.deviceId = 1001;
+        dev1.deviceType = DeviceType::DEVICE_TYPE_USB;
+        dev1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev1.address = "";
+        dev1.deviceName = "Mock_Piano";
+        dev1.vendorId = 17169;
+        dev1.productId = 4660;
+        infos.push_back(dev1);
+
+        MidiDeviceInfo dev2;
+        dev2.deviceId = 1002;
+        dev2.deviceType = DeviceType::DEVICE_TYPE_BLE;
+        dev2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev2.address = "aabbcc";
+        dev2.deviceName = "Mock_Drum";
+        dev2.vendorId = 17185;
+        dev2.productId = 22136;
+        infos.push_back(dev2);
+
         return OH_MIDI_STATUS_OK;
     }));
     OH_MIDICallbacks callbacks;
@@ -261,21 +271,27 @@ HWTEST_F(MidiClientUnitTest, GetDevices_002, TestSize.Level0)
     EXPECT_STREQ(infoArrayTest[0].deviceName, "Mock_Piano");
 
     // Verify with full buffer
-    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
-        infos.push_back({{DEVICE_ID, "1001"},
-            {DEVICE_TYPE, "0"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Piano"},
-            {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "4311"},
-            {ADDRESS, ""}});
-        infos.push_back({{DEVICE_ID, "1002"},
-            {DEVICE_TYPE, "1"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Drum"},
-            {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "4321"},
-            {ADDRESS, "aabbcc"}});
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<MidiDeviceInfo> &infos) {
+        MidiDeviceInfo dev1;
+        dev1.deviceId = 1001;
+        dev1.deviceType = DeviceType::DEVICE_TYPE_USB;
+        dev1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev1.address = "";
+        dev1.deviceName = "Mock_Piano";
+        dev1.vendorId = 17169;
+        dev1.productId = 4660;
+        infos.push_back(dev1);
+
+        MidiDeviceInfo dev2;
+        dev2.deviceId = 1002;
+        dev2.deviceType = DeviceType::DEVICE_TYPE_BLE;
+        dev2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev2.address = "aabbcc";
+        dev2.deviceName = "Mock_Drum";
+        dev2.vendorId = 17185;
+        dev2.productId = 22136;
+        infos.push_back(dev2);
+
         return OH_MIDI_STATUS_OK;
     }));
     OH_MIDIDeviceInformation infoArray[2];
@@ -311,17 +327,29 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
     int64_t deviceId = 1001;
 
     EXPECT_CALL(*mockService, GetDevicePorts(deviceId, _))
-        .WillOnce(Invoke([](int64_t id, std::vector<std::map<int32_t, std::string>> &ports) {
-            ports.push_back({{PORT_INDEX, "0"},
-                {DIRECTION, "0"},  // Input
-                {PORT_NAME, "Midi_In_Port"}});
-            ports.push_back({{PORT_INDEX, "1"},
-                {DIRECTION, "1"},  // Output
-                {PORT_NAME, "Midi_Out_Port"}});
+        .WillOnce(Invoke([](int64_t id, std::vector<MidiPortInfo> &ports) {
+            MidiPortInfo port1;
+            port1.portId = 0;
+            port1.name = "Midi_In_Port";
+            port1.direction = PortDirection::PORT_DIRECTION_INPUT;
+            port1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            ports.push_back(port1);
+
+            MidiPortInfo port2;
+            port2.portId = 1;
+            port2.name = "Midi_Out_Port";
+            port2.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+            port2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            ports.push_back(port2);
+
             return OH_MIDI_STATUS_OK;
         }));
     OH_MIDIPortInformation portArray[2];
     size_t numPorts = 2;
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 1001;
+    auto device = new MidiDevicePrivate(mockService, info);
+    client->AddDeviceHandler(device);
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
 
     EXPECT_EQ(status, OH_MIDI_STATUS_OK);
@@ -343,24 +371,29 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
  */
 HWTEST_F(MidiClientUnitTest, GetDeviceCount_WithZeroInitialValue, TestSize.Level0)
 {
-    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<std::map<int32_t, std::string>> &infos) {
-        infos.push_back({{DEVICE_ID, "1001"},
-            {DEVICE_TYPE, "0"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Piano"},
-            {PRODUCT_ID, "1234"},
-            {VENDOR_ID, "4311"},
-            {ADDRESS, ""}});
-        infos.push_back({{DEVICE_ID, "1002"},
-            {DEVICE_TYPE, "1"},
-            {MIDI_PROTOCOL, "1"},
-            {DEVICE_NAME, "Mock_Drum"},
-            {PRODUCT_ID, "5678"},
-            {VENDOR_ID, "4321"},
-            {ADDRESS, "aabbcc"}});
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Invoke([](std::vector<MidiDeviceInfo> &infos) {
+        MidiDeviceInfo dev1;
+        dev1.deviceId = 1001;
+        dev1.deviceType = DeviceType::DEVICE_TYPE_USB;
+        dev1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev1.address = "";
+        dev1.deviceName = "Mock_Piano";
+        dev1.vendorId = 17169;
+        dev1.productId = 4660;
+        infos.push_back(dev1);
+
+        MidiDeviceInfo dev2;
+        dev2.deviceId = 1002;
+        dev2.deviceType = DeviceType::DEVICE_TYPE_BLE;
+        dev2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        dev2.address = "aabbcc";
+        dev2.deviceName = "Mock_Drum";
+        dev2.vendorId = 17185;
+        dev2.productId = 22136;
+        infos.push_back(dev2);
+
         return OH_MIDI_STATUS_OK;
     }));
-
     size_t numDevices = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevices(nullptr, &numDevices);
 
@@ -378,16 +411,28 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
     int64_t deviceId = 1001;
 
     EXPECT_CALL(*mockService, GetDevicePorts(deviceId, _))
-        .WillOnce(Invoke([](int64_t id, std::vector<std::map<int32_t, std::string>> &ports) {
-            ports.push_back({{PORT_INDEX, "0"},
-                {DIRECTION, "0"},
-                {PORT_NAME, "Midi_In_Port"}});
-            ports.push_back({{PORT_INDEX, "1"},
-                {DIRECTION, "1"},
-                {PORT_NAME, "Midi_Out_Port"}});
+        .WillOnce(Invoke([](int64_t id, std::vector<MidiPortInfo> &ports) {
+            ports.clear();
+            MidiPortInfo port1;
+            port1.portId = 0;
+            port1.name = "Midi_In_Port";
+            port1.direction = PortDirection::PORT_DIRECTION_INPUT;
+            port1.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            ports.push_back(port1);
+
+            MidiPortInfo port2;
+            port2.portId = 1;
+            port2.name = "Midi_Out_Port";
+            port2.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+            port2.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+            ports.push_back(port2);
             return OH_MIDI_STATUS_OK;
         }));
 
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 1001;
+    auto device = new MidiDevicePrivate(mockService, info);
+    client->AddDeviceHandler(device);
     size_t numPorts = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, nullptr, &numPorts);
 
@@ -403,10 +448,6 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
 HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
 {
     int64_t invalidId = -1;
-
-    // Simulate IPC returning error for invalid device
-    EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _)).WillOnce(Return(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT));
-
     OH_MIDIPortInformation portArray[1];
     size_t numPorts = 1;
     OH_MIDIStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);

@@ -36,78 +36,32 @@ class MidiClientCallback : public MidiCallbackStub {
 public:
     MidiClientCallback(OH_MIDICallbacks callbacks, void *userData, MidiClientPrivate *client);
     ~MidiClientCallback() = default;
-    int32_t NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo) override;
+    int32_t NotifyDeviceChange(int32_t change, const MidiDeviceInfo &deviceInfo) override;
     int32_t NotifyError(int32_t code) override;
     OH_MIDICallbacks callbacks_;
     void *userData_;
     MidiClientPrivate *client_ = nullptr;
 };
 
-static void ParseOptionalDecField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
-    const char *fieldName, uint32_t &outValue)
-{
-    auto it = deviceInfo.find(key);
-    if (it != deviceInfo.end()) {
-        bool ret = StringToDecNum(it->second, outValue);
-        JUDGE_AND_ERR_LOG(!ret, "parse %{public}s failed, use default value", fieldName);
-    } else {
-        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
-    }
-}
-
-static void ParseOptionalHexField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
-    const char *fieldName, uint64_t &outValue)
-{
-    auto it = deviceInfo.find(key);
-    if (it != deviceInfo.end()) {
-        bool ret = StringToHexNum(it->second, outValue);
-        JUDGE_AND_ERR_LOG(!ret, "parse %{public}s failed, use default value", fieldName);
-    } else {
-        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
-    }
-}
-
-static void ParseOptionalStringField(const std::map<int32_t, std::string> &deviceInfo, int32_t key,
-    const char *fieldName, char *buffer, size_t bufferSize)
-{
-    auto it = deviceInfo.find(key);
-    if (it != deviceInfo.end()) {
-        errno_t ret = strncpy_s(buffer, bufferSize, it->second.c_str(), it->second.length());
-        JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy %{public}s failed, use default value", fieldName);
-    } else {
-        MIDI_ERR_LOG("%{public}s not found, use default value", fieldName);
-    }
-}
-
 static bool ConvertToDeviceInformation(
-    const std::map<int32_t, std::string> &deviceInfo, OH_MIDIDeviceInformation &outInfo)
+    const MidiDeviceInfo &deviceInfo, OH_MIDIDeviceInformation &outInfo)
 {
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
 
-    auto it = deviceInfo.find(DEVICE_ID);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceId error");
-    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.midiDeviceId), false, "parse deviceId failed");
+    outInfo.midiDeviceId = deviceInfo.deviceId;
 
-    it = deviceInfo.find(ADDRESS);
-    CHECK_AND_RETURN_RET_LOG(it != deviceInfo.end(), false, "deviceAddress error");
-    CHECK_AND_RETURN_RET_LOG(
-        strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress), it->second.c_str(), it->second.length()) ==
-            OH_MIDI_STATUS_OK,
-        false,
-        "copy deviceAddress failed");
+    errno_t ret = strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress),
+                          deviceInfo.address.c_str(), deviceInfo.address.length());
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, false, "copy deviceAddress failed");
 
-    uint32_t typeVal = 0;
-    ParseOptionalDecField(deviceInfo, DEVICE_TYPE, "deviceType", typeVal);
-    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(typeVal);
+    outInfo.deviceType = static_cast<OH_MIDIDeviceType>(deviceInfo.deviceType);
+    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(deviceInfo.transportProtocol);
 
-    uint32_t protocolVal = 0;
-    ParseOptionalDecField(deviceInfo, MIDI_PROTOCOL, "protocol", protocolVal);
-    outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(protocolVal);
-
-    ParseOptionalStringField(deviceInfo, DEVICE_NAME, "deviceName", outInfo.deviceName, sizeof(outInfo.deviceName));
-    ParseOptionalHexField(deviceInfo, PRODUCT_ID, "productId", outInfo.productId);
-    ParseOptionalHexField(deviceInfo, VENDOR_ID, "vendorId", outInfo.vendorId);
-
+    ret = strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName),
+                   deviceInfo.deviceName.c_str(), deviceInfo.deviceName.length());
+    JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy deviceName failed, use default value");
+    outInfo.productId = deviceInfo.productId;
+    outInfo.vendorId = deviceInfo.vendorId;
     return true;
 }
 
@@ -117,7 +71,7 @@ MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiS
 {
 }
 
-int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo)
+int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const MidiDeviceInfo &deviceInfo)
 {
     CHECK_AND_RETURN_RET_LOG(callback_ != nullptr && ipc_.lock(), OH_MIDI_STATUS_SYSTEM_ERROR, "callback_ is nullptr");
     OH_MIDIDeviceInformation info;
@@ -136,28 +90,16 @@ int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const std:
 }
 
 static bool ConvertToPortInformation(
-    const std::map<int32_t, std::string> &portInfo, int64_t deviceId, OH_MIDIPortInformation &outInfo)
+    const MidiPortInfo &portInfo, int64_t deviceId, OH_MIDIPortInformation &outInfo)
 {
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
     outInfo.deviceId = deviceId;
+    outInfo.portIndex = portInfo.portId;
+    outInfo.direction = static_cast<OH_MIDIPortDirection>(portInfo.direction);
 
-    auto it = portInfo.find(PORT_INDEX);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "port index missing");
-    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, outInfo.portIndex), false, "parse port index failed");
-
-    it = portInfo.find(DIRECTION);
-    CHECK_AND_RETURN_RET_LOG(it != portInfo.end(), false, "direction missing");
-    uint32_t directionVal = 0;
-    CHECK_AND_RETURN_RET_LOG(StringToDecNum(it->second, directionVal), false, "parse direction failed");
-    outInfo.direction = static_cast<OH_MIDIPortDirection>(directionVal);
-
-    it = portInfo.find(PORT_NAME);
-    if (it != portInfo.end()) {
-        errno_t nameRet = strncpy_s(outInfo.name, sizeof(outInfo.name), it->second.c_str(), it->second.length());
-        JUDGE_AND_ERR_LOG(nameRet != OH_MIDI_STATUS_OK, "copy portName failed, use default value");
-    } else {
-        MIDI_ERR_LOG("portName not found, use default value");
-    }
+    errno_t ret = strncpy_s(outInfo.name, sizeof(outInfo.name),
+                           portInfo.name.c_str(), portInfo.name.length());
+    JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy portName failed, use default value");
 
     return true;
 }
@@ -184,7 +126,7 @@ MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userDat
     : callbacks_(callbacks), userData_(userData), client_(client)
 {}
 
-int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const std::map<int32_t, std::string> &deviceInfo)
+int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const MidiDeviceInfo &deviceInfo)
 {
     CHECK_AND_RETURN_RET_LOG(
         callbacks_.onDeviceChange != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callbacks_.onDeviceChange is nullptr");
@@ -618,7 +560,7 @@ OH_MIDIStatusCode MidiClientPrivate::GetDevices(OH_MIDIDeviceInformation *infos,
 {
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
 
-    std::vector<std::map<int32_t, std::string>> deviceInfos;
+    std::vector<MidiDeviceInfo> deviceInfos;
     auto ret = ipc_->GetDevices(deviceInfos);
     CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
     // Count query: return actual count
@@ -641,7 +583,7 @@ OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **m
 {
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiDevice is nullptr");
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
-    std::map<int32_t, std::string> deviceInfo;
+    MidiDeviceInfo deviceInfo;
     auto ret = ipc_->OpenDevice(deviceId, deviceInfo);
     CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
     OH_MIDIDeviceInformation info;
@@ -668,7 +610,7 @@ OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address,
 
 OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts)
 {
-    std::vector<std::map<int32_t, std::string>> portInfos;
+    std::vector<MidiPortInfo> portInfos;
     CHECK_AND_RETURN_RET_LOG(IsDeviceOpened(deviceId), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "device is invalid");
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);

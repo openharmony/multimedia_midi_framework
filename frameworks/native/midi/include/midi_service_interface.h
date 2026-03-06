@@ -28,11 +28,10 @@ class MidiServiceInterface {
 public:
     virtual ~MidiServiceInterface() = default;
     virtual OH_MIDIStatusCode Init(sptr<MidiCallbackStub> callback, uint32_t &clientId) = 0;
-    virtual OH_MIDIStatusCode GetDevices(std::vector<std::map<int32_t, std::string>> &deviceInfos) = 0;
-    virtual OH_MIDIStatusCode OpenDevice(int64_t deviceId, std::map<int32_t, std::string> &deviceInfo) = 0;
+    virtual OH_MIDIStatusCode GetDevices(std::vector<MidiDeviceInfo> &deviceInfos) = 0;
+    virtual OH_MIDIStatusCode OpenDevice(int64_t deviceId, MidiDeviceInfo &deviceInfo) = 0;
     virtual OH_MIDIStatusCode CloseDevice(int64_t deviceId) = 0;
-    virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId,
-                                             std::vector<std::map<int32_t, std::string>> &portInfos) = 0;
+    virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos) = 0;
     virtual OH_MIDIStatusCode OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback) = 0;
     virtual OH_MIDIStatusCode OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
                                             uint32_t portIndex) = 0;

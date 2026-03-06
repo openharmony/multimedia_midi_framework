@@ -80,8 +80,8 @@ public:
     static std::shared_ptr<MidiServiceController> GetInstance();
     void Init();
     int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client, uint32_t &clientId);
-    std::vector<std::map<int32_t, std::string>> GetDevices();
-    std::vector<std::map<int32_t, std::string>> GetDevicePorts(int64_t deviceId);
+    std::vector<MidiDeviceInfo> GetDevices();
+    std::vector<MidiPortInfo> GetDevicePorts(int64_t deviceId);
     int32_t OpenDevice(uint32_t clientId, int64_t deviceId);
     int32_t OpenBleDevice(uint32_t clientId, const std::string &address, const sptr<IRemoteObject> &callbackObj);
     int32_t CloseDevice(uint32_t clientId, int64_t deviceId);
@@ -95,7 +95,7 @@ public:
     int32_t DestroyMidiClient(uint32_t clientId);
     void NotifyDeviceChange(DeviceChangeType change, DeviceInformation device);
     void NotifyError(int32_t code);
-    std::map<int32_t, std::string> GetDevice(int64_t deviceId);
+    MidiDeviceInfo GetDevice(int64_t deviceId);
 
     // Runtime configuration (callable from tests)
     void SetUnloadDelay(int64_t delayMs) { unloadDelayTime_ = delayMs; }
@@ -137,7 +137,7 @@ private:
         uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
-        const std::map<int32_t, std::string> &deviceInfo);
+        const MidiDeviceInfo &deviceInfo);
 
     // Helper functions for DestroyMidiClient
     void CollectDevicesForClientDestruction(uint32_t clientId,

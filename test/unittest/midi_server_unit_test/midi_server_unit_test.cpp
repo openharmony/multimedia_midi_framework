@@ -36,7 +36,7 @@ using namespace testing::ext;
 
 class MockIMidiCallback : public IMidiCallback {
 public:
-    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
+    MOCK_METHOD(int32_t, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
                 (override));
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
     MOCK_METHOD(sptr<IRemoteObject>, AsObject, (), (override));
@@ -44,7 +44,7 @@ public:
 
 class TestMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
-    int32_t NotifyDeviceChange(int32_t, const std::map<int32_t, std::string> &) override { return 0; }
+    int32_t NotifyDeviceChange(int32_t, const MidiDeviceInfo &) override { return 0; }
     int32_t NotifyError(int32_t) override { return 0; }
 };
 
@@ -67,7 +67,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevices001, TestSize.Level0)
 {
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
-    std::vector<std::map<int32_t, std::string>> devices;
+    std::vector<MidiDeviceInfo> devices;
 
     MidiInServer client(id, mockCallback);
     EXPECT_EQ(OH_MIDI_STATUS_OK, client.GetDevices(devices));
@@ -85,7 +85,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevicePorts001, TestSize.Level0)
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
-    std::vector<std::map<int32_t, std::string>> ports;
+    std::vector<MidiPortInfo> ports;
 
     MidiInServer client(id, mockCallback);
     EXPECT_EQ(OH_MIDI_STATUS_OK, client.GetDevicePorts(deviceId, ports));
@@ -103,7 +103,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_OpenDevice001, TestSize.Level0)
     auto mockCallback = std::make_shared<MockMidiServiceCallback>();
     uint32_t id = 123;
     int64_t deviceId = 12345;
-    std::map<int32_t, std::string> deviceInfo;
+    MidiDeviceInfo deviceInfo;
 
     MidiInServer client(id, mockCallback);
     EXPECT_NE(OH_MIDI_STATUS_OK, client.OpenDevice(deviceId, deviceInfo));
@@ -190,23 +190,6 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_NotifyError001, TestSize.Level0)
     MidiInServer client(id, mockCallback);
     client.NotifyError(-1);
     ASSERT_NE(nullptr, client.callback_);
-}
-
-/**
- * @tc.name: MidiListenerCallback_NotifyDeviceChange001
- * @tc.desc: call callback's NotifyDeviceChange
- * @tc.type: FUNC
- */
-
-HWTEST_F(MidiServerUnitTest, MidiListenerCallback_NotifyDeviceChange001, TestSize.Level0)
-{
-    std::map<int32_t, std::string> devicdInfo = {{1, "piano"}};
-    sptr<MockIMidiCallback> mockCallback = sptr<MockIMidiCallback>::MakeSptr();
-    EXPECT_CALL(*mockCallback, NotifyDeviceChange(ADD, devicdInfo)).Times(1);
-
-    MidiListenerCallback listener(mockCallback);
-    listener.NotifyDeviceChange(ADD, devicdInfo);
-    EXPECT_NE(nullptr, listener.callback_);
 }
 
 /**

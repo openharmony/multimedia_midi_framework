@@ -254,6 +254,7 @@ int32_t MidiSharedRing::Init(int dataFd)
     } else {
         dataMem_ = MidiSharedMemory::CreateFromRemote(dataFd, totalMemorySize_, "midi_shared_buffer");
     }
+    CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "dataMem_ is nullptr.");
     base_ = dataMem_->GetBase();
     controler_ = reinterpret_cast<ControlHeader *>(base_);
     controler_->capacity = capacity_;
