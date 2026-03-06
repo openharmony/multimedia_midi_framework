@@ -141,7 +141,6 @@ DeviceConnectionForOutput::~DeviceConnectionForOutput()
     (void)Stop();
 }
 
-
 int32_t DeviceConnectionForOutput::AddClientConnection(
     uint32_t clientId, int64_t deviceHandle, std::shared_ptr<MidiSharedRing> &buffer)
 {
@@ -367,7 +366,8 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         return false;
     }
 
-    const auto dueTime = std::chrono::steady_clock::time_point(std::chrono::nanoseconds(ringEvent.localHeader.timestamp));
+    const auto dueTime = std::chrono::steady_clock::time_point(
+        std::chrono::nanoseconds(ringEvent.localHeader.timestamp));
 
     const size_t payloadWordCount = static_cast<size_t>(ringEvent.localHeader.length);
     const size_t payloadBytes = payloadWordCount * sizeof(uint32_t);
@@ -380,7 +380,8 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
     }
 
-    const bool enqueued = clientConnection.EnqueueNonRealtime(std::move(payloadWords), dueTime, ringEvent.localHeader.timestamp);
+    const bool enqueued = clientConnection.EnqueueNonRealtime(
+        std::move(payloadWords), dueTime, ringEvent.localHeader.timestamp);
     if (!enqueued) {
         return false;
     }

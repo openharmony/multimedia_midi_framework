@@ -108,7 +108,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_002, TestSize.Level0)
     EXPECT_NE(nullptr, ring.GetFutex());
     EXPECT_TRUE(ring.IsEmpty());
 
-    // Init 内部会 dup(fd) 再 mmap；这里关闭原 fd 不应影响 ring 使用
+    // Init internally calls dup(fd) then mmap;
+    // closing original fd should not affect ring usage
     close(fd);
 }
 
@@ -145,7 +146,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_003, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_004, TestSize.Level0)
 {
     // totalMemorySize_ = sizeof(ControlHeader) + ringCapacityBytes
-    // 这里 ringCapacityBytes >= MAX_MMAP_BUFFER_SIZE，必然超过上限
+    // ringCapacityBytes >= MAX_MMAP_BUFFER_SIZE will definitely exceed limit
     constexpr uint32_t TOO_LARGE_RING_CAPACITY = MAX_MMAP_BUFFER_SIZE;
 
     MidiSharedRing ring(TOO_LARGE_RING_CAPACITY);
@@ -743,11 +744,9 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRaceCondition_001, TestSize.Level
     ASSERT_NE(nullptr, base);
     auto *header = reinterpret_cast<ShmMidiEventHeader *>(base + readPos);
 
-    // uint64_t origTs (unused) = header->timestamp;
     uint32_t origLen = header->length;
 
     uint64_t peekTs = header->timestamp;
-    // uint32_t peekLen (unused) = header->length;
 
     // Simulate concurrent modification (what a malicious or buggy writer might do)
     header->length = 0xFFFFFFFF;

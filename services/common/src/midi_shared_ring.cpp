@@ -44,6 +44,9 @@ namespace {
 const uint32_t MAX_MMAP_BUFFER_SIZE = 0x2000;
 static constexpr int INVALID_FD = -1;
 static constexpr int MINFD = 2;
+// Sequence lock increments: odd = write in progress, even = write complete
+static constexpr uint32_t SEQ_WRITE_START_INCREMENT = 1;
+static constexpr uint32_t SEQ_WRITE_COMPLETE_TOTAL = 2;
 } // namespace
 
 class MidiSharedMemoryImpl : public MidiSharedMemory {
@@ -631,7 +634,7 @@ void MidiSharedRing::Flush()
     // Now we have exclusive access
     controler_->readPosition.store(0, std::memory_order_release);
     controler_->writePosition.store(0, std::memory_order_release);
-    memset_s(GetDataBase(), GetCapacity(), 0, GetCapacity());
+    (void)memset_s(GetDataBase(), GetCapacity(), 0, GetCapacity());
 
     // Release the flag
     controler_->flushFlag.store(0, std::memory_order_release);
@@ -697,13 +700,13 @@ bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t total
         auto *header = reinterpret_cast<ShmMidiEventHeader *>(ringBase_ + writeIndex);
     // Use atomic write for wrap marker with sequence
         uint32_t seq = header->sequence.load(std::memory_order_relaxed);
-        header->sequence.store(seq + 1, std::memory_order_release);
+        header->sequence.store(seq + SEQ_WRITE_START_INCREMENT, std::memory_order_release);
         std::atomic_thread_fence(std::memory_order_release);
         header->timestamp = 0;
         header->length = 0;
         header->flags = SHM_EVENT_FLAG_WRAP;
         std::atomic_thread_fence(std::memory_order_release);
-        header->sequence.store(seq + 2, std::memory_order_release);
+        header->sequence.store(seq + SEQ_WRITE_COMPLETE_TOTAL, std::memory_order_release);
     }
     writeIndex = 0;
     // Use release ordering
@@ -718,7 +721,7 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
 
     // Increment sequence before writing (release ensures prior writes are visible)
     uint32_t seq = header->sequence.load(std::memory_order_relaxed);
-    header->sequence.store(seq + 1, std::memory_order_release);
+    header->sequence.store(seq + SEQ_WRITE_START_INCREMENT, std::memory_order_release);
     std::atomic_thread_fence(std::memory_order_release);
 
     header->timestamp = event.timestamp;
@@ -733,7 +736,7 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
 
     // Increment sequence after writing
     std::atomic_thread_fence(std::memory_order_release);
-    header->sequence.store(seq + 2, std::memory_order_release);
+    header->sequence.store(seq + SEQ_WRITE_COMPLETE_TOTAL, std::memory_order_release);
 }
 
 MidiStatusCode MidiSharedRing::UpdateReadIndexIfNeed(uint32_t &readIndex, uint32_t writeIndex)
