@@ -127,7 +127,7 @@ void DeviceConnectionForInput::BroadcastToClients(const MidiEventInner &ev)
     for (auto &c : clients) {
         if (!c)
             continue;
-        c->TrySendToClient(ev);  // debug: check return value
+        c->TrySendToClient(ev);
     }
 }
 
@@ -140,7 +140,6 @@ DeviceConnectionForOutput::~DeviceConnectionForOutput()
     MIDI_INFO_LOG("DeviceConnectionForOutput Destroy");
     (void)Stop();
 }
-
 
 int32_t DeviceConnectionForOutput::AddClientConnection(
     uint32_t clientId, int64_t deviceHandle, std::shared_ptr<MidiSharedRing> &buffer)
@@ -181,7 +180,6 @@ int32_t DeviceConnectionForOutput::Stop()
     if (!running_.compare_exchange_strong(expected, false)) {
         return OH_MIDI_STATUS_OK;
     }
-
     WakeWorkerByEventFd();
 
     if (worker_.joinable()) {
@@ -321,14 +319,13 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
         if (status != MidiStatusCode::OK) {
             break;
         }
-        if (ringEvent.timestamp == 0) {  // todo: use func and judge if timestamp + 1 < now
+        if (ringEvent.localHeader.timestamp == 0) {  // todo: use func and judge if timestamp + 1 < now
             if (!ConsumeRealtimeEvent(clientRing, ringEvent)) {
                 break;
             }
             continue;
         }
         if (!ConsumeNonRealtimeEvent(clientConnection, clientRing, ringEvent)) {
-            // 堆满/入堆失败：不 CommitRead，保留共享内存，停止读取该 client
             break;
         }
     }
@@ -337,21 +334,21 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
 bool DeviceConnectionForOutput::ConsumeRealtimeEvent(MidiSharedRing& clientRing,
                                                      const MidiSharedRing::PeekedEvent& ringEvent)
 {
-    const size_t payloadWordCount = static_cast<size_t>(ringEvent.length);
+    const size_t payloadWordCount = static_cast<size_t>(ringEvent.localHeader.length);
     const uint32_t* payloadWords =
         reinterpret_cast<const uint32_t*>(ringEvent.payloadPtr);
 
     // try enqueue send cache
-    auto res = TryAppendToSendCache(ringEvent.timestamp, payloadWords, payloadWordCount);
+    auto res = TryAppendToSendCache(ringEvent.localHeader.timestamp, payloadWords, payloadWordCount);
     if (res) {
         clientRing.CommitRead(ringEvent);
         return true;
     }
     // if unable to enqueue, flush the send cache, and try again
     FlushSendCacheToDriver();
-    if (!TryAppendToSendCache(ringEvent.timestamp, payloadWords, payloadWordCount)) {
+    if (!TryAppendToSendCache(ringEvent.localHeader.timestamp, payloadWords, payloadWordCount)) {
         MidiEventInner directEvent {};
-        directEvent.timestamp = ringEvent.timestamp;
+        directEvent.timestamp = ringEvent.localHeader.timestamp;
         directEvent.length = payloadWordCount;
         directEvent.data = payloadWords;
         SendToDriver(directEvent);
@@ -369,9 +366,10 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         return false;
     }
 
-    const auto dueTime = std::chrono::steady_clock::time_point(std::chrono::nanoseconds(ringEvent.timestamp));
+    const auto dueTime = std::chrono::steady_clock::time_point(
+        std::chrono::nanoseconds(ringEvent.localHeader.timestamp));
 
-    const size_t payloadWordCount = static_cast<size_t>(ringEvent.length);
+    const size_t payloadWordCount = static_cast<size_t>(ringEvent.localHeader.length);
     const size_t payloadBytes = payloadWordCount * sizeof(uint32_t);
 
     std::vector<uint32_t> payloadWords;
@@ -382,7 +380,8 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
     }
 
-    const bool enqueued = clientConnection.EnqueueNonRealtime(std::move(payloadWords), dueTime, ringEvent.timestamp);
+    const bool enqueued = clientConnection.EnqueueNonRealtime(
+        std::move(payloadWords), dueTime, ringEvent.localHeader.timestamp);
     if (!enqueued) {
         return false;
     }

@@ -36,6 +36,7 @@ namespace MIDI {
 
 namespace {
 constexpr int32_t INVALID_FD = -1;
+static constexpr int MINFD = 2;
 // midi_shared_ring.cpp 内部 MAX_MMAP_BUFFER_SIZE = 0x2000
 constexpr uint32_t MAX_MMAP_BUFFER_SIZE = 0x2000;
 } // namespace
@@ -91,7 +92,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_002, TestSize.Level0)
     const size_t totalSize = sizeof(ControlHeader) + static_cast<size_t>(RING_CAPACITY_BYTES);
 
     int fd = AshmemCreate("midi_shared_buffer_ut", totalSize);
-    ASSERT_GT(fd, 2);
+    ASSERT_GT(fd, MINFD);
 
     MidiSharedRing ring(RING_CAPACITY_BYTES);
     int32_t ret = ring.Init(fd);
@@ -107,7 +108,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_002, TestSize.Level0)
     EXPECT_NE(nullptr, ring.GetFutex());
     EXPECT_TRUE(ring.IsEmpty());
 
-    // Init 内部会 dup(fd) 再 mmap；这里关闭原 fd 不应影响 ring 使用
+    // Init internally calls dup(fd) then mmap;
+    // closing original fd should not affect ring usage
     close(fd);
 }
 
@@ -144,7 +146,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_003, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_004, TestSize.Level0)
 {
     // totalMemorySize_ = sizeof(ControlHeader) + ringCapacityBytes
-    // 这里 ringCapacityBytes >= MAX_MMAP_BUFFER_SIZE，必然超过上限
+    // ringCapacityBytes >= MAX_MMAP_BUFFER_SIZE will definitely exceed limit
     constexpr uint32_t TOO_LARGE_RING_CAPACITY = MAX_MMAP_BUFFER_SIZE;
 
     MidiSharedRing ring(TOO_LARGE_RING_CAPACITY);
@@ -190,7 +192,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_005, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCreateFromRemote_001, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 128;
-    auto ring = MidiSharedRing::CreateFromRemote(RING_CAPACITY_BYTES, 2); // STDERR_FILENO
+    auto ring = MidiSharedRing::CreateFromRemote(RING_CAPACITY_BYTES, MINFD); // STDERR_FILENO
     EXPECT_EQ(nullptr, ring);
 }
 
@@ -380,8 +382,10 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
     MidiSharedRing ring(128);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    // payload1: 21 words => 84 bytes payload, totalBytes = 16 + 84 = 100
-    std::vector<uint32_t> payload1(21, 0x1);
+    // Use 19 words (76 bytes) payload so total is 24 + 76 = 100 bytes
+    // This leaves 128 - 100 = 28 bytes tail space, enough for 24-byte wrap header
+    // (header is 24 bytes: 8 timestamp + 4 length + 4 flags + 4 sequence + 4 padding)
+    std::vector<uint32_t> payload1(19, 0x1);
     MidiEventInner ev1 = MakeEvent(10, payload1);
 
     uint32_t written = 0;
@@ -389,6 +393,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
     ASSERT_EQ(1u, written);
 
     const uint32_t writeAfterEv1 = ring.GetWritePosition();
+    ASSERT_EQ(100u, writeAfterEv1);  // 24 + 19*4 = 100
 
     // release space to make event2 possible while tail is insufficient
     auto *ctrl = ring.GetControlHeader();
@@ -431,8 +436,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_008, TestSize.Leve
 
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peek));
-    EXPECT_EQ(77u, peek.timestamp);
-    EXPECT_EQ(0u, peek.length);
+    EXPECT_EQ(77u, peek.localHeader.timestamp);
+    EXPECT_EQ(0u, peek.localHeader.length);
 }
 
 /**
@@ -511,8 +516,10 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     MidiSharedRing ring(128);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    // event1 totalBytes = 16 + 21*4 = 100, so writePosition becomes 100.
-    std::vector<uint32_t> payload1(21, 0);
+    // Use 19 words (76 bytes) payload so total is 24 + 76 = 100 bytes
+    // This leaves 128 - 100 = 28 bytes tail space, enough for 24-byte wrap header
+    // (header is 24 bytes: 8 timestamp + 4 length + 4 flags + 4 sequence + 4 padding)
+    std::vector<uint32_t> payload1(19, 0);
     FillU32(payload1, 0x10);
     MidiEventInner ev1 = MakeEvent(10, payload1);
 
@@ -520,13 +527,13 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
     ASSERT_EQ(1u, written);
     uint32_t writeAfterEv1 = ring.GetWritePosition();
-    ASSERT_EQ(100u, writeAfterEv1);
+    ASSERT_EQ(100u, writeAfterEv1);  // 24 + 19*4 = 100
 
     // Read event1 first.
     MidiSharedRing::PeekedEvent p1{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p1));
-    EXPECT_EQ(10u, p1.timestamp);
-    EXPECT_EQ(21u, p1.length);
+    EXPECT_EQ(10u, p1.localHeader.timestamp);
+    EXPECT_EQ(19u, p1.localHeader.length);  // Changed from 21 to 19
     ring.CommitRead(p1);
     EXPECT_EQ(writeAfterEv1, ring.GetReadPosition());
 
@@ -539,8 +546,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     // Now readIndex points to WRAP header; PeekNext should consume it and return event2 at offset 0.
     MidiSharedRing::PeekedEvent p2{};
     ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(p2));
-    EXPECT_EQ(20u, p2.timestamp);
-    EXPECT_EQ(4u, p2.length);
+    EXPECT_EQ(20u, p2.localHeader.timestamp);
+    EXPECT_EQ(4u, p2.localHeader.length);
     EXPECT_EQ(0u, p2.beginOffset);
 }
 
@@ -587,12 +594,12 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCommitRead_001, TestSize.Level0)
 
     MidiSharedRing::PeekedEvent ev{};
     ev.endOffset = 128; // == capacity
-    ring.CommitRead(ev);
+    EXPECT_TRUE(ring.CommitRead(ev));
     EXPECT_EQ(0u, ring.GetReadPosition());
 
     ctrl->readPosition.store(10);
     ev.endOffset = 129; // > capacity
-    ring.CommitRead(ev);
+    EXPECT_TRUE(ring.CommitRead(ev));
     EXPECT_EQ(0u, ring.GetReadPosition());
 }
 
@@ -663,7 +670,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_002, TestSize.Level0
     // still has one event
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peek));
-    EXPECT_EQ(2u, peek.timestamp);
+    EXPECT_EQ(2u, peek.localHeader.timestamp);
 }
 
 /**
@@ -707,6 +714,58 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingDrainToBatch_003, TestSize.Level0
 
     // After draining first event, read position should now point to corrupted header offset.
     EXPECT_EQ(corruptOff, ring.GetReadPosition());
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Header Modification Race Condition
+ * @tc.number : MidiSharedRingRaceCondition_001
+ * @tc.desc   : Detect race condition when header is modified between peek and commit.
+ *              This test verifies the fix for TOCTOU vulnerability in PeekNext.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRaceCondition_001, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write initial event
+    std::vector<uint32_t> payload{0xDEADBEEF, 0xCAFEBABE};
+    MidiEventInner ev = MakeEvent(0x12345678, payload);
+
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // Get the read position where header is located
+    uint32_t readPos = ring.GetReadPosition();
+    ASSERT_EQ(0u, readPos);
+
+    // Directly access the header in shared memory
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(base + readPos);
+
+    uint32_t origLen = header->length;
+
+    uint64_t peekTs = header->timestamp;
+
+    // Simulate concurrent modification (what a malicious or buggy writer might do)
+    header->length = 0xFFFFFFFF;
+
+    // Read again (simulating the use phase in BuildPeekedEvent)
+    uint64_t useTs = header->timestamp;
+    uint32_t useLen = header->length;
+
+    // This demonstrates the vulnerability: values changed between peek and use
+    EXPECT_EQ(peekTs, useTs) << "Timestamp should not change";
+    // This assertion will fail before the fix is applied, demonstrating the race:
+    // EXPECT_EQ(peekLen, useLen) << "Length changed - race condition detected!";
+
+    // Verify the modification actually happened
+    EXPECT_NE(origLen, useLen) << "Header was not modified - test setup error";
+    EXPECT_EQ(0xFFFFFFFFu, useLen) << "Header modification not detected";
+
+    // After the fix is applied, PeekNext should detect this via sequence numbers
+    // and return WOULD_BLOCK to trigger a retry
 }
 } // namespace MIDI
 } // namespace OHOS

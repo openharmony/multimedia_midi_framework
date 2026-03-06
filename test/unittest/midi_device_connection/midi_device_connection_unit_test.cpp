@@ -197,15 +197,15 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
     for (auto *ringPointer : {clientRingBuffer1.get(), clientRingBuffer2.get()}) {
         MidiSharedRing::PeekedEvent peekedEvent1{};
         ASSERT_EQ(MidiStatusCode::OK, ringPointer->PeekNext(peekedEvent1));
-        EXPECT_EQ(10u, peekedEvent1.timestamp);
+        EXPECT_EQ(10u, peekedEvent1.localHeader.timestamp);
         // MidiSharedRing stores payload length in bytes
-        EXPECT_EQ(payloadWords1.size(), static_cast<size_t>(peekedEvent1.length));
+        EXPECT_EQ(payloadWords1.size(), static_cast<size_t>(peekedEvent1.localHeader.length));
         ringPointer->CommitRead(peekedEvent1);
 
         MidiSharedRing::PeekedEvent peekedEvent2{};
         ASSERT_EQ(MidiStatusCode::OK, ringPointer->PeekNext(peekedEvent2));
-        EXPECT_EQ(20u, peekedEvent2.timestamp);
-        EXPECT_EQ(payloadWords2.size(), static_cast<size_t>(peekedEvent2.length));
+        EXPECT_EQ(20u, peekedEvent2.localHeader.timestamp);
+        EXPECT_EQ(payloadWords2.size(), static_cast<size_t>(peekedEvent2.localHeader.length));
         ringPointer->CommitRead(peekedEvent2);
 
         MidiSharedRing::PeekedEvent peekedEvent3{};
@@ -226,8 +226,8 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_001, TestSize.Le
 
     // client 2 ring should have the new event
     ASSERT_EQ(MidiStatusCode::OK, clientRingBuffer2->PeekNext(peekedEventAfterRemove));
-    EXPECT_EQ(30u, peekedEventAfterRemove.timestamp);
-    EXPECT_EQ(payloadWords3.size(), static_cast<size_t>(peekedEventAfterRemove.length));
+    EXPECT_EQ(30u, peekedEventAfterRemove.localHeader.timestamp);
+    EXPECT_EQ(payloadWords3.size(), static_cast<size_t>(peekedEventAfterRemove.localHeader.length));
 }
 
 //==================== DeviceConnectionForOutput ====================//

@@ -37,6 +37,7 @@ struct alignas(64) ControlHeader {        // 64 bytes for cache line
     uint32_t capacity;                    // ring data capacity
     std::atomic<uint32_t> futexObj;       // for futex
     uint32_t flags;                       // for expand
+    std::atomic<uint32_t> flushFlag{0};   // for Flush synchronization
 };
 
 enum ShmEventFlags : uint32_t {
@@ -48,6 +49,19 @@ struct ShmMidiEventHeader {
     uint64_t timestamp;
     uint32_t length;
     uint32_t flags;
+    std::atomic<uint32_t> sequence{0};  // Sequence number for detecting concurrent modification (TOCTOU protection)
+
+    // Custom copy assignment operator to handle atomic field
+    ShmMidiEventHeader& operator=(const ShmMidiEventHeader& other)
+    {
+        if (this != &other) {
+            timestamp = other.timestamp;
+            length = other.length;
+            flags = other.flags;
+            sequence.store(other.sequence.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        }
+        return *this;
+    }
 };
 
 class MidiSharedRing : public Parcelable {
@@ -88,18 +102,30 @@ public:
     MidiStatusCode TryWriteEvent(const MidiEventInner &event, bool notify = true);
 
     struct PeekedEvent {
-        const ShmMidiEventHeader *headerPtr = nullptr;
+        ShmMidiEventHeader localHeader{};  // Local copy of header (TOCTOU protection)
         const uint8_t *payloadPtr = nullptr;
 
-        uint64_t timestamp = 0;
-        uint32_t length = 0;
         uint32_t beginOffset = 0;  // header
         uint32_t endOffset = 0;    // header + payload range[0, capacity]
+        uint32_t sequence = 0;     // Header sequence for verification
+
+        // Custom copy assignment operator
+        PeekedEvent& operator=(const PeekedEvent& other)
+        {
+            if (this != &other) {
+                localHeader = other.localHeader;
+                payloadPtr = other.payloadPtr;
+                beginOffset = other.beginOffset;
+                endOffset = other.endOffset;
+                sequence = other.sequence;
+            }
+            return *this;
+        }
     };
 
     MidiStatusCode PeekNext(PeekedEvent &outEvent);
 
-    void CommitRead(const PeekedEvent &event);
+    bool CommitRead(const PeekedEvent &event);
     void DrainToBatch(std::vector<MidiEvent> &outEvents, std::vector<std::vector<uint32_t>> &outPayloadBuffers,
         uint32_t maxEvents = 0);
     void Flush();
