@@ -127,7 +127,7 @@ void DeviceConnectionForInput::BroadcastToClients(const MidiEventInner &ev)
     for (auto &c : clients) {
         if (!c)
             continue;
-        c->TrySendToClient(ev);  // debug: check return value
+        c->TrySendToClient(ev);
     }
 }
 
@@ -181,7 +181,6 @@ int32_t DeviceConnectionForOutput::Stop()
     if (!running_.compare_exchange_strong(expected, false)) {
         return OH_MIDI_STATUS_OK;
     }
-
     WakeWorkerByEventFd();
 
     if (worker_.joinable()) {
@@ -328,7 +327,6 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
             continue;
         }
         if (!ConsumeNonRealtimeEvent(clientConnection, clientRing, ringEvent)) {
-            // 堆满/入堆失败：不 CommitRead，保留共享内存，停止读取该 client
             break;
         }
     }

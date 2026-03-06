@@ -36,6 +36,7 @@ namespace MIDI {
 
 namespace {
 constexpr int32_t INVALID_FD = -1;
+static constexpr int MINFD = 2;
 // midi_shared_ring.cpp 内部 MAX_MMAP_BUFFER_SIZE = 0x2000
 constexpr uint32_t MAX_MMAP_BUFFER_SIZE = 0x2000;
 } // namespace
@@ -91,7 +92,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_002, TestSize.Level0)
     const size_t totalSize = sizeof(ControlHeader) + static_cast<size_t>(RING_CAPACITY_BYTES);
 
     int fd = AshmemCreate("midi_shared_buffer_ut", totalSize);
-    ASSERT_GT(fd, 2);
+    ASSERT_GT(fd, MINFD);
 
     MidiSharedRing ring(RING_CAPACITY_BYTES);
     int32_t ret = ring.Init(fd);
@@ -190,7 +191,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_005, TestSize.Level0)
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCreateFromRemote_001, TestSize.Level0)
 {
     constexpr uint32_t RING_CAPACITY_BYTES = 128;
-    auto ring = MidiSharedRing::CreateFromRemote(RING_CAPACITY_BYTES, 2); // STDERR_FILENO
+    auto ring = MidiSharedRing::CreateFromRemote(RING_CAPACITY_BYTES, MINFD); // STDERR_FILENO
     EXPECT_EQ(nullptr, ring);
 }
 
@@ -742,11 +743,9 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRaceCondition_001, TestSize.Level
     ASSERT_NE(nullptr, base);
     auto *header = reinterpret_cast<ShmMidiEventHeader *>(base + readPos);
 
-    // Record original values
     // uint64_t origTs (unused) = header->timestamp;
     uint32_t origLen = header->length;
 
-    // Simulate what PeekNext does: read header values
     uint64_t peekTs = header->timestamp;
     // uint32_t peekLen (unused) = header->length;
 
