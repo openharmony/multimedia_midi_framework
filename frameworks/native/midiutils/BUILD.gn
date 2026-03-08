@@ -38,11 +38,11 @@ ohos_shared_library("midiutils") {
     "${midi_framework_root}/interfaces/kits/c/midi",
   ]
 
-  deps = [
-  ]
+  deps = []
 
   external_deps = [
     "hilog:libhilog",
+    "ipc:ipc_single",
   ]
 
   cflags_cc = [ "-std=c++20" ]

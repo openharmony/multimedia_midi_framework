@@ -23,7 +23,7 @@ class MidiListenerCallback : public MidiServiceCallback {
 public:
     MidiListenerCallback(const sptr<IMidiCallback> &listener);
     virtual ~MidiListenerCallback();
-    void NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo) override;
+    void NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo) override;
     void NotifyError(int32_t code) override;
 
 private:

@@ -98,8 +98,9 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
             HDI::Midi::V1_0::MidiDeviceInfo device{};
             device.deviceId = expectedDeviceId;
             device.protocol = HDI::Midi::V1_0::MIDI_PROTOCOL_1_0;
-            device.productName = "TestProduct";
-            device.vendorName = "TestVendor";
+            device.productId = "0x1234";
+            device.vendorId = "0x5678";
+            device.deviceName = "TestProduct";
 
             HDI::Midi::V1_0::MidiPortInfo port0{};
             port0.portId = expectedPortId0;
@@ -123,11 +124,12 @@ HWTEST_F(MidiDeviceUsbUnitTest, GetRegisteredDevices_002, TestSize.Level0)
     ASSERT_EQ(1u, deviceInfos.size());
     const auto &devInfo = deviceInfos[0];
 
-    EXPECT_EQ(expectedDeviceId, devInfo.driverDeviceId);
-    EXPECT_EQ(DEVICE_TYPE_USB, devInfo.deviceType);
-    EXPECT_EQ(static_cast<TransportProtocol>(expectedProtocol), devInfo.transportProtocol);
-    EXPECT_EQ("TestProduct", devInfo.productId);
-    EXPECT_EQ("TestVendor", devInfo.vendorId);
+    EXPECT_EQ(expectedDeviceId, devInfo.midiDeviceInfo.driverDeviceId);
+    EXPECT_EQ(DeviceType::DEVICE_TYPE_USB, devInfo.midiDeviceInfo.deviceType);
+    EXPECT_EQ(static_cast<TransportProtocol>(expectedProtocol), devInfo.midiDeviceInfo.transportProtocol);
+    EXPECT_EQ("TestProduct", devInfo.midiDeviceInfo.deviceName);
+    EXPECT_EQ(0x1234u, devInfo.midiDeviceInfo.productId);
+    EXPECT_EQ(0x5678u, devInfo.midiDeviceInfo.vendorId);
 
     ASSERT_EQ(2u, devInfo.portInfos.size());
 

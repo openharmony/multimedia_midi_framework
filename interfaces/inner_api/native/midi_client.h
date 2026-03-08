@@ -15,7 +15,7 @@
 #ifndef MIDI_CLIENT_H
 #define MIDI_CLIENT_H
 #include "native_midi_base.h"
-#include "midi_info.h"
+#include <string>
 namespace OHOS {
 namespace MIDI {
 
