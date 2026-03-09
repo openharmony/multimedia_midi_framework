@@ -767,5 +767,289 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRaceCondition_001, TestSize.Level
     // After the fix is applied, PeekNext should detect this via sequence numbers
     // and return WOULD_BLOCK to trigger a retry
 }
+
+//==================== Sequence Number Tests (TOCTOU Protection) ====================//
+// Sequence lock pattern in MidiSharedRing:
+// - Writer: even_seq + 1 (odd, write in progress) -> write data -> even_seq + 2 (even, write complete)
+// - Reader: check seq is even, read data, check seq unchanged
+// SEQ_WRITE_START_INCREMENT = 1 (makes seq odd)
+// SEQ_WRITE_COMPLETE_TOTAL = 2 (adds 2 to original even seq, result is even)
+
+/**
+ * @tc.name   : Test MidiSharedRing Sequence Number
+ * @tc.number : MidiSharedRingSequenceNumber_001
+ * @tc.desc   : Verify that sequence number is even after write completes.
+ *              Write pattern: seq+1 (odd) -> write data -> seq+2 (even).
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_001, TestSize.Level0)
+{
+    // RING_CAPACITY: 256 bytes, enough for header(24 bytes) + small payload
+    constexpr uint32_t RING_CAPACITY = 256;
+    MidiSharedRing ring(RING_CAPACITY);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write an event with 2 words (8 bytes) payload
+    std::vector<uint32_t> payload{0x11111111, 0x22222222};
+    MidiEventInner ev = MakeEvent(100, payload);
+
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // Access header at read position (where we just wrote)
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(base);
+
+    // SEQ_WRITE_COMPLETE_TOTAL = 2, so after write completes: 0 + 2 = 2 (even)
+    uint32_t seq = header->sequence.load(std::memory_order_relaxed);
+    EXPECT_EQ(0u, seq % 2) << "Sequence should be even after write completes, got: " << seq;
+    EXPECT_EQ(2u, seq) << "First write should result in seq=2 (0+2)";
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Sequence Number Odd Correction
+ * @tc.number : MidiSharedRingSequenceNumber_002
+ * @tc.desc   : Verify that odd sequence number is corrected during write.
+ *              Tests the fix in commit 1c417b0: if seq is odd, add 1 to make it even first.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_002, TestSize.Level0)
+{
+    // RING_CAPACITY: 256 bytes
+    constexpr uint32_t RING_CAPACITY = 256;
+    MidiSharedRing ring(RING_CAPACITY);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write initial event to establish a header
+    std::vector<uint32_t> payload{0xAAAA};
+    MidiEventInner ev = MakeEvent(1, payload);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(base);
+
+    // Corrupt sequence to odd value (simulate interrupted write or memory corruption)
+    // ODD_SEQUENCE_VALUE: 5 is an arbitrary odd number representing corrupted state
+    constexpr uint32_t ODD_SEQUENCE_VALUE = 5;
+    header->sequence.store(ODD_SEQUENCE_VALUE, std::memory_order_relaxed);
+
+    // Commit the first event by peeking and committing
+    MidiSharedRing::PeekedEvent peek1;
+    // Manually set sequence to even for peek to succeed
+    header->sequence.store(6, std::memory_order_relaxed);
+    ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(peek1));
+    ASSERT_TRUE(ring.CommitRead(peek1));
+
+    // Now header is at a new location, write another event
+    // The new write location might have uninitialized (possibly odd) sequence
+    std::vector<uint32_t> payload2{0xBBBB};
+    MidiEventInner ev2 = MakeEvent(2, payload2);
+
+    // Reset the header at old position to odd to test the correction logic
+    // Note: after CommitRead, write position is still at 32 (first event end)
+    // We're about to write to offset 32, so let's corrupt that location
+    auto *nextHeader = reinterpret_cast<ShmMidiEventHeader *>(base + 32);  // 32 = 24 (header) + 8 (2 words)
+    nextHeader->sequence.store(ODD_SEQUENCE_VALUE, std::memory_order_relaxed);
+
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev2, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // After write completes, sequence should be even
+    // Correction: 5 (odd) -> 6 (even) -> 7 (start) -> 8 (complete)
+    uint32_t seq = nextHeader->sequence.load(std::memory_order_relaxed);
+    EXPECT_EQ(0u, seq % 2) << "Sequence should be even after corrected write, got: " << seq;
+    // Expected: (5 + 1) + 2 = 8
+    EXPECT_EQ(8u, seq) << "Corrected write should result in seq=8";
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing TOCTOU Protection on Odd Sequence
+ * @tc.number : MidiSharedRingTOCTOU_001
+ * @tc.desc   : Verify PeekNext rejects events with odd sequence numbers
+ *              (indicating write in progress) and returns WOULD_BLOCK.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTOCTOU_001, TestSize.Level0)
+{
+    // RING_CAPACITY: 256 bytes
+    constexpr uint32_t RING_CAPACITY = 256;
+    MidiSharedRing ring(RING_CAPACITY);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write initial event
+    std::vector<uint32_t> payload{0xDEAD};
+    MidiEventInner ev = MakeEvent(100, payload);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(base);
+
+    // Corrupt sequence to odd (simulate concurrent write in progress)
+    // ODD_SEQUENCE: 7 is an arbitrary odd number representing "write in progress"
+    constexpr uint32_t ODD_SEQUENCE = 7;
+    header->sequence.store(ODD_SEQUENCE, std::memory_order_relaxed);
+
+    // PeekNext should fail with WOULD_BLOCK (retry needed due to concurrent write)
+    MidiSharedRing::PeekedEvent peek;
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.PeekNext(peek));
+
+    // Fix sequence back to even (write complete)
+    // EVEN_SEQUENCE: 8 is the expected value after write completes
+    constexpr uint32_t EVEN_SEQUENCE = 8;
+    header->sequence.store(EVEN_SEQUENCE, std::memory_order_relaxed);
+
+    // Now PeekNext should succeed
+    EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peek));
+    EXPECT_EQ(100u, peek.localHeader.timestamp);
+    EXPECT_EQ(EVEN_SEQUENCE, peek.sequence);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing CommitRead Sequence Verification
+ * @tc.number : MidiSharedRingCommitRead_002
+ * @tc.desc   : Verify CommitRead rejects event if sequence changed between peek and commit.
+ *              This prevents TOCTOU race conditions.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCommitRead_002, TestSize.Level0)
+{
+    // RING_CAPACITY: 256 bytes
+    constexpr uint32_t RING_CAPACITY = 256;
+    MidiSharedRing ring(RING_CAPACITY);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write event
+    std::vector<uint32_t> payload{0xBEEF};
+    MidiEventInner ev = MakeEvent(999, payload);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+
+    // Peek the event
+    MidiSharedRing::PeekedEvent peek;
+    ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(peek));
+    EXPECT_EQ(999u, peek.localHeader.timestamp);
+
+    // Store original sequence from peek
+    uint32_t origSeq = peek.sequence;
+
+    // Simulate concurrent modification - change sequence
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(base + peek.beginOffset);
+    // MODIFIED_SEQUENCE: origSeq + 100 simulates a different write cycle
+    constexpr uint32_t SEQUENCE_DELTA = 100;
+    header->sequence.store(origSeq + SEQUENCE_DELTA, std::memory_order_relaxed);
+
+    // CommitRead should reject this event because sequence changed
+    EXPECT_FALSE(ring.CommitRead(peek));
+
+    // Read position should NOT have changed (commit was rejected)
+    EXPECT_EQ(0u, ring.GetReadPosition());
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Wrap Marker Sequence
+ * @tc.number : MidiSharedRingWrapSequence_001
+ * @tc.desc   : Verify wrap marker has correct even sequence number after write.
+ *              Wrap markers use the same sequence lock pattern as regular events.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWrapSequence_001, TestSize.Level0)
+{
+    // RING_CAPACITY: 128 bytes, small enough to trigger wrap
+    constexpr uint32_t RING_CAPACITY = 128;
+    MidiSharedRing ring(RING_CAPACITY);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // PAYLOAD_WORDS: 19 words = 76 bytes payload
+    // Total event size: 24 (header) + 76 (payload) = 100 bytes
+    // Remaining tail: 128 - 100 = 28 bytes (enough for wrap header)
+    constexpr uint32_t PAYLOAD_WORDS = 19;
+    std::vector<uint32_t> payload1(PAYLOAD_WORDS, 0x11);
+    MidiEventInner ev1 = MakeEvent(10, payload1);
+
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // EVENT_SIZE: 24 (sizeof ShmMidiEventHeader) + 76 (19 * 4 bytes)
+    constexpr uint32_t HEADER_SIZE = 24;  // sizeof(ShmMidiEventHeader)
+    constexpr uint32_t EVENT_SIZE = HEADER_SIZE + PAYLOAD_WORDS * sizeof(uint32_t);
+    uint32_t writeAfterEv1 = ring.GetWritePosition();
+    ASSERT_EQ(EVENT_SIZE, writeAfterEv1);
+
+    // Move read position to free up space for wrap + second event
+    // READ_POS: 64 is chosen to leave enough space for the second event after wrap
+    constexpr uint32_t READ_POS = 64;
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    ctrl->readPosition.store(READ_POS);
+
+    // Write small event that will trigger wrap (tail space insufficient)
+    std::vector<uint32_t> payload2{0xAA, 0xBB};
+    MidiEventInner ev2 = MakeEvent(20, payload2);
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev2, 1, &written, false));
+
+    // Verify wrap marker at old write position
+    auto *base = ring.GetDataBase();
+    ASSERT_NE(nullptr, base);
+    auto *wrapHdr = reinterpret_cast<ShmMidiEventHeader *>(base + writeAfterEv1);
+
+    EXPECT_EQ(SHM_EVENT_FLAG_WRAP, wrapHdr->flags);
+    EXPECT_EQ(0u, wrapHdr->length);
+
+    // Verify wrap marker sequence is even (write complete)
+    uint32_t wrapSeq = wrapHdr->sequence.load(std::memory_order_relaxed);
+    EXPECT_EQ(0u, wrapSeq % 2) << "Wrap marker sequence should be even, got: " << wrapSeq;
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Sequence Number Wraparound Correction
+ * @tc.number : MidiSharedRingSequenceNumber_003
+ * @tc.desc   : Verify odd sequence correction works correctly at wrap boundary.
+ *              Tests the fix in UpdateWriteIndexIfNeed where wrap marker is written.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_003, TestSize.Level0)
+{
+    // RING_CAPACITY: 128 bytes
+    constexpr uint32_t RING_CAPACITY = 128;
+    MidiSharedRing ring(RING_CAPACITY);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write first event to use most of the buffer
+    constexpr uint32_t PAYLOAD_WORDS = 19;  // 76 bytes payload
+    std::vector<uint32_t> payload1(PAYLOAD_WORDS, 0x11);
+    MidiEventInner ev1 = MakeEvent(1, payload1);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
+
+    constexpr uint32_t HEADER_SIZE = 24;
+    constexpr uint32_t EVENT_SIZE = HEADER_SIZE + PAYLOAD_WORDS * sizeof(uint32_t);
+    uint32_t wrapOffset = ring.GetWritePosition();
+    ASSERT_EQ(EVENT_SIZE, wrapOffset);  // 100 bytes
+
+    // Corrupt the sequence at wrap position to odd value
+    // This simulates uninitialized memory or previous interrupted write
+    auto *base = ring.GetDataBase();
+    auto *wrapHeader = reinterpret_cast<ShmMidiEventHeader *>(base + wrapOffset);
+    constexpr uint32_t ODD_SEQ = 13;  // Arbitrary odd sequence
+    wrapHeader->sequence.store(ODD_SEQ, std::memory_order_relaxed);
+
+    // Free up space by moving read position
+    auto *ctrl = ring.GetControlHeader();
+    ctrl->readPosition.store(50);  // Free up 50 bytes from beginning
+
+    // Write another event - this should trigger wrap and write wrap marker
+    std::vector<uint32_t> payload2{0x22};
+    MidiEventInner ev2 = MakeEvent(2, payload2);
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev2, 1, &written, false));
+
+    // Verify wrap marker was written with even sequence
+    // The correction should ensure: odd(13) -> even(14) -> start(15) -> complete(16)
+    uint32_t wrapSeq = wrapHeader->sequence.load(std::memory_order_relaxed);
+    EXPECT_EQ(0u, wrapSeq % 2) << "Wrap marker sequence should be even after correction, got: " << wrapSeq;
+    EXPECT_EQ(static_cast<uint32_t>(ODD_SEQ + 3), wrapSeq) << "Expected seq=" << (ODD_SEQ + 3);
+}
 } // namespace MIDI
 } // namespace OHOS
