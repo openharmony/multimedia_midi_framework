@@ -259,7 +259,7 @@ static MidiEventInner MakeEvent(uint64_t ts, const std::vector<uint32_t> &payloa
 /**
  * @tc.name   : Test MidiSharedRing TryWriteEvents API
  * @tc.number : MidiSharedRingTryWriteEvents_001
- * @tc.desc   : eventCount == 0 should return INVALID_ARGUMENT and write 0 events.
+ * @tc.desc   : eventCount == 0 should return OK (valid empty write) and write 0 events.
  */
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_001, TestSize.Level0)
 {
@@ -269,7 +269,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_001, TestSize.Leve
     uint32_t written = 123;
     auto ret = ring.TryWriteEvents(nullptr, 0, &written, false);
     EXPECT_EQ(0u, written);
-    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ret);
+    EXPECT_EQ(MidiStatusCode::OK, ret);
     EXPECT_TRUE(ring.IsEmpty());
 }
 
@@ -848,9 +848,9 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_002, TestSize.Leve
     MidiEventInner ev2 = MakeEvent(2, payload2);
 
     // Reset the header at old position to odd to test the correction logic
-    // Note: after CommitRead, write position is still at 32 (first event end)
-    // We're about to write to offset 32, so let's corrupt that location
-    auto *nextHeader = reinterpret_cast<ShmMidiEventHeader *>(base + 32);  // 32 = 24 (header) + 8 (2 words)
+    // Note: after CommitRead, write position is still at 28 (first event end)
+    // We're about to write to offset 28, so let's corrupt that location
+    auto *nextHeader = reinterpret_cast<ShmMidiEventHeader *>(base + 28);  // 28 = 24 (header) + 4 (1 word)
     nextHeader->sequence.store(ODD_SEQUENCE_VALUE, std::memory_order_relaxed);
 
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev2, 1, &written, false));
