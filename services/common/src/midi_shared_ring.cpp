@@ -698,8 +698,12 @@ bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t total
     // if tailBytes not enough, wrap and update writeIndex
     if (tail >= sizeof(ShmMidiEventHeader)) {
         auto *header = reinterpret_cast<ShmMidiEventHeader *>(ringBase_ + writeIndex);
-    // Use atomic write for wrap marker with sequence
+        // Use atomic write for wrap marker with sequence
         uint32_t seq = header->sequence.load(std::memory_order_relaxed);
+        // ensure it odd to prevent memory corrupt
+        if (seq & 1) {
+            seq += SEQ_WRITE_START_INCREMENT;
+        }
         header->sequence.store(seq + SEQ_WRITE_START_INCREMENT, std::memory_order_release);
         std::atomic_thread_fence(std::memory_order_release);
         header->timestamp = 0;
@@ -721,6 +725,10 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
 
     // Increment sequence before writing (release ensures prior writes are visible)
     uint32_t seq = header->sequence.load(std::memory_order_relaxed);
+    // ensure it odd to prevent memory corrupt
+    if (seq & 1) {
+        seq += SEQ_WRITE_START_INCREMENT;
+    }
     header->sequence.store(seq + SEQ_WRITE_START_INCREMENT, std::memory_order_release);
     std::atomic_thread_fence(std::memory_order_release);
 
