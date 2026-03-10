@@ -387,13 +387,13 @@ void MidiInputPort::DrainRingAndDispatch()
             callbackEvent.data = out.data();
             datas.push_back(std::move(out));
         } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
-            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(event.data, event.length, out));
+            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi2ToMidi1(event.data, event.length, out));
             callbackEvent.data = out.data();
             datas.push_back(std::move(out));
         }
         callbackEvents.push_back(callbackEvent);
     }
-    
+
     MIDI_DEBUG_LOG("[client] receive midi events from server");
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(midiEvents).c_str());
     callback_(userData_, callbackEvents.data(), callbackEvents.size());
@@ -434,7 +434,7 @@ int32_t MidiOutputPort::Send(const OH_MIDIEvent *events, uint32_t eventCount, ui
             innerEvents[i].data = out.data();
             datas.push_back(std::move(out));
         } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
-            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(events[i].data, events[i].length, out));
+            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi2ToMidi1(events[i].data, events[i].length, out));
             innerEvents[i].data = out.data();
             datas.push_back(std::move(out));
         }
