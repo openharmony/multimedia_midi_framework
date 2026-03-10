@@ -40,6 +40,11 @@ constexpr uint32_t MASK_BYTE           = 0xFFu;
 constexpr uint8_t  MASK_7BIT           = 0x7Fu;
 constexpr uint16_t MASK_14BIT          = 0x3FFFu;
 
+// Flex Data format threshold and word counts
+constexpr uint8_t  FLEX_FORMAT_THRESHOLD = 8;
+constexpr uint8_t  FLEX_WORDS_SHORT      = 2;
+constexpr uint8_t  FLEX_WORDS_LONG       = 4;
+
 // -------------------------
 // UMP Message Types (MT)
 // -------------------------
@@ -385,20 +390,19 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(uint8_t statusNibble,
 size_t UmpConverter::GetUmpWordCount(uint32_t word0)
 {
     uint8_t mt = MessageType(word0);
-
     if (mt == 0xF) {
         // Flex Data: format bits [23:20] determine length
         // format 0-7 = 2 words, format 8-15 = 4 words
         uint8_t format = static_cast<uint8_t>((word0 >> SHIFT_FLEX_FORMAT) & MASK_FLEX_FORMAT);
-        return (format < 8) ? 2 : 4;
+        return (format < FLEX_FORMAT_THRESHOLD) ? FLEX_WORDS_SHORT : FLEX_WORDS_LONG;
     }
 
     return UMP_WORD_COUNT[mt];
 }
 
 void UmpConverter::SplitUmpPackets(const uint32_t* data,
-                                    size_t wordCount,
-                                    std::vector<std::pair<const uint32_t*, size_t>>& outPackets)
+    size_t wordCount,
+    std::vector<std::pair<const uint32_t*, size_t>>& outPackets)
 {
     outPackets.clear();
 
@@ -409,7 +413,6 @@ void UmpConverter::SplitUmpPackets(const uint32_t* data,
     size_t offset = 0;
     while (offset < wordCount) {
         size_t pktLen = GetUmpWordCount(data[offset]);
-
         if (pktLen == 0) {
             // Invalid MT - skip this word and continue
             offset++;
