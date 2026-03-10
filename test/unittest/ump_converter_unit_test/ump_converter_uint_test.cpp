@@ -428,3 +428,187 @@ HWTEST_F(UmpConverterUnitTest, TestNoMutation_WhenConvertFails, TestSize.Level1)
     EXPECT_EQ(out.size(), oldSize);
     EXPECT_EQ(out[0], 0xDEADBEEFU);
 }
+
+// ====================================================================
+// 6. UMP Packet Word Count (GetUmpWordCount)
+// ====================================================================
+
+/**
+ * @tc.name: TestGetUmpWordCount_AllTypes
+ * @tc.desc: GetUmpWordCount returns correct word count for all valid MT types.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestGetUmpWordCount_AllTypes, TestSize.Level1)
+{
+    // MT 0x0: Utility - 1 word
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x00000000), 1u);
+    // MT 0x1: System Real-Time - 1 word
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x10F80000), 1u);
+    // MT 0x2: MIDI 1.0 Channel Voice - 1 word
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x20903C64), 1u);
+    // MT 0x3: SysEx 7-bit - 2 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x30000000), 2u);
+    // MT 0x4: MIDI 2.0 Channel Voice - 2 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x40000000), 2u);
+    // MT 0x5: Data 128-bit - 4 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x50000000), 4u);
+    // MT 0x6: Per-Note Controller - 4 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x60000000), 4u);
+    // MT 0x7: Stream Configuration - 2 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x70000000), 2u);
+    // MT 0x8: Mixed Data Set - 4 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x80000000), 4u);
+    // MT 0xD: SysEx 8-bit - 4 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0000000), 4u);
+    // MT 0x9-0xC, 0xE: Reserved - 0 (invalid)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x90000000), 0u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xA0000000), 0u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xB0000000), 0u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xC0000000), 0u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xE0000000), 0u);
+}
+
+/**
+ * @tc.name: TestGetUmpWordCount_FlexData
+ * @tc.desc: GetUmpWordCount handles Flex Data (MT=0xF) format bits correctly.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestGetUmpWordCount_FlexData, TestSize.Level1)
+{
+    // MT 0xF format 0-7: 2 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0000000), 2u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0700000), 2u);
+    // MT 0xF format 8-15: 4 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0800000), 4u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0F00000), 4u);
+}
+
+// ====================================================================
+// 7. UMP Packet Splitting (SplitUmpPackets)
+// ====================================================================
+
+/**
+ * @tc.name: TestSplitUmpPackets_SinglePacket
+ * @tc.desc: SplitUmpPackets handles a single UMP packet correctly.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_SinglePacket, TestSize.Level1)
+{
+    std::vector<uint32_t> data = { 0x20903C64 };  // Single Note On
+    std::vector<std::pair<const uint32_t*, size_t>> packets;
+
+    UmpConverter::SplitUmpPackets(data.data(), data.size(), packets);
+
+    EXPECT_EQ(packets.size(), 1u);
+    EXPECT_EQ(packets[0].second, 1u);  // length
+    EXPECT_EQ(packets[0].first[0], 0x20903C64u);
+}
+
+/**
+ * @tc.name: TestSplitUmpPackets_MultiplePackets
+ * @tc.desc: SplitUmpPackets splits multiple concatenated UMP packets correctly.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_MultiplePackets, TestSize.Level1)
+{
+    // Two 1-word packets + one 2-word packet
+    std::vector<uint32_t> data = {
+        0x20903C64,           // Note On (1 word)
+        0x20903E65,           // Note On (1 word)
+        0x30060102, 0x03040506  // SysEx (2 words)
+    };
+    std::vector<std::pair<const uint32_t*, size_t>> packets;
+
+    UmpConverter::SplitUmpPackets(data.data(), data.size(), packets);
+
+    EXPECT_EQ(packets.size(), 3u);
+    EXPECT_EQ(packets[0].second, 1u);
+    EXPECT_EQ(packets[1].second, 1u);
+    EXPECT_EQ(packets[2].second, 2u);
+}
+
+/**
+ * @tc.name: TestSplitUmpPackets_MixedTypes
+ * @tc.desc: SplitUmpPackets handles mixed packet types (1, 2, 4 words).
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_MixedTypes, TestSize.Level1)
+{
+    // 1-word + 2-word + 4-word packets
+    std::vector<uint32_t> data = {
+        0x20903C64,                    // MT 0x2 (1 word)
+        0x40000000, 0x11111111,        // MT 0x4 (2 words)
+        0x50000000, 0x22222222, 0x33333333, 0x44444444  // MT 0x5 (4 words)
+    };
+    std::vector<std::pair<const uint32_t*, size_t>> packets;
+
+    UmpConverter::SplitUmpPackets(data.data(), data.size(), packets);
+
+    EXPECT_EQ(packets.size(), 3u);
+    EXPECT_EQ(packets[0].second, 1u);
+    EXPECT_EQ(packets[1].second, 2u);
+    EXPECT_EQ(packets[2].second, 4u);
+}
+
+/**
+ * @tc.name: TestSplitUmpPackets_SkipInvalidMT
+ * @tc.desc: SplitUmpPackets skips invalid/reserved MT types.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_SkipInvalidMT, TestSize.Level1)
+{
+    // Valid + invalid + valid
+    std::vector<uint32_t> data = {
+        0x20903C64,  // Valid (1 word)
+        0x90000000,  // Invalid MT 0x9 - should be skipped
+        0x20903E65   // Valid (1 word)
+    };
+    std::vector<std::pair<const uint32_t*, size_t>> packets;
+
+    UmpConverter::SplitUmpPackets(data.data(), data.size(), packets);
+
+    // Should get first packet, skip invalid, then second packet
+    EXPECT_EQ(packets.size(), 2u);
+    EXPECT_EQ(packets[0].first[0], 0x20903C64u);
+    EXPECT_EQ(packets[1].first[0], 0x20903E65u);
+}
+
+/**
+ * @tc.name: TestSplitUmpPackets_EmptyInput
+ * @tc.desc: SplitUmpPackets handles empty/null input gracefully.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_EmptyInput, TestSize.Level1)
+{
+    std::vector<std::pair<const uint32_t*, size_t>> packets;
+
+    // Null pointer
+    UmpConverter::SplitUmpPackets(nullptr, 0, packets);
+    EXPECT_EQ(packets.size(), 0u);
+
+    // Zero length
+    uint32_t dummy = 0;
+    UmpConverter::SplitUmpPackets(&dummy, 0, packets);
+    EXPECT_EQ(packets.size(), 0u);
+}
+
+/**
+ * @tc.name: TestSplitUmpPackets_IncompletePacket
+ * @tc.desc: SplitUmpPackets stops at incomplete packet at end of data.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_IncompletePacket, TestSize.Level1)
+{
+    // One valid 1-word packet + incomplete 2-word packet (only 1 word)
+    std::vector<uint32_t> data = {
+        0x20903C64,   // Valid Note On (1 word)
+        0x40000000    // Incomplete MIDI2 CV (needs 2 words, only 1 present)
+    };
+    std::vector<std::pair<const uint32_t*, size_t>> packets;
+
+    UmpConverter::SplitUmpPackets(data.data(), data.size(), packets);
+
+    // Should only get the first complete packet
+    EXPECT_EQ(packets.size(), 1u);
+    EXPECT_EQ(packets[0].first[0], 0x20903C64u);
+}
