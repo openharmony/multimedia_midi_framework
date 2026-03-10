@@ -76,6 +76,33 @@ constexpr uint8_t MIDI2_NOTE_ATTR_NONE = 0;
 
 // MT=0x3 is 64-bit aligned: 2 words per packet
 constexpr size_t WORDS_PER_64BIT_PACKET = 2;
+
+// -------------------------
+// UMP word count lookup table
+// -------------------------
+// Indexed by Message Type (MT) - 0 = invalid/reserved
+constexpr uint8_t UMP_WORD_COUNT[16] = {
+    1,  // 0x0: Utility
+    1,  // 0x1: System Real-Time
+    1,  // 0x2: MIDI 1.0 Channel Voice
+    2,  // 0x3: SysEx 7-bit
+    2,  // 0x4: MIDI 2.0 Channel Voice
+    4,  // 0x5: Data 128-bit
+    4,  // 0x6: Per-Note Controller
+    2,  // 0x7: Stream Configuration
+    4,  // 0x8: Mixed Data Set
+    0,  // 0x9: Reserved
+    0,  // 0xA: Reserved
+    0,  // 0xB: Reserved
+    0,  // 0xC: Reserved
+    4,  // 0xD: SysEx 8-bit
+    0,  // 0xE: Reserved (Future Use)
+    0,  // 0xF: Flex Data (special handling needed)
+};
+
+// Flex Data format bit shift and mask
+constexpr uint32_t SHIFT_FLEX_FORMAT = 20;
+constexpr uint32_t MASK_FLEX_FORMAT = 0x0Fu;
 } // namespace
 
 // -------------------------
@@ -349,5 +376,52 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(uint8_t statusNibble,
         default:
             // Not convertible => drop
             return false;
+    }
+}
+
+// -------------------------
+// UMP Packet Splitting Helpers
+// -------------------------
+size_t UmpConverter::GetUmpWordCount(uint32_t word0)
+{
+    uint8_t mt = MessageType(word0);
+
+    if (mt == 0xF) {
+        // Flex Data: format bits [23:20] determine length
+        // format 0-7 = 2 words, format 8-15 = 4 words
+        uint8_t format = static_cast<uint8_t>((word0 >> SHIFT_FLEX_FORMAT) & MASK_FLEX_FORMAT);
+        return (format < 8) ? 2 : 4;
+    }
+
+    return UMP_WORD_COUNT[mt];
+}
+
+void UmpConverter::SplitUmpPackets(const uint32_t* data,
+                                    size_t wordCount,
+                                    std::vector<std::pair<const uint32_t*, size_t>>& outPackets)
+{
+    outPackets.clear();
+
+    if (data == nullptr || wordCount == 0) {
+        return;
+    }
+
+    size_t offset = 0;
+    while (offset < wordCount) {
+        size_t pktLen = GetUmpWordCount(data[offset]);
+
+        if (pktLen == 0) {
+            // Invalid MT - skip this word and continue
+            offset++;
+            continue;
+        }
+
+        if (offset + pktLen > wordCount) {
+            // Incomplete packet at end - stop
+            break;
+        }
+
+        outPackets.push_back({data + offset, pktLen});
+        offset += pktLen;
     }
 }
