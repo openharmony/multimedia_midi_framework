@@ -374,26 +374,40 @@ void MidiInputPort::DrainRingAndDispatch()
     }
 
     std::vector<OH_MIDIEvent> callbackEvents;
-    callbackEvents.reserve(midiEvents.size());
+    callbackEvents.reserve(midiEvents.size());  // Initial reserve, may grow due to splitting
 
     for (const auto &event : midiEvents) {
-        OH_MIDIEvent callbackEvent{};
-        callbackEvent.timestamp = event.timestamp;
-        callbackEvent.length = event.length;
-        callbackEvent.data = event.data;
-        std::vector<uint32_t> out;
-        if (direction_ == MIDI_1_0_TO_MIDI_2_0) {
-            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(event.data, event.length, out));
-            callbackEvent.data = out.data();
-            datas.push_back(std::move(out));
-        } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
-            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(event.data, event.length, out));
-            callbackEvent.data = out.data();
-            datas.push_back(std::move(out));
+        // Split concatenated UMP packets into individual packets
+        std::vector<std::pair<const uint32_t*, size_t>> packets;
+        UmpConverter::SplitUmpPackets(event.data, event.length, packets);
+
+        // Process each split packet
+        for (const auto &packet : packets) {
+            OH_MIDIEvent callbackEvent{};
+            callbackEvent.timestamp = event.timestamp;
+            callbackEvent.length = packet.second;
+            callbackEvent.data = const_cast<uint32_t*>(packet.first);
+
+            std::vector<uint32_t> out;
+            if (direction_ == MIDI_1_0_TO_MIDI_2_0) {
+                CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(
+                    packet.first, packet.second, out));
+                callbackEvent.data = out.data();
+                datas.push_back(std::move(out));
+            } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
+                CHECK_AND_CONTINUE(UmpConverter::ConvertMidi2ToMidi1(
+                    packet.first, packet.second, out));
+                callbackEvent.data = out.data();
+                datas.push_back(std::move(out));
+            }
+            callbackEvents.push_back(callbackEvent);
         }
-        callbackEvents.push_back(callbackEvent);
     }
-    
+
+    if (callbackEvents.empty()) {
+        return;
+    }
+
     MIDI_DEBUG_LOG("[client] receive midi events from server");
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(midiEvents).c_str());
     callback_(userData_, callbackEvents.data(), callbackEvents.size());
@@ -434,7 +448,7 @@ int32_t MidiOutputPort::Send(const OH_MIDIEvent *events, uint32_t eventCount, ui
             innerEvents[i].data = out.data();
             datas.push_back(std::move(out));
         } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
-            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(events[i].data, events[i].length, out));
+            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi2ToMidi1(events[i].data, events[i].length, out));
             innerEvents[i].data = out.data();
             datas.push_back(std::move(out));
         }

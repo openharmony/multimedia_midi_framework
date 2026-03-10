@@ -15,6 +15,7 @@
 #ifndef UMP_CONVERTER_H
 #define UMP_CONVERTER_H
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 class UmpConverter final {
@@ -58,6 +59,24 @@ public:
     {
         return ConvertOne(Direction::Midi2ToMidi1, inWords, inWordCount, outWords);
     }
+
+    /**
+     * @brief Get the word count of a single UMP packet.
+     * @param word0 The first 32-bit word of the UMP packet.
+     * @return Number of 32-bit words (1-4), or 0 if MT is invalid/reserved.
+     */
+    static size_t GetUmpWordCount(uint32_t word0);
+
+    /**
+     * @brief Split concatenated UMP packets into individual packet references.
+     * @param data Pointer to UMP data array.
+     * @param wordCount Total number of words in the data array.
+     * @param outPackets Output vector of (pointer, length) pairs for each packet.
+     *                   Invalid/incomplete packets are skipped.
+     */
+    static void SplitUmpPackets(const uint32_t* data,
+                                 size_t wordCount,
+                                 std::vector<std::pair<const uint32_t*, size_t>>& outPackets);
 
 private:
     // Helpers: parsing

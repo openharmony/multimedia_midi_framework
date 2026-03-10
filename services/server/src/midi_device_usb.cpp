@@ -61,7 +61,7 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
         devInfo.midiDeviceInfo.transportProtocol = static_cast<TransportProtocol>(device.protocol);
         devInfo.midiDeviceInfo.address = "";
         devInfo.midiDeviceInfo.deviceName = device.deviceName;
-        
+
         uint64_t productId = 0;
         uint64_t vendorId = 0;
         StringToHexNum(device.productId, productId);
