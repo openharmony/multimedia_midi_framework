@@ -24,7 +24,7 @@ MidiListenerCallback::MidiListenerCallback(const sptr<IMidiCallback> &listener) 
 
 MidiListenerCallback::~MidiListenerCallback() {}
 
-void MidiListenerCallback::NotifyDeviceChange(DeviceChangeType change, std::map<int32_t, std::string> deviceInfo)
+void MidiListenerCallback::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
     CHECK_AND_RETURN_LOG(callback_, "callback_ is nullptr");
     callback_->NotifyDeviceChange(change, deviceInfo);

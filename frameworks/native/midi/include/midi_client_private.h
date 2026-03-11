@@ -133,7 +133,7 @@ public:
     MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
         OH_MIDIClient_OnDeviceOpened callback, void *userData, MidiClientPrivate *client);
     ~MidiClientDeviceOpenCallback() = default;
-    int32_t NotifyDeviceOpened(bool opened, const std::map<int32_t, std::string> &deviceInfo) override;
+    int32_t NotifyDeviceOpened(bool opened, const MidiDeviceInfo &deviceInfo) override;
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
     OH_MIDIClient_OnDeviceOpened callback_;

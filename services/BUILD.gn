@@ -55,7 +55,6 @@ ohos_shared_library("midi_service") {
   ]
 
   include_dirs = [
-
     "${midi_framework_root}/services/server/include",
     "${midi_framework_root}/services/common/include",
     "${midi_framework_root}/frameworks/native/midiutils/include",

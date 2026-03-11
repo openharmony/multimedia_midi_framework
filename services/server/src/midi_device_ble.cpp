@@ -138,20 +138,20 @@ static int64_t GetCurNano()
 }
 
 
-static std::vector<PortInformation> GetPortInfo(const std::string &deviceName)
+static std::vector<MidiPortInfo> GetPortInfo(const std::string &deviceName)
 {
-    std::vector<PortInformation> portInfos;
-    PortInformation out{};
+    std::vector<MidiPortInfo> portInfos;
+    MidiPortInfo out{};
     out.portId = 0;
     out.name = deviceName + " Out";
-    out.direction = PORT_DIRECTION_OUTPUT;
-    out.transportProtocol = PROTOCOL_1_0;
+    out.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+    out.transportProtocol = TransportProtocol::PROTOCOL_1_0;
     portInfos.push_back(out);
-    PortInformation in{};
+    MidiPortInfo in{};
     in.portId = 1;
     in.name =  deviceName + " In";
-    in.direction = PORT_DIRECTION_INPUT;
-    in.transportProtocol = PROTOCOL_1_0;
+    in.direction = PortDirection::PORT_DIRECTION_INPUT;
+    in.transportProtocol = TransportProtocol::PROTOCOL_1_0;
     portInfos.push_back(in);
     return portInfos;
 }
@@ -164,13 +164,13 @@ static void NotifyManager(DeviceCtx &d, bool success)
 
     CHECK_AND_RETURN(cb != nullptr);
     DeviceInformation devInfo;
-    devInfo.driverDeviceId = d.id;
-    devInfo.deviceType = DEVICE_TYPE_BLE;
-    devInfo.transportProtocol = PROTOCOL_1_0;
-    devInfo.address = d.address;
-    devInfo.deviceName = d.deviceName;
-    devInfo.productId = d.productId;
-    devInfo.vendorId = d.vendorId;
+    devInfo.midiDeviceInfo.driverDeviceId = d.id;
+    devInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    devInfo.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+    devInfo.midiDeviceInfo.address = d.address;
+    devInfo.midiDeviceInfo.deviceName = d.deviceName;
+    devInfo.midiDeviceInfo.productId = d.productId;
+    devInfo.midiDeviceInfo.vendorId = d.vendorId;
     devInfo.portInfos = GetPortInfo(d.deviceName);
     cb(success, devInfo);
 }
@@ -263,17 +263,17 @@ static void GetDeviceInfo(DeviceCtx &d)
 {
     int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
-    MIDI_INFO_LOG("err: %{public}d, deviceName: %{private}s", err, d.deviceName.c_str());
+    MIDI_INFO_LOG("err: %{public}d, deviceName: %{public}s", err, d.deviceName.c_str());
     uint16_t productId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(productId);
-    d.productId = std::to_string(productId);
-    MIDI_INFO_LOG("err: %{public}d, productId: %{private}s", err, d.productId.c_str());
+    d.productId = productId;
+    MIDI_INFO_LOG("err: %{public}d, productId: %{public}" PRIu64, err, d.productId);
     uint16_t vendorId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
-    d.vendorId = std::to_string(vendorId);
-    MIDI_INFO_LOG("err: %{public}d, vendorId: %{private}s", err, d.vendorId.c_str());
+    d.vendorId = vendorId;
+    MIDI_INFO_LOG("err: %{public}d, vendorId: %{public}" PRIu64, err, d.vendorId);
 }
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
@@ -486,13 +486,14 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.connected);
         DeviceInformation devInfo;
-        devInfo.driverDeviceId = d.id;
-        devInfo.deviceType = DEVICE_TYPE_BLE;
-        devInfo.transportProtocol = PROTOCOL_1_0;
-        devInfo.address = d.address;
-        devInfo.deviceName = d.deviceName;
-        devInfo.productId = d.productId;
-        devInfo.vendorId = d.vendorId;
+        devInfo.midiDeviceInfo.driverDeviceId = d.id;
+        devInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+        devInfo.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        devInfo.midiDeviceInfo.address = d.address;
+        devInfo.midiDeviceInfo.deviceName = d.deviceName;
+        devInfo.midiDeviceInfo.productId = d.productId;
+        devInfo.midiDeviceInfo.vendorId = d.vendorId;
+        
         devInfo.portInfos = GetPortInfo(d.deviceName);
         deviceInfos.push_back(devInfo);
         connectedCount++;

@@ -41,14 +41,14 @@ public:
 
 class MockMidiServiceCallback : public MidiServiceCallback {
 public:
-    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, (std::map<int32_t, std::string>)deviceInfo),
+    MOCK_METHOD(void, NotifyDeviceChange, (DeviceChangeType change, const MidiDeviceInfo &deviceInfo),
                 (override));
     MOCK_METHOD(void, NotifyError, (int32_t code), (override));
 };
 
 class MockMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
-    MOCK_METHOD(ErrCode, NotifyDeviceChange, (int32_t change, (const std::map<int32_t, std::string> &deviceInfo)),
+    MOCK_METHOD(ErrCode, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
         (override));
     MOCK_METHOD(ErrCode, NotifyError, (int32_t code), (override));
 };

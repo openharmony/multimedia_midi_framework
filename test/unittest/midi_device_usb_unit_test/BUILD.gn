@@ -59,5 +59,6 @@ ohos_unittest("midi_device_usb_unittest") {
     "googletest:gtest",
     "hilog:libhilog",
     "drivers_interface_midi:libmidi_proxy_1.0",
+    "ipc:ipc_single",
   ]
 }
