@@ -176,6 +176,7 @@ private:
     int64_t unloadDelayTime_;  // Runtime-configurable unload delay (ms)
 
     std::atomic<bool> isUnloadPending_{false};
+    bool unloadCancelled_{false};  // Cancel flag, used with unloadMutex_
     std::mutex unloadMutex_;
     std::condition_variable unloadCv_;
     std::thread unloadThread_;

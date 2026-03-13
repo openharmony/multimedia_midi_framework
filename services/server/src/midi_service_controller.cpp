@@ -52,10 +52,18 @@ MidiServiceController::MidiServiceController()
 
 MidiServiceController::~MidiServiceController()
 {
-    CancelUnloadTask();
+    // Cancel and wait for unload thread to finish
+    {
+        std::lock_guard<std::mutex> lk(unloadMutex_);
+        unloadCancelled_ = true;
+    }
+    unloadCv_.notify_all();
+
+    // Must use join to wait for thread to finish, avoiding Use-After-Free
     if (unloadThread_.joinable()) {
         unloadThread_.join();
     }
+
     for (auto& [clientId, object] : clientCallbackObjects_) {
         auto it = deathRecipients_.find(clientId);
         if (it != deathRecipients_.end() && object != nullptr) {
@@ -81,31 +89,61 @@ std::shared_ptr<MidiServiceController> MidiServiceController::GetInstance()
 
 void MidiServiceController::CancelUnloadTask()
 {
-    bool expected = true;
-    if (isUnloadPending_.compare_exchange_strong(expected, false)) {
-        {
-            std::lock_guard<std::mutex> lk(unloadMutex_);
-        }
-        unloadCv_.notify_all();
-        MIDI_INFO_LOG("Pending unload task cancelled.");
-    }
-}
-
-void MidiServiceController::ScheduleUnloadTask()
-{
-    if (isUnloadPending_) {
+    // Fast path: if no pending task, return immediately
+    if (!isUnloadPending_.load(std::memory_order_acquire)) {
         return;
     }
-    isUnloadPending_ = true;
+    // Set cancel flag and notify waiting thread
+    {
+        std::lock_guard<std::mutex> lk(unloadMutex_);
+        unloadCancelled_ = true;
+    }
+    unloadCv_.notify_all();
+
+    // Wait for thread to finish, ensuring state consistency
     if (unloadThread_.joinable()) {
         unloadThread_.join();
     }
 
+    // Reset state
+    isUnloadPending_.store(false, std::memory_order_release);
+    MIDI_INFO_LOG("Pending unload task cancelled.");
+}
+
+void MidiServiceController::ScheduleUnloadTask()
+{
+    // Cancel existing unload task if any
+    if (isUnloadPending_.load(std::memory_order_acquire)) {
+        {
+            std::lock_guard<std::mutex> lk(unloadMutex_);
+            unloadCancelled_ = true;
+        }
+        unloadCv_.notify_all();
+
+        if (unloadThread_.joinable()) {
+            unloadThread_.join();
+        }
+    }
+    // Reset cancel flag and start new timer
+    {
+        std::lock_guard<std::mutex> lk(unloadMutex_);
+        unloadCancelled_ = false;
+    }
+    isUnloadPending_.store(true, std::memory_order_release);
+
     unloadThread_ = std::thread([this]() {
         MIDI_INFO_LOG("Unload timer started. Waiting for %{public}" PRId64 " ms...", unloadDelayTime_);
-        std::unique_lock<std::mutex> lk(unloadMutex_);
-        if (unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_)) == std::cv_status::timeout) {
-            CHECK_AND_RETURN(isUnloadPending_);
+
+        bool shouldUnload = false;
+        {
+            std::unique_lock<std::mutex> lk(unloadMutex_);
+            if (!unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_),
+                    [this]() { return unloadCancelled_; })) {
+                shouldUnload = !unloadCancelled_;
+            }
+        }
+
+        if (shouldUnload) {
             MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
             auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
             if (samgr != nullptr) {
@@ -113,10 +151,10 @@ void MidiServiceController::ScheduleUnloadTask()
             } else {
                 MIDI_ERR_LOG("Get samgr failed.");
             }
-            isUnloadPending_ = false;
         } else {
-            MIDI_INFO_LOG("Unload timer thread woke up early (Cancelled).");
+            MIDI_INFO_LOG("Unload timer cancelled.");
         }
+        isUnloadPending_.store(false, std::memory_order_release);
     });
 }
 
@@ -724,7 +762,10 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
             }
             deathRecipients_.erase(deathIt);
         }
-
+        for (auto deviceId : devicesToClean) {
+            CleanupDeviceForClient(clientId, deviceId);
+        }
+        CleanupClientResources(clientId, clientUid);
         clients_.erase(it);
     }
 
@@ -732,15 +773,8 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
         deviceManager_->CloseDevice(deviceId);
     }
 
-    {
-        std::lock_guard lock(lock_);
-        for (auto deviceId : devicesToClean) {
-            CleanupDeviceForClient(clientId, deviceId);
-        }
-        CleanupClientResources(clientId, clientUid);
-    }
-
     MIDI_INFO_LOG("Client destroyed: %{public}u", clientId);
+    std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET(clients_.empty(), OH_MIDI_STATUS_OK);
     ScheduleUnloadTask();
     return OH_MIDI_STATUS_OK;
@@ -800,11 +834,6 @@ void MidiServiceController::ClearStateForTest()
 {
     // Cancel any pending unload task before clearing state
     CancelUnloadTask();
-
-    // Wait for unload thread to complete (immediate in test mode since UNLOAD_DELAY_TIME = 0)
-    if (unloadThread_.joinable()) {
-        unloadThread_.join();
-    }
 
     std::lock_guard<std::mutex> lock(lock_);
     deviceClientContexts_.clear();

@@ -249,7 +249,7 @@ int32_t MidiDeviceManager::GetDevicePorts(int64_t deviceId, std::vector<MidiPort
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
         MIDI_ERR_LOG("Cannot get ports for non-existent device: %{public}" PRId64, deviceId);
-        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMEN;
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
     portInfos = device.portInfos;
     return OH_MIDI_STATUS_OK;
