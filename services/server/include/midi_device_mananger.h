@@ -59,7 +59,7 @@ public:
     ~MidiDeviceManager();
     void Init();
     std::vector<DeviceInformation> GetDevices();
-    std::vector<MidiPortInfo> GetDevicePorts(int64_t deviceId);
+    int32_t GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos);
     void UpdateDevices();
     int32_t OpenDevice(int64_t deviceId);
     int32_t OpenBleDevice(const std::string &address, BleOpenCallback callback);

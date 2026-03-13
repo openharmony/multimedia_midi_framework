@@ -244,14 +244,15 @@ MidiDeviceDriver *MidiDeviceManager::GetDriverForDeviceType(DeviceType type)
     return nullptr;
 }
 
-std::vector<MidiPortInfo> MidiDeviceManager::GetDevicePorts(int64_t deviceId)
+int32_t MidiDeviceManager::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos)
 {
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
         MIDI_ERR_LOG("Cannot get ports for non-existent device: %{public}" PRId64, deviceId);
-        return {};
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMEN;
     }
-    return device.portInfos;
+    portInfos = device.portInfos;
+    return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)

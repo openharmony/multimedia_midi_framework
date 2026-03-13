@@ -192,7 +192,8 @@ void GetDevicePorts(FuzzedDataProvider &fdp)
     CHECK_AND_RETURN(!activeDevices_.empty());
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
     int64_t deviceId = activeDevices_[deviceIdx];
-    midiServiceController_->GetDevicePorts(deviceId);
+    std::vector<MidiPortInfo> portInfos;
+    midiServiceController_->GetDevicePorts(deviceId, portInfos);
 }
 
 void OpenDevice(FuzzedDataProvider &fdp)

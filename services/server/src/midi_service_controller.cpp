@@ -56,6 +56,14 @@ MidiServiceController::~MidiServiceController()
     if (unloadThread_.joinable()) {
         unloadThread_.join();
     }
+    for (auto& [clientId, object] : clientCallbackObjects_) {
+        auto it = deathRecipients_.find(clientId);
+        if (it != deathRecipients_.end() && object != nullptr) {
+            object->RemoveDeathRecipient(it->second);
+        }
+    }
+    clientCallbackObjects_.clear();
+    deathRecipients_.clear();
     clients_.clear();
 }
 
@@ -151,15 +159,17 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
     CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiClient nullptr");
     client = midiClient->AsObject();
     CHECK_AND_RETURN_RET_LOG(client != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiClient->AsObject nullptr");
-    sptr<MidiServiceDeathRecipient> deathRecipient_ = new (std::nothrow) MidiServiceDeathRecipient(clientId);
-    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "deathRecipient_ nullptr");
+    sptr<MidiServiceDeathRecipient> deathRecipient = new (std::nothrow) MidiServiceDeathRecipient(clientId);
+    CHECK_AND_RETURN_RET_LOG(deathRecipient != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "deathRecipient nullptr");
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
-    deathRecipient_->SetNotifyCb([weakSelf](uint32_t clientId) {
+    deathRecipient->SetNotifyCb([weakSelf](uint32_t clientId) {
         auto self = weakSelf.lock();
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
         self->DestroyMidiClient(clientId);
     });
-    object->AddDeathRecipient(deathRecipient_);
+    object->AddDeathRecipient(deathRecipient);
+    clientCallbackObjects_.emplace(clientId, object);
+    deathRecipients_.emplace(clientId, deathRecipient);
     clients_.emplace(clientId, std::move(midiClient));
 
     // Store UID in client resource info and add to app client map
@@ -186,19 +196,9 @@ MidiDeviceInfo MidiServiceController::GetDevice(int64_t deviceId)
     return ret.midiDeviceInfo;
 }
 
-std::vector<MidiPortInfo> MidiServiceController::GetDevicePorts(int64_t deviceId)
+int32_t MidiServiceController::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos)
 {
-    std::vector<MidiPortInfo> ret;
-    auto result = deviceManager_->GetDevicePorts(deviceId);
-    for (const auto &p : result) {
-        MidiPortInfo portInfo;
-        portInfo.portId = p.portId;
-        portInfo.name = p.name;
-        portInfo.direction = static_cast<PortDirection>(p.direction);
-        portInfo.transportProtocol = static_cast<TransportProtocol>(p.transportProtocol);
-        ret.push_back(portInfo);
-    }
-    return ret;
+    return deviceManager_->GetDevicePorts(deviceId, portInfos);
 }
 
 bool MidiServiceController::IsBluetoothDevice(int64_t deviceId) const
@@ -713,6 +713,18 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
         if (resourceInfoIt != clientResourceInfo_.end()) {
             clientUid = resourceInfoIt->second.uid;
         }
+
+        // Remove DeathRecipient from client callback object before erasing
+        auto deathIt = deathRecipients_.find(clientId);
+        if (deathIt != deathRecipients_.end()) {
+            auto callbackIt = clientCallbackObjects_.find(clientId);
+            if (callbackIt != clientCallbackObjects_.end()) {
+                callbackIt->second->RemoveDeathRecipient(deathIt->second);
+                clientCallbackObjects_.erase(callbackIt);
+            }
+            deathRecipients_.erase(deathIt);
+        }
+
         clients_.erase(it);
     }
 
@@ -799,6 +811,8 @@ void MidiServiceController::ClearStateForTest()
     activeBleDevices_.clear();
     pendingBleConnections_.clear();
     clients_.clear();
+    deathRecipients_.clear();
+    clientCallbackObjects_.clear();
     if (deviceManager_) {
         deviceManager_->ClearStateForTest();
     }
