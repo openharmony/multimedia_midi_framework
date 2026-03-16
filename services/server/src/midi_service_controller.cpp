@@ -18,7 +18,6 @@
 #endif
 
 #include "midi_service_controller.h"
-#include "midi_service_death_recipent.h"
 #include "iservice_registry.h"
 #include "system_ability_definition.h"
 #include "midi_info.h"

@@ -33,9 +33,10 @@
 #include <list>
 #include "iremote_object.h"
 #include "midi_info.h"
-#include "midi_device_connection.h"
 #include "midi_in_server.h"
+#include "midi_device_connection.h"
 #include "midi_device_mananger.h"
+#include "midi_service_death_recipent.h"
 #include "imidi_device_open_callback.h"
 #include <thread>
 #include <condition_variable>

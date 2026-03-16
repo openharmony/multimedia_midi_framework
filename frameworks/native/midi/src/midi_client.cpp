@@ -75,12 +75,12 @@ int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const Midi
 {
     CHECK_AND_RETURN_RET_LOG(callback_ != nullptr && ipc_.lock(), OH_MIDI_STATUS_SYSTEM_ERROR, "callback_ is nullptr");
     OH_MIDIDeviceInformation info;
+    bool ret = ConvertToDeviceInformation(deviceInfo, info);
+    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
     if (!opened) {
         callback_(userData_, opened, nullptr, info);
         return 0;
     }
-    bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
     auto newDevice = new MidiDevicePrivate(ipc_.lock(), info);
     if (client_) {
         client_->AddDeviceHandler(newDevice);

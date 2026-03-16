@@ -355,7 +355,7 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
     }
 
     if (!exists && callback) {
-        callback(false, midiDeviceId, foundInfo.midiDeviceInfo);
+        callback(false, midiDeviceId, devInfo.midiDeviceInfo);
     }
     if (exists) {
         MidiServiceController::GetInstance()->NotifyDeviceChange(DeviceChangeType::REMOVED, foundInfo);
