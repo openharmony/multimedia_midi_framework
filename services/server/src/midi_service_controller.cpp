@@ -138,7 +138,7 @@ void MidiServiceController::ScheduleUnloadTask()
         {
             std::unique_lock<std::mutex> lk(unloadMutex_);
             if (!unloadCv_.wait_for(lk, std::chrono::milliseconds(unloadDelayTime_),
-                    [this]() { return unloadCancelled_; })) {
+                [this]() { return unloadCancelled_; })) {
                 shouldUnload = !unloadCancelled_;
             }
         }
