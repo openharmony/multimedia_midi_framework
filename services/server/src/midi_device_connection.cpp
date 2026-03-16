@@ -545,8 +545,6 @@ void DeviceConnectionForOutput::UpdateNextTimer()
         const auto deltaNs = std::chrono::duration_cast<std::chrono::nanoseconds>(earliestDueTime - now).count();
         newValue.it_value.tv_sec = static_cast<time_t>(deltaNs / MIDI_NS_PER_SECOND);
         newValue.it_value.tv_nsec = static_cast<long>(deltaNs % MIDI_NS_PER_SECOND);
-        MIDI_DEBUG_LOG("UpdateNextTimer: setting timer, deltaSec=%{public}ld, deltaNs=%{public}ld",
-                       newValue.it_value.tv_sec, newValue.it_value.tv_nsec);
     } else {
         MIDI_DEBUG_LOG("UpdateNextTimer: no pending events, disarming timer");
     }
