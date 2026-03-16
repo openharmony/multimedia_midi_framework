@@ -627,7 +627,6 @@ OH_MIDIStatusCode MidiClientPrivate::OpenBleDevice(std::string address,
 OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts)
 {
     std::vector<MidiPortInfo> portInfos;
-    CHECK_AND_RETURN_RET_LOG(IsDeviceOpened(deviceId), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "device is invalid");
     CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);
     CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
