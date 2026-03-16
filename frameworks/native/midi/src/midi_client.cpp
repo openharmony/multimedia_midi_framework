@@ -643,7 +643,6 @@ OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPor
     for (size_t i = 0; i < actualCount; i++) {
         OH_MIDIPortInformation info;
         ConvertToPortInformation(portInfos[i], deviceId, info);
-        CHECK_AND_CONTINUE_LOG(ret, "ConvertToPortInformation failed");
         infos[i] = info;
     }
 
