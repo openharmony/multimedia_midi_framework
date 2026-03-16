@@ -52,14 +52,20 @@ static bool ConvertToDeviceInformation(
 
     errno_t ret = strncpy_s(outInfo.deviceAddress, sizeof(outInfo.deviceAddress),
                           deviceInfo.address.c_str(), deviceInfo.address.length());
-    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, false, "copy deviceAddress failed");
+    if (ret != OH_MIDI_STATUS_OK) {
+        MIDI_ERR_LOG("copy deviceAddress failed, use default value");
+        outInfo.deviceAddress[0] = '\0';
+    }
 
     outInfo.deviceType = static_cast<OH_MIDIDeviceType>(deviceInfo.deviceType);
     outInfo.nativeProtocol = static_cast<OH_MIDIProtocol>(deviceInfo.transportProtocol);
 
     ret = strncpy_s(outInfo.deviceName, sizeof(outInfo.deviceName),
                    deviceInfo.deviceName.c_str(), deviceInfo.deviceName.length());
-    JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy deviceName failed, use default value");
+    if (ret != OH_MIDI_STATUS_OK) {
+        MIDI_ERR_LOG("copy deviceName failed, use default value");
+        outInfo.deviceName[0] = '\0';
+    }
     outInfo.productId = deviceInfo.productId;
     outInfo.vendorId = deviceInfo.vendorId;
     return true;
@@ -99,7 +105,10 @@ static bool ConvertToPortInformation(
 
     errno_t ret = strncpy_s(outInfo.name, sizeof(outInfo.name),
                            portInfo.name.c_str(), portInfo.name.length());
-    JUDGE_AND_ERR_LOG(ret != OH_MIDI_STATUS_OK, "copy portName failed, use default value");
+    if (ret != OH_MIDI_STATUS_OK) {
+        MIDI_ERR_LOG("copy portName failed, use default value");
+        outInfo.name[0] = '\0';
+    }
 
     return true;
 }
