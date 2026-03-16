@@ -43,7 +43,7 @@ public:
     MidiClientPrivate *client_ = nullptr;
 };
 
-static bool ConvertToDeviceInformation(
+static void ConvertToDeviceInformation(
     const MidiDeviceInfo &deviceInfo, OH_MIDIDeviceInformation &outInfo)
 {
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
@@ -68,7 +68,6 @@ static bool ConvertToDeviceInformation(
     }
     outInfo.productId = deviceInfo.productId;
     outInfo.vendorId = deviceInfo.vendorId;
-    return true;
 }
 
 MidiClientDeviceOpenCallback::MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
@@ -81,8 +80,7 @@ int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const Midi
 {
     CHECK_AND_RETURN_RET_LOG(callback_ != nullptr && ipc_.lock(), OH_MIDI_STATUS_SYSTEM_ERROR, "callback_ is nullptr");
     OH_MIDIDeviceInformation info;
-    bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
+    ConvertToDeviceInformation(deviceInfo, info);
     if (!opened) {
         callback_(userData_, opened, nullptr, info);
         return 0;
@@ -95,7 +93,7 @@ int32_t MidiClientDeviceOpenCallback::NotifyDeviceOpened(bool opened, const Midi
     return 0;
 }
 
-static bool ConvertToPortInformation(
+static void ConvertToPortInformation(
     const MidiPortInfo &portInfo, int64_t deviceId, OH_MIDIPortInformation &outInfo)
 {
     memset_s(&outInfo, sizeof(outInfo), 0, sizeof(outInfo));
@@ -109,8 +107,6 @@ static bool ConvertToPortInformation(
         MIDI_ERR_LOG("copy portName failed, use default value");
         outInfo.name[0] = '\0';
     }
-
-    return true;
 }
 
 static int32_t GetStatusCode(MidiStatusCode code)
@@ -141,8 +137,7 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const MidiDeviceI
         callbacks_.onDeviceChange != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callbacks_.onDeviceChange is nullptr");
 
     OH_MIDIDeviceInformation info;
-    bool ret = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(ret, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
+    ConvertToDeviceInformation(deviceInfo, info);
 
     callbacks_.onDeviceChange(userData_, static_cast<OH_MIDIDeviceChangeAction>(change), info);
     return 0;
@@ -596,8 +591,7 @@ OH_MIDIStatusCode MidiClientPrivate::GetDevices(OH_MIDIDeviceInformation *infos,
     *numDevices = actualCount;
     CHECK_AND_RETURN_RET(actualCount != 0, OH_MIDI_STATUS_OK);
     for (size_t i = 0; i < actualCount; i++) {
-        bool convRet = ConvertToDeviceInformation(deviceInfos[i], infos[i]);
-        CHECK_AND_CONTINUE_LOG(convRet, "ConvertToDeviceInformation failed");
+        ConvertToDeviceInformation(deviceInfos[i], infos[i]);
     }
     return OH_MIDI_STATUS_OK;
 }
@@ -610,8 +604,7 @@ OH_MIDIStatusCode MidiClientPrivate::OpenDevice(int64_t deviceId, MidiDevice **m
     auto ret = ipc_->OpenDevice(deviceId, deviceInfo);
     CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, ret);
     OH_MIDIDeviceInformation info;
-    bool res = ConvertToDeviceInformation(deviceInfo, info);
-    CHECK_AND_RETURN_RET_LOG(res, OH_MIDI_STATUS_SYSTEM_ERROR, "ConvertToDeviceInformation failed");
+    ConvertToDeviceInformation(deviceInfo, info);
     auto newDevice = new MidiDevicePrivate(ipc_, info);
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -650,7 +643,7 @@ OH_MIDIStatusCode MidiClientPrivate::GetDevicePorts(int64_t deviceId, OH_MIDIPor
 
     for (size_t i = 0; i < actualCount; i++) {
         OH_MIDIPortInformation info;
-        bool ret = ConvertToPortInformation(portInfos[i], deviceId, info);
+        ConvertToPortInformation(portInfos[i], deviceId, info);
         CHECK_AND_CONTINUE_LOG(ret, "ConvertToPortInformation failed");
         infos[i] = info;
     }
