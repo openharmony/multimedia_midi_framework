@@ -121,10 +121,10 @@ static int32_t GetStatusCode(MidiStatusCode code)
     }
 }
 
-static ProtocolDirection GetCoverterDirection(OH_MIDIProtocol nativeProtocol, OH_MIDIProtocol protocol)
+static ProtocolDirection GetCoverterDirection(OH_MIDIProtocol targetProtocol, OH_MIDIProtocol sourceProtocol)
 {
-    CHECK_AND_RETURN_RET(nativeProtocol != protocol, MIDI_NONE);
-    return nativeProtocol == OH_MIDI_PROTOCOL_1_0 ? MIDI_2_0_TO_MIDI_1_0 : MIDI_1_0_TO_MIDI_2_0;
+    CHECK_AND_RETURN_RET(targetProtocol != sourceProtocol, MIDI_NONE);
+    return targetProtocol == OH_MIDI_PROTOCOL_1_0 ? MIDI_2_0_TO_MIDI_1_0 : MIDI_1_0_TO_MIDI_2_0;
 }
 
 MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData, MidiClientPrivate *client)
@@ -181,7 +181,7 @@ OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descrip
 
     auto iter = inputPortsMap_.find(descriptor.portIndex);
     CHECK_AND_RETURN_RET(iter == inputPortsMap_.end(), OH_MIDI_STATUS_PORT_ALREADY_OPEN);
-    auto direction = GetCoverterDirection(info_.nativeProtocol, descriptor.protocol);
+    auto direction = GetCoverterDirection(descriptor.protocol, info_.nativeProtocol);
     auto inputPort = std::make_shared<MidiInputPort>(callback, userData, direction);
 
     std::shared_ptr<MidiSharedRing> &buffer = inputPort->GetRingBuffer();
@@ -364,7 +364,10 @@ bool MidiInputPort::ShouldWakeForReadOrExit() const
 
 void MidiInputPort::DrainRingAndDispatch()
 {
+    MIDI_DEBUG_LOG("[InputPort] DrainRingAndDispatch enter, direction_=%{public}d", static_cast<int>(direction_));
     if (!ringBuffer_ || callback_ == nullptr) {
+        MIDI_WARNING_LOG("[InputPort] DrainRingAndDispatch early return: ringBuffer=%{public}d, callback=%{public}d",
+            ringBuffer_ != nullptr, callback_ != nullptr);
         return;
     }
 
@@ -372,6 +375,7 @@ void MidiInputPort::DrainRingAndDispatch()
     std::vector<std::vector<uint32_t>> payloadBuffers;
     std::vector<std::vector<uint32_t>> datas;
     ringBuffer_->DrainToBatch(midiEvents, payloadBuffers, 0);
+    MIDI_DEBUG_LOG("[InputPort] DrainToBatch returned, midiEvents.size=%{public}zu", midiEvents.size());
 
     if (midiEvents.empty()) {
         return;
@@ -391,24 +395,31 @@ void MidiInputPort::DrainRingAndDispatch()
             callbackEvent.timestamp = event.timestamp;
             callbackEvent.length = packet.second;
             callbackEvent.data = const_cast<uint32_t*>(packet.first);
-
-            std::vector<uint32_t> out;
-            if (direction_ == MIDI_1_0_TO_MIDI_2_0) {
-                CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(
-                    packet.first, packet.second, out));
-                callbackEvent.data = out.data();
-                datas.push_back(std::move(out));
-            } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
-                CHECK_AND_CONTINUE(UmpConverter::ConvertMidi2ToMidi1(
-                    packet.first, packet.second, out));
-                callbackEvent.data = out.data();
-                datas.push_back(std::move(out));
+            if (direction_ == MIDI_NONE) {
+                // No conversion needed
+                callbackEvents.push_back(callbackEvent);
+                continue;
             }
+            std::vector<uint32_t> out;
+            bool convertRet = false;
+            if (direction_ == MIDI_1_0_TO_MIDI_2_0) {
+                convertRet = UmpConverter::ConvertMidi1ToMidi2(packet.first, packet.second, out);
+            } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
+                convertRet = UmpConverter::ConvertMidi2ToMidi1(packet.first, packet.second, out);
+            }
+            if (!convertRet) {
+                MIDI_WARNING_LOG("[InputPort] %{public}d failed, packet length=%{public}zu", direction_, packet.second);
+                callbackEvents.push_back(callbackEvent);
+                continue;
+            }
+            callbackEvent.length = out.size();
+            callbackEvent.data = out.data();
+            datas.push_back(std::move(out));
             callbackEvents.push_back(callbackEvent);
         }
     }
-
     if (callbackEvents.empty()) {
+        MIDI_WARNING_LOG("[InputPort] callbackEvents is empty after processing");
         return;
     }
 
@@ -447,11 +458,7 @@ int32_t MidiOutputPort::Send(const OH_MIDIEvent *events, uint32_t eventCount, ui
     for (uint32_t i = 0; i < eventCount; ++i) {
         innerEvents[i] = MidiEventInner{events[i].timestamp, events[i].length, events[i].data};
         std::vector<uint32_t> out;
-        if (direction_ == MIDI_1_0_TO_MIDI_2_0) {
-            CHECK_AND_CONTINUE(UmpConverter::ConvertMidi1ToMidi2(events[i].data, events[i].length, out));
-            innerEvents[i].data = out.data();
-            datas.push_back(std::move(out));
-        } else if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
+        if (direction_ == MIDI_2_0_TO_MIDI_1_0) {
             CHECK_AND_CONTINUE(UmpConverter::ConvertMidi2ToMidi1(events[i].data, events[i].length, out));
             innerEvents[i].data = out.data();
             datas.push_back(std::move(out));
