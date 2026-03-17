@@ -441,7 +441,7 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
 }
 
 /**
- * @tc.name: GetDevicePorts_001
+ * @tc.name: GetDevicePorts_002
  * @tc.desc: Test GetDevicePorts when the device ID is invalid.
  * @tc.type: FUNC
  */
@@ -450,8 +450,11 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
     int64_t invalidId = -1;
     OH_MIDIPortInformation portArray[1];
     size_t numPorts = 1;
+    EXPECT_CALL(*mockService, GetDevicePorts(invalidId, _))
+        .WillOnce(Invoke([](int64_t id, std::vector<MidiPortInfo> &ports) {
+            return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+        }));
     OH_MIDIStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
-
     EXPECT_EQ(status, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
 
@@ -642,7 +645,7 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_ReceiverDispatch_001, TestSize.Level0
     ASSERT_TRUE(inputPort.StartReceiverThread());
 
     // Write one event with notify=true to wake futex waiter
-    std::vector<uint32_t> payloadWords{0x11111111, 0x22222222, 0x33333333};
+    std::vector<uint32_t> payloadWords{0x20905837, 0x20905937, 0x20905a37};
     MidiEventInner midiEventInner = MakeMidiEventInner(10, payloadWords);
 
     ASSERT_EQ(MidiStatusCode::OK, localRing->TryWriteEvent(midiEventInner, true));
@@ -650,12 +653,12 @@ HWTEST_F(MidiClientUnitTest, MidiInputPort_ReceiverDispatch_001, TestSize.Level0
     // Wait callback
     ASSERT_TRUE(callbackCapture.WaitForAtLeast(1, std::chrono::milliseconds(200)));
     EXPECT_GE(callbackCapture.GetReceivedCount(), 1u);
-    EXPECT_EQ(callbackCapture.GetLastEventCount(), 1u);
+    EXPECT_EQ(callbackCapture.GetLastEventCount(), 3u);
 
     auto lastEvents = callbackCapture.GetLastEvents();
-    ASSERT_EQ(lastEvents.size(), 1u);
+    ASSERT_EQ(lastEvents.size(), 3u);
     EXPECT_EQ(lastEvents[0].timestamp, 10u);
-    EXPECT_EQ(lastEvents[0].length, payloadWords.size());
+    EXPECT_EQ(lastEvents[0].length, 1u);
 
     // Stop thread
     EXPECT_TRUE(inputPort.StopReceiverThread());
