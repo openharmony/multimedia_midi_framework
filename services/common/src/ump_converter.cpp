@@ -197,8 +197,8 @@ bool UmpConverter::ConvertOne(Direction dir,
 
     const uint32_t w0 = inWords[0];
     const uint8_t mt = MessageType(w0);
-    MIDI_DEBUG_LOG("[UmpConverter] ConvertOne: dir=%{public}d, mt=0x%{public}02X, inWordCount=%{public}zu, w0=0x%{public}08X",
-        static_cast<int>(dir), mt, inWordCount, w0);
+    MIDI_DEBUG_LOG("[UmpConverter] ConvertOne: dir=%{public}d, mt=0x%{public}02X, "
+        "inWordCount=%{public}zu, w0=0x%{public}08X", static_cast<int>(dir), mt, inWordCount, w0);
 
     // MT=0x1: System Common & System Real Time -> pass-through
     if (mt == MT_UTILITY_OR_SYSTEM) {

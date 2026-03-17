@@ -364,22 +364,13 @@ bool MidiInputPort::ShouldWakeForReadOrExit() const
 
 void MidiInputPort::DrainRingAndDispatch()
 {
-    MIDI_DEBUG_LOG("[InputPort] DrainRingAndDispatch enter, direction_=%{public}d", static_cast<int>(direction_));
-    if (!ringBuffer_ || callback_ == nullptr) {
-        MIDI_WARNING_LOG("[InputPort] DrainRingAndDispatch early return: ringBuffer=%{public}d, callback=%{public}d",
-            ringBuffer_ != nullptr, callback_ != nullptr);
-        return;
-    }
-
+    CHECK_AND_RETURN(ringBuffer_ != nullptr && callback_ != nullptr);
     std::vector<MidiEvent> midiEvents;
     std::vector<std::vector<uint32_t>> payloadBuffers;
     std::vector<std::vector<uint32_t>> datas;
     ringBuffer_->DrainToBatch(midiEvents, payloadBuffers, 0);
-    MIDI_DEBUG_LOG("[InputPort] DrainToBatch returned, midiEvents.size=%{public}zu", midiEvents.size());
-
-    if (midiEvents.empty()) {
-        return;
-    }
+    MIDI_DEBUG_LOG("DrainToBatch returned, midiEvents.size=%{public}zu", midiEvents.size());
+    CHECK_AND_RETURN(!midiEvents.empty());
 
     std::vector<OH_MIDIEvent> callbackEvents;
     callbackEvents.reserve(midiEvents.size());  // Initial reserve, may grow due to splitting
@@ -408,7 +399,7 @@ void MidiInputPort::DrainRingAndDispatch()
                 convertRet = UmpConverter::ConvertMidi2ToMidi1(packet.first, packet.second, out);
             }
             if (!convertRet) {
-                MIDI_WARNING_LOG("[InputPort] %{public}d failed, packet length=%{public}zu", direction_, packet.second);
+                MIDI_WARNING_LOG("%{public}d failed, packet length=%{public}zu", direction_, packet.second);
                 callbackEvents.push_back(callbackEvent);
                 continue;
             }
@@ -418,11 +409,7 @@ void MidiInputPort::DrainRingAndDispatch()
             callbackEvents.push_back(callbackEvent);
         }
     }
-    if (callbackEvents.empty()) {
-        MIDI_WARNING_LOG("[InputPort] callbackEvents is empty after processing");
-        return;
-    }
-
+    CHECK_AND_RETURN_LOG(!callbackEvents.empty(), "callbackEvents is empty after processing");
     MIDI_DEBUG_LOG("[client] receive midi events from server");
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(midiEvents).c_str());
     callback_(userData_, callbackEvents.data(), callbackEvents.size());
