@@ -190,8 +190,7 @@ bool UmpConverter::ConvertOne(Direction dir,
                               std::vector<uint32_t>& outWords)
 {
     if (inWords == nullptr || inWordCount == 0) {
-        MIDI_WARNING_LOG("[UmpConverter] ConvertOne failed: invalid input, inWords=%{public}p, inWordCount=%{public}zu",
-            static_cast<const void*>(inWords), inWordCount);
+        MIDI_WARNING_LOG("[UmpConverter] ConvertOne failed: invalid input, inWordCount=%{public}zu", inWordCount);
         return false;
     }
 
