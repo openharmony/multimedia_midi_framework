@@ -192,7 +192,8 @@ void GetDevicePorts(FuzzedDataProvider &fdp)
     CHECK_AND_RETURN(!activeDevices_.empty());
     size_t deviceIdx = fdp.ConsumeIntegralInRange<size_t>(0, activeDevices_.size() - 1);
     int64_t deviceId = activeDevices_[deviceIdx];
-    midiServiceController_->GetDevicePorts(deviceId);
+    std::vector<MidiPortInfo> portInfos;
+    midiServiceController_->GetDevicePorts(deviceId, portInfos);
 }
 
 void OpenDevice(FuzzedDataProvider &fdp)
@@ -276,6 +277,7 @@ void DestroyMidiClient(FuzzedDataProvider &fdp)
     size_t idx = fdp.ConsumeIntegralInRange<size_t>(0, activeClients_.size() - 1);
     midiServiceController_->DestroyMidiClient(activeClients_[idx].clientId);
     activeClients_.erase(activeClients_.begin() + idx);
+    midiServiceController_->CancelUnloadTask();
 }
 
 void MultipleClientsOpenSamePort(FuzzedDataProvider &fdp)
@@ -345,12 +347,12 @@ void DestroyMidiClientWithInvalidId(FuzzedDataProvider &fdp)
 {
     uint32_t invalidClientId = fdp.ConsumeIntegral<uint32_t>();
     midiServiceController_->DestroyMidiClient(invalidClientId);
+    midiServiceController_->CancelUnloadTask();
 }
 
 void MidiServiceControllerInit()
 {
     midiServiceController_ = MidiServiceController::GetInstance();
-    midiServiceController_->SetUnloadDelay(0);
 
     auto mockDriver = std::make_unique<MockMidiDeviceDriver>();
     mockDriver->AddMockDevice(TEST_CLIENT_ID1, "USB MIDI Device 1", DeviceType::DEVICE_TYPE_USB);
@@ -399,6 +401,7 @@ void MidiServiceControllerTest(const uint8_t *data, size_t size)
         midiServiceController_->DestroyMidiClient(client.clientId);
     }
     activeClients_.clear();
+    midiServiceController_->ClearStateForTest();
 }
 
 } // namespace MIDI

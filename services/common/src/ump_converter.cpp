@@ -13,7 +13,13 @@
  * limitations under the License.
  */
 
+#ifndef LOG_TAG
+#define LOG_TAG "MidiUmpConverter"
+#endif
+
 #include "ump_converter.h"
+#include "midi_log.h"
+
 namespace {
 
 // -------------------------
@@ -184,14 +190,20 @@ bool UmpConverter::ConvertOne(Direction dir,
                               std::vector<uint32_t>& outWords)
 {
     if (inWords == nullptr || inWordCount == 0) {
+        MIDI_WARNING_LOG("[UmpConverter] ConvertOne failed: invalid input, inWordCount=%{public}zu", inWordCount);
         return false;
     }
 
     const uint32_t w0 = inWords[0];
     const uint8_t mt = MessageType(w0);
+    MIDI_DEBUG_LOG("[UmpConverter] ConvertOne: dir=%{public}d, mt=0x%{public}02X, "
+        "inWordCount=%{public}zu, w0=0x%{public}08X", static_cast<int>(dir), mt, inWordCount, w0);
+
     // MT=0x1: System Common & System Real Time -> pass-through
     if (mt == MT_UTILITY_OR_SYSTEM) {
         if (inWordCount != 1) {
+            MIDI_WARNING_LOG("[UmpConverter] MT_UTILITY_OR_SYSTEM failed: inWordCount=%{public}zu (expected 1)",
+                inWordCount);
             return false;
         }
         outWords.push_back(inWords[0]);
@@ -201,6 +213,8 @@ bool UmpConverter::ConvertOne(Direction dir,
     // MT=0x3: SysEx7/Data -> pass-through
     if (mt == MT_DATA_SYSEX7) {
         if ((inWordCount % WORDS_PER_64BIT_PACKET) != 0) {
+            MIDI_WARNING_LOG("[UmpConverter] MT_DATA_SYSEX7 failed: inWordCount=%{public}zu (not multiple of 2)",
+                inWordCount);
             return false;
         }
         for (size_t i = 0; i < inWordCount; ++i) {
@@ -211,6 +225,7 @@ bool UmpConverter::ConvertOne(Direction dir,
 
     if (dir == Direction::Midi1ToMidi2) {
         if (mt != MT_MIDI1_CHANNEL) {
+            MIDI_WARNING_LOG("[UmpConverter] Midi1ToMidi2 failed: mt=0x%{public}02X (expected 0x02)", mt);
             return false; // drop
         }
         return ConvertMidi1ChannelVoiceToMidi2(inWords, inWordCount, outWords);
@@ -218,6 +233,7 @@ bool UmpConverter::ConvertOne(Direction dir,
 
     // Midi2ToMidi1
     if (mt != MT_MIDI2_CHANNEL) {
+        MIDI_WARNING_LOG("[UmpConverter] Midi2ToMidi1 failed: mt=0x%{public}02X (expected 0x04)", mt);
         return false; // drop
     }
     return ConvertMidi2ChannelVoiceToMidi1(inWords, inWordCount, outWords);
@@ -231,6 +247,8 @@ bool UmpConverter::ConvertMidi1ChannelVoiceToMidi2(const uint32_t* inWords,
                                                    std::vector<uint32_t>& out)
 {
     if (inWordCount != 1) {
+        MIDI_WARNING_LOG("[UmpConverter] ConvertMidi1ToMidi2 failed: inWordCount=%{public}zu (expected 1)",
+            inWordCount);
         return false;
     }
 
@@ -243,6 +261,10 @@ bool UmpConverter::ConvertMidi1ChannelVoiceToMidi2(const uint32_t* inWords,
 
     const uint8_t statusNibble = static_cast<uint8_t>((status >> SHIFT_BYTE) & MASK_NIBBLE);
     const uint8_t channel      = static_cast<uint8_t>(status & MASK_NIBBLE);
+
+    MIDI_DEBUG_LOG("[UmpConverter] ConvertMidi1ToMidi2: group=%{public}u, statusNibble=0x%{public}X, "
+        "channel=%{public}u, data1=%{public}u, data2=%{public}u",
+        group, statusNibble, channel, data1, data2);
 
     Midi2ChannelVoiceMsg m{};
     m.group = group;
@@ -259,6 +281,8 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1(const uint32_t* inWords,
                                                    std::vector<uint32_t>& out)
 {
     if (inWordCount != WORDS_PER_64BIT_PACKET) {
+        MIDI_WARNING_LOG("[UmpConverter] ConvertMidi2ToMidi1 failed: inWordCount=%{public}zu (expected 2)",
+            inWordCount);
         return false;
     }
 
@@ -274,6 +298,11 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1(const uint32_t* inWords,
     // const uint8_t data2        = static_cast<uint8_t>((w0 >> SHIFT_DATA2) & MASK_BYTE);
 
     m.statusByte = static_cast<uint8_t>((statusNibble << SHIFT_BYTE) | (channel & MASK_NIBBLE));
+
+    MIDI_DEBUG_LOG("[UmpConverter] ConvertMidi2ToMidi1: group=%{public}u, statusNibble=0x%{public}X, "
+        "channel=%{public}u, data1=%{public}u, w1=0x%{public}08X",
+        m.group, statusNibble, channel, data1, w1);
+
     return ConvertMidi2ChannelVoiceToMidi1Inner(statusNibble, data1, w1, m, out);
 }
 
@@ -333,6 +362,9 @@ bool UmpConverter::ConvertMidi1ChannelVoiceToMidi2Inner(uint8_t statusNibble,
         }
 
         default:
+            MIDI_WARNING_LOG("[UmpConverter] ConvertMidi1ToMidi2Inner failed: unknown statusNibble=0x%{public}X, "
+                "group=%{public}u, channel=%{public}u, data1=%{public}u, data2=%{public}u",
+                statusNibble, m.group, m.channel, data1, data2);
             return false; // drop
     }
 }
@@ -380,6 +412,9 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(uint8_t statusNibble,
 
         default:
             // Not convertible => drop
+            MIDI_WARNING_LOG("[UmpConverter] ConvertMidi2ToMidi1Inner failed: unknown statusNibble=0x%{public}X, "
+                "group=%{public}u, channel=%{public}u, data1=%{public}u, w1=0x%{public}08X",
+                statusNibble, m.group, m.statusByte & MASK_NIBBLE, data1, w1);
             return false;
     }
 }

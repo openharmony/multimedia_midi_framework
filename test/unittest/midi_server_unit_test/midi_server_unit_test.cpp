@@ -88,7 +88,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_GetDevicePorts001, TestSize.Level0)
     std::vector<MidiPortInfo> ports;
 
     MidiInServer client(id, mockCallback);
-    EXPECT_EQ(OH_MIDI_STATUS_OK, client.GetDevicePorts(deviceId, ports));
+    EXPECT_EQ(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, client.GetDevicePorts(deviceId, ports));
     EXPECT_TRUE(ports.empty());
 }
 

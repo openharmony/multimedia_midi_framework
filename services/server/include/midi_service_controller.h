@@ -33,9 +33,10 @@
 #include <list>
 #include "iremote_object.h"
 #include "midi_info.h"
-#include "midi_device_connection.h"
 #include "midi_in_server.h"
+#include "midi_device_connection.h"
 #include "midi_device_mananger.h"
+#include "midi_service_death_recipent.h"
 #include "imidi_device_open_callback.h"
 #include <thread>
 #include <condition_variable>
@@ -81,7 +82,7 @@ public:
     void Init();
     int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client, uint32_t &clientId);
     std::vector<MidiDeviceInfo> GetDevices();
-    std::vector<MidiPortInfo> GetDevicePorts(int64_t deviceId);
+    int32_t GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos);
     int32_t OpenDevice(uint32_t clientId, int64_t deviceId);
     int32_t OpenBleDevice(uint32_t clientId, const std::string &address, const sptr<IRemoteObject> &callbackObj);
     int32_t CloseDevice(uint32_t clientId, int64_t deviceId);
@@ -166,12 +167,17 @@ private:
     // Track clients per application (UID) for per-app limit enforcement
     std::unordered_map<uint32_t, std::unordered_set<uint32_t>> appClientMap_;  // UID -> clientIds
 
+    // DeathRecipient management - store references to properly remove on client destruction
+    std::unordered_map<uint32_t, sptr<IRemoteObject>> clientCallbackObjects_;  // clientId -> client callback object
+    std::unordered_map<uint32_t, sptr<MidiServiceDeathRecipient>> deathRecipients_;  // clientId -> DeathRecipient
+
     std::shared_ptr<MidiDeviceManager> deviceManager_;
     static std::atomic<uint32_t> currentClientId_;
     mutable std::mutex lock_;
     int64_t unloadDelayTime_;  // Runtime-configurable unload delay (ms)
 
     std::atomic<bool> isUnloadPending_{false};
+    bool unloadCancelled_{false};  // Cancel flag, used with unloadMutex_
     std::mutex unloadMutex_;
     std::condition_variable unloadCv_;
     std::thread unloadThread_;

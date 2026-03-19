@@ -298,6 +298,7 @@ void DeviceConnectionForOutput::HandleWakeupOnce()
 void DeviceConnectionForOutput::DrainAllClientsRings()
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
+    MIDI_DEBUG_LOG("DrainAllClientsRings: client count=%{public}zu", clients_.size());
     for (const auto &clientConnection : clients_) {
         if (!clientConnection) {
             continue;
@@ -310,6 +311,8 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
 {
     std::shared_ptr<MidiSharedRing> ringShared = clientConnection.GetRingBuffer();
     if (!ringShared) {
+        MIDI_WARNING_LOG("DrainSingleClientRing: ring buffer is null, clientId=%{public}u",
+                         clientConnection.GetClientId());
         return;
     }
     MidiSharedRing &clientRing = *ringShared;
@@ -412,12 +415,13 @@ void DeviceConnectionForOutput::CollectDueEventsFromClientHeaps()
         dueMidiEvent.length = dueEvent.data.size();
         dueMidiEvent.data = dueEvent.data.data();
 
-        // try enqueue send cache
+        // try enqueue send cache (same pattern as ConsumeRealtimeEvent)
         auto res = TryAppendToSendCache(dueEvent.timestamp, dueEvent.data.data(), dueEvent.data.size());
-        CHECK_AND_RETURN(res != true);
+        CHECK_AND_CONTINUE(res != true);
         FlushSendCacheToDriver();
 
         if (!TryAppendToSendCache(dueEvent.timestamp, dueEvent.data.data(), dueEvent.data.size())) {
+            MIDI_DEBUG_LOG("still cannot append after flush, sending directly");
             SendToDriver(dueMidiEvent);
         }
 
@@ -434,15 +438,21 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
         return true;
     }
     if (payloadWords == nullptr) {
+        MIDI_WARNING_LOG("TryAppendToSendCache: payloadWords is null");
         return false;
     }
 
     const size_t payloadBytes = payloadWordCount * sizeof(uint32_t);
 
     if (payloadBytes > maxSendCacheBytes_) {
+        MIDI_WARNING_LOG("TryAppendToSendCache: payload too large, payloadBytes=%{public}zu, "
+                         "maxCacheBytes=%{public}zu", payloadBytes, maxSendCacheBytes_);
         return false;
     }
     if (currentSendCacheBytes_ + payloadBytes > maxSendCacheBytes_) {
+        MIDI_DEBUG_LOG("TryAppendToSendCache: cache full, currentBytes=%{public}zu, "
+                       "payloadBytes=%{public}zu, maxCacheBytes=%{public}zu",
+                       currentSendCacheBytes_, payloadBytes, maxSendCacheBytes_);
         return false;
     }
 
@@ -535,6 +545,8 @@ void DeviceConnectionForOutput::UpdateNextTimer()
         const auto deltaNs = std::chrono::duration_cast<std::chrono::nanoseconds>(earliestDueTime - now).count();
         newValue.it_value.tv_sec = static_cast<time_t>(deltaNs / MIDI_NS_PER_SECOND);
         newValue.it_value.tv_nsec = static_cast<long>(deltaNs % MIDI_NS_PER_SECOND);
+    } else {
+        MIDI_DEBUG_LOG("UpdateNextTimer: no pending events, disarming timer");
     }
 
     (void)::timerfd_settime(timerFd_.Get(), 0, &newValue, nullptr);
