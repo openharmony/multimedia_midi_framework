@@ -149,6 +149,14 @@ private:
     // Helper function to check if a device is a Bluetooth device
     bool IsBluetoothDevice(int64_t deviceId) const;
 
+    // Helper functions for NotifyDeviceChange
+    void RemoveFromActiveBleDevices(int64_t deviceId);
+    uint32_t CalculateClientPortCountAndStopWorkers(uint32_t clientId,
+        std::shared_ptr<DeviceClientContext>& context);
+    void CleanupClientResourceForDevice(uint32_t clientId, int64_t deviceId, uint32_t portCount);
+    void CleanupDeviceContext(int64_t deviceId);
+    std::vector<sptr<MidiInServer>> CollectClientsToNotify();
+
     void ScheduleUnloadTask();
     void CancelUnloadTask();
     int32_t CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);

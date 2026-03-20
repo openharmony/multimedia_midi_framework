@@ -41,6 +41,7 @@ DeviceClientContext::~DeviceClientContext()
 {
     MIDI_INFO_LOG("~DeviceClientContext");
     inputDeviceconnections_.clear();
+    outputDeviceconnections_.clear();
 }
 
 MidiServiceController::MidiServiceController()
@@ -576,14 +577,13 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
         inputPort->second->RemoveClientConnection(clientId);
         if (inputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseInputPort(deviceId, portIndex);
-            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail!");
             inputPortConnections.erase(inputPort);
-
             // Decrement port count when port is fully closed
             auto &resourceInfo = clientResourceInfo_[clientId];
             if (resourceInfo.openPortCount > 0) {
                 resourceInfo.openPortCount--;
             }
+            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail!");
         }
     }
     return OH_MIDI_STATUS_OK;
@@ -607,14 +607,13 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
         outputPort->second->RemoveClientConnection(clientId);
         if (outputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
-            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail!");
             outputPortConnections.erase(outputPort);
-
             // Decrement port count when port is fully closed
             auto &resourceInfo = clientResourceInfo_[clientId];
             if (resourceInfo.openPortCount > 0) {
                 resourceInfo.openPortCount--;
             }
+            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail!");
         }
     }
     return OH_MIDI_STATUS_OK;
@@ -779,6 +778,80 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
     return OH_MIDI_STATUS_OK;
 }
 
+void MidiServiceController::RemoveFromActiveBleDevices(int64_t deviceId)
+{
+    for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
+        if (it->second == deviceId) {
+            activeBleDevices_.erase(it);
+            break;
+        }
+    }
+}
+
+uint32_t MidiServiceController::CalculateClientPortCountAndStopWorkers(uint32_t clientId,
+    std::shared_ptr<DeviceClientContext>& context)
+{
+    uint32_t portCount = 0;
+    for (auto& [portIndex, conn] : context->inputDeviceconnections_) {
+        if (conn != nullptr && conn->HasClientConnection(clientId)) {
+            portCount++;
+        }
+    }
+    for (auto& [portIndex, conn] : context->outputDeviceconnections_) {
+        if (conn != nullptr && conn->HasClientConnection(clientId)) {
+            portCount++;
+            conn->Stop();
+        }
+    }
+    return portCount;
+}
+
+void MidiServiceController::CleanupClientResourceForDevice(uint32_t clientId, int64_t deviceId, uint32_t portCount)
+{
+    auto resIt = clientResourceInfo_.find(clientId);
+    if (resIt == clientResourceInfo_.end()) {
+        return;
+    }
+    resIt->second.openDevices.erase(deviceId);
+    if (resIt->second.openPortCount >= portCount) {
+        resIt->second.openPortCount -= portCount;
+    } else {
+        resIt->second.openPortCount = 0;
+    }
+    MIDI_INFO_LOG("Cleaned up resources for clientId=%{public}u, deviceId=%{public}" PRId64
+        ", portsCleaned=%{public}u, openPortCount=%{public}u",
+        clientId, deviceId, portCount, resIt->second.openPortCount);
+}
+
+void MidiServiceController::CleanupDeviceContext(int64_t deviceId)
+{
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        return;
+    }
+    auto& context = it->second;
+    for (auto clientId : context->clients) {
+        uint32_t portCount = CalculateClientPortCountAndStopWorkers(clientId, context);
+        CleanupClientResourceForDevice(clientId, deviceId, portCount);
+    }
+    context->inputDeviceconnections_.clear();
+    context->outputDeviceconnections_.clear();
+    deviceClientContexts_.erase(it);
+    MIDI_INFO_LOG("Device context removed: deviceId=%{public}" PRId64, deviceId);
+}
+
+std::vector<sptr<MidiInServer>> MidiServiceController::CollectClientsToNotify()
+{
+    std::vector<sptr<MidiInServer>> clients;
+    clients.reserve(clients_.size());
+    for (auto& [id, client] : clients_) {
+        if (client != nullptr) {
+            clients.push_back(client);
+        }
+    }
+    return clients;
+}
+
 void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceInformation device)
 {
     MidiDeviceInfo deviceInfo = device.midiDeviceInfo;
@@ -788,23 +861,10 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
         std::lock_guard lock(lock_);
         if (change == REMOVED) {
             MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, deviceInfo.deviceId);
-            for (auto it = activeBleDevices_.begin(); it != activeBleDevices_.end(); it++) {
-                if (it->second == deviceInfo.deviceId) {
-                    activeBleDevices_.erase(it);
-                    break;
-                }
-            }
-            auto it = deviceClientContexts_.find(deviceInfo.deviceId);
-            if (it != deviceClientContexts_.end()) {
-                deviceClientContexts_.erase(it);
-            }
+            RemoveFromActiveBleDevices(deviceInfo.deviceId);
+            CleanupDeviceContext(deviceInfo.deviceId);
         }
-        clientsToNotify.reserve(clients_.size());
-        for (auto& [id, client] : clients_) {
-            if (client != nullptr) {
-                clientsToNotify.push_back(client);
-            }
-        }
+        clientsToNotify = CollectClientsToNotify();
     }
     for (auto& client : clientsToNotify) {
         client->NotifyDeviceChange(change, deviceInfo);
