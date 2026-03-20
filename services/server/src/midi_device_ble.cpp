@@ -629,7 +629,7 @@ int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t 
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
+        CHECK_AND_RETURN_RET_LOG(!d.outputOpen, -1, "already open");
         d.outputOpen = true;
         MIDI_INFO_LOG("OpenOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
@@ -644,7 +644,7 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
+        CHECK_AND_RETURN_RET_LOG(d.outputOpen, -1, "not open");
         d.outputOpen = false;
         MIDI_INFO_LOG("CloseOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
