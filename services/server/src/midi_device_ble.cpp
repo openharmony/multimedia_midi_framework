@@ -27,11 +27,6 @@
 namespace OHOS {
 namespace MIDI {
 namespace {
-    constexpr uint8_t UMP_MT_SYSTEM = 0x1;
-    constexpr uint32_t UMP_SHIFT_MT = 28;
-    constexpr uint32_t UMP_SHIFT_STATUS = 16;
-    constexpr uint32_t UMP_MASK_NIBBLE = 0xF;
-    constexpr uint32_t UMP_MASK_BYTE = 0xFF;
     constexpr int64_t NSEC_PER_SEC = 1000000000;
     constexpr int32_t MIDI_BYTE_HEX_WIDTH = 2;
     static constexpr const char *MIDI_SERVICE_UUID = "03B80E5A-EDE8-4B33-A751-6CE34EC4C700";
@@ -44,8 +39,6 @@ namespace {
 
     // Maximum data size to prevent memory exhaustion attacks
     constexpr size_t MAX_BLE_MIDI_DATA_SIZE = 512;
-    // Maximum UMP packets to prevent integer overflow
-    constexpr size_t MAX_UMP_PACKETS = 128;
     // Application UUID for BLE MIDI (standard Bluetooth MIDI UUID)
     static constexpr const char *BLE_MIDI_APP_UUID = "00000000-0000-0000-0000-000000000001";
 }
