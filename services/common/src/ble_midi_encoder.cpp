@@ -27,8 +27,8 @@ std::vector<uint8_t> BleMidiPacketEncoder::EncodeEvent(
         return result;
     }
 
-    // Clamp timestamp to 13-bit range (0-8191)
-    uint16_t ts = timestampMs & 0x1FFF;
+    // Mask timestamp to 13-bit range (0-8191 ms)
+    uint16_t ts = timestampMs & BleMidiConstants::TIMESTAMP_MASK;
 
     // Header Byte: bit7=1, bit6=0 (must be 0), bits5-0 = timestamp high 6 bits
     uint8_t headerByte = 0x80 | ((ts >> 7) & 0x3F);
@@ -92,8 +92,8 @@ std::vector<uint8_t> BleMidiPacketEncoder::EncodeEvents(
             continue;
         }
 
-        // Clamp timestamp to 13-bit range
-        uint16_t ts = timestampMs & 0x1FFF;
+        // Mask timestamp to 13-bit range
+        uint16_t ts = timestampMs & BleMidiConstants::TIMESTAMP_MASK;
 
         // Header Byte: bit7=1, bit6=0, bits5-0 = timestamp high 6 bits
         uint8_t headerByte = 0x80 | ((ts >> 7) & 0x3F);
@@ -135,6 +135,6 @@ uint16_t BleMidiPacketEncoder::GetCurrentTimestampMs()
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()).count();
 
-    // Convert to 13-bit timestamp (wrap at 8192ms)
-    return static_cast<uint16_t>(ms & 0x1FFF);
+    // Mask to 13-bit timestamp (wraps at 8192 ms)
+    return static_cast<uint16_t>(ms & BleMidiConstants::TIMESTAMP_MASK);
 }

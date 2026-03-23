@@ -88,9 +88,13 @@ static std::vector<uint8_t> ConvertUmpToMidi1(
 static uint16_t GetBleTimestampMs(int64_t eventTimestampNs)
 {
     if (eventTimestampNs != 0) {
-        return static_cast<uint16_t>((eventTimestampNs / 1000000) & 0x1FFF);
+        return static_cast<uint16_t>(
+            (eventTimestampNs / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+            & BleMidiConstants::TIMESTAMP_MASK);
     }
-    return static_cast<uint16_t>((GetCurNano() / 1000000) & 0x1FFF);
+    return static_cast<uint16_t>(
+        (GetCurNano() / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+        & BleMidiConstants::TIMESTAMP_MASK);
 }
 
 // Send BLE MIDI packet to device
@@ -653,17 +657,14 @@ int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
             MIDI_WARNING_LOG("UMP to MIDI 1.0 conversion produced empty data");
             continue;
         }
-
         // Encode and send BLE packet
         uint16_t timestampMs = GetBleTimestampMs(midiEvent.timestamp);
         auto blePacket = BleMidiPacketEncoder::EncodeEvent(
             midi1Buffer.data(), midi1Buffer.size(), timestampMs);
-
         if (blePacket.empty()) {
             MIDI_WARNING_LOG("BLE packet encoding failed");
             continue;
         }
-
         int32_t result = SendBleMidiPacket(clientId, dataChar, blePacket);
         CHECK_AND_CONTINUE_LOG(result == 0, "BleGattcWriteCharacteristic failed: %{public}d", result);
     }

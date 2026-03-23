@@ -19,6 +19,15 @@
 #include <vector>
 #include <cstdint>
 
+namespace BleMidiConstants {
+    // BLE MIDI timestamp is 13 bits, max value 8191 ms (~8 seconds before wrap)
+    constexpr uint16_t TIMESTAMP_MASK = 0x1FFF;
+    constexpr uint16_t TIMESTAMP_MAX = 8191;
+
+    // Time conversion constants
+    constexpr int64_t NANOSECONDS_PER_MILLISECOND = 1000000;
+} // namespace BleMidiConstants
+
 /**
  * @brief BLE MIDI packet encoder following Bluetooth MIDI specification.
  *
