@@ -341,8 +341,6 @@ HWTEST_F(BleMidiEncoderUnitTest, EncodeWithZeroTimestamp, TestSize.Level1)
  */
 HWTEST_F(BleMidiEncoderUnitTest, NanosecondToMillisecondConversion, TestSize.Level1)
 {
-    uint8_t midiData[] = { 0x90, 0x3C, 0x64 };
-
     // 1 second = 1000 ms
     int64_t oneSecondNs = 1000000000;
     uint16_t ts1 = static_cast<uint16_t>((oneSecondNs / 1000000) & 0x1FFF);
