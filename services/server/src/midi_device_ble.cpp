@@ -22,6 +22,7 @@
 #include "midi_utils.h"
 #include "midi_device_ble.h"
 #include "bluetooth_host.h"
+#include "ble_midi_encoder.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -65,6 +66,42 @@ static int64_t GetCurNano()
     return result;
 }
 
+// Convert UMP data to MIDI 1.0 bytes
+static std::vector<uint8_t> ConvertUmpToMidi1(
+    const std::shared_ptr<UmpProcessor>& processor,
+    const uint32_t* umpData, size_t umpLen)
+{
+    std::vector<uint8_t> midi1Buffer;
+    if (processor == nullptr || umpData == nullptr || umpLen == 0) {
+        return midi1Buffer;
+    }
+    processor->ProcessUmp(umpData, umpLen,
+        [&midi1Buffer](const uint8_t* data, size_t len) {
+            for (size_t i = 0; i < len; ++i) {
+                midi1Buffer.push_back(data[i]);
+            }
+        });
+    return midi1Buffer;
+}
+
+// Get BLE MIDI timestamp from event (ns -> ms, 13-bit)
+static uint16_t GetBleTimestampMs(int64_t eventTimestampNs)
+{
+    if (eventTimestampNs != 0) {
+        return static_cast<uint16_t>((eventTimestampNs / 1000000) & 0x1FFF);
+    }
+    return static_cast<uint16_t>((GetCurNano() / 1000000) & 0x1FFF);
+}
+
+// Send BLE MIDI packet to device
+static int32_t SendBleMidiPacket(int32_t clientId, const BtGattCharacteristic& dataChar,
+    const std::vector<uint8_t>& blePacket)
+{
+    const char* payload = reinterpret_cast<const char*>(blePacket.data());
+    int32_t payloadLen = static_cast<int32_t>(blePacket.size());
+    return BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
+        payloadLen, payload);
+}
 
 static std::vector<MidiPortInfo> GetPortInfo(const std::string &deviceName)
 {
@@ -587,49 +624,51 @@ int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
+
+    // Get device context
     int32_t clientId = -1;
     BtGattCharacteristic dataChar{};
     std::shared_ptr<UmpProcessor> processor;
     {
-        // Scope for the lock: only protect the access to the devices_ map
         std::lock_guard<std::mutex> lock(lock_);
         auto it = devices_.find(deviceId);
         CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
-        const auto &d = it->second;
-        CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady && d.outProcessor != nullptr, -1,
+        const auto& d = it->second;
+        CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady && d.outProcessor, -1,
             "Device state invalid");
-        // Copy necessary values to avoid holding the lock during I/O
         clientId = static_cast<int32_t>(d.id);
         dataChar = d.dataChar;
         processor = d.outProcessor;
     }
 
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
-    for (auto midiEvent : list) {
-        // Validate data pointer before use
-        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "HandleUmpInput: midiEvent.data is nullptr");
-        std::vector<uint8_t> midi1Buffer;
-        processor->ProcessUmp(msg.data.data(), msg.data.size(),
-            [&midi1Buffer](const uint8_t* data, size_t len) {
-                for (size_t i = 0; i < len; ++i) {
-                    midi1Buffer.push_back(data[i]);
-                }
-            });
-        std::ostringstream midiStream;
-        for (size_t i = 0; i < midi1Buffer.size(); i++) {
-            midiStream << std::hex << std::setw(MIDI_BYTE_HEX_WIDTH) << std::setfill('0') <<
-                static_cast<uint32_t>(midi1Buffer[i]) << " ";
+
+    // Process each MIDI event
+    for (const auto& midiEvent : list) {
+        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "midiEvent.data is nullptr");
+
+        // Convert UMP to MIDI 1.0
+        auto midi1Buffer = ConvertUmpToMidi1(processor, midiEvent.data, midiEvent.length);
+        if (midi1Buffer.empty()) {
+            MIDI_WARNING_LOG("UMP to MIDI 1.0 conversion produced empty data");
+            continue;
         }
-        if (!midiStream.str().empty()) {
-            HDF_LOGI("%{public}s midiStream 1.0: %{public}s", __func__, midiStream.str().c_str());
+
+        // Encode and send BLE packet
+        uint16_t timestampMs = GetBleTimestampMs(midiEvent.timestamp);
+        auto blePacket = BleMidiPacketEncoder::EncodeEvent(
+            midi1Buffer.data(), midi1Buffer.size(), timestampMs);
+
+        if (blePacket.empty()) {
+            MIDI_WARNING_LOG("BLE packet encoding failed");
+            continue;
         }
-        CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
-        const char *payload = reinterpret_cast<const char*>(midi1Buffer.data());
-        int32_t payloadLen = static_cast<int32_t>(midi1Buffer.size());
-        CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
-            payloadLen, payload) == 0, "write characteristic failed");
+
+        int32_t result = SendBleMidiPacket(clientId, dataChar, blePacket);
+        CHECK_AND_CONTINUE_LOG(result == 0, "BleGattcWriteCharacteristic failed: %{public}d", result);
     }
-    MIDI_DEBUG_LOG("HandleUmpInput completed: deviceId=%{public}" PRId64 ", processed %{public}zu events",
+
+    MIDI_DEBUG_LOG("HandleUmpInput completed: deviceId=%{public}" PRId64 ", %{public}zu events",
         deviceId, list.size());
     return 0;
 }
