@@ -45,6 +45,7 @@ struct DeviceCtx {
     // The callback to Manager
     BleDriverCallback deviceCallback{nullptr};
     std::shared_ptr<UmpProcessor> processor;
+    std::shared_ptr<UmpProcessor> outProcessor;
     std::string deviceName;
     uint64_t productId;
     uint64_t vendorId;

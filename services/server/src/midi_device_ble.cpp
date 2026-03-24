@@ -22,20 +22,11 @@
 #include "midi_utils.h"
 #include "midi_device_ble.h"
 #include "bluetooth_host.h"
+#include "ble_midi_encoder.h"
 
 namespace OHOS {
 namespace MIDI {
 namespace {
-    constexpr uint8_t UMP_MT_SYSTEM = 0x1;
-    constexpr uint8_t UMP_MT_CHANNEL_VOICE = 0x2;
-    constexpr uint32_t UMP_SHIFT_MT = 28;
-    constexpr uint32_t UMP_SHIFT_STATUS = 16;
-    constexpr uint32_t UMP_SHIFT_DATA1 = 8;
-    constexpr uint32_t UMP_MASK_NIBBLE = 0xF;
-    constexpr uint32_t UMP_MASK_BYTE = 0xFF;
-    constexpr uint8_t STATUS_PROG_CHANGE = 0xC0;
-    constexpr uint8_t STATUS_CHAN_PRESSURE = 0xD0;
-    constexpr uint8_t STATUS_MASK_CMD = 0xF0;
     constexpr int64_t NSEC_PER_SEC = 1000000000;
     constexpr int32_t MIDI_BYTE_HEX_WIDTH = 2;
     static constexpr const char *MIDI_SERVICE_UUID = "03B80E5A-EDE8-4B33-A751-6CE34EC4C700";
@@ -48,80 +39,11 @@ namespace {
 
     // Maximum data size to prevent memory exhaustion attacks
     constexpr size_t MAX_BLE_MIDI_DATA_SIZE = 512;
-    // Maximum UMP packets to prevent integer overflow
-    constexpr size_t MAX_UMP_PACKETS = 128;
     // Application UUID for BLE MIDI (standard Bluetooth MIDI UUID)
     static constexpr const char *BLE_MIDI_APP_UUID = "00000000-0000-0000-0000-000000000001";
 }
 
 static std::atomic<BleMidiTransportDeviceDriver*> instance;
-
-static void ConvertUmpToMidi1(const uint32_t* umpData, size_t count, std::vector<uint8_t>& midi1Bytes)
-{
-    // Validate input parameters to prevent nullptr dereference
-    if (umpData == nullptr || count == 0 || count > MAX_UMP_PACKETS) {
-        MIDI_ERR_LOG("ConvertUmpToMidi1: Invalid input parameters");
-        return;
-    }
-
-    for (size_t i = 0; i < count; ++i) {
-        uint32_t ump = umpData[i];
-        uint8_t mt = (ump >> UMP_SHIFT_MT) & UMP_MASK_NIBBLE; // Message Type
-
-        if (mt == UMP_MT_CHANNEL_VOICE) {
-            // Type 2: MIDI 1.0 Channel Voice Messages (32-bit)
-            // Format: [4b MT][4b Group][4b Status][4b Channel] [8b Note/Data1][8b Vel/Data2]
-            // Note: In UMP, Status includes Channel. UMP: 0x2GSCDD
-            uint8_t status = (ump >> UMP_SHIFT_STATUS) & UMP_MASK_BYTE;
-            uint8_t data1 = (ump >> UMP_SHIFT_DATA1) & UMP_MASK_BYTE;
-            uint8_t data2 = ump & UMP_MASK_BYTE;
-            uint8_t cmd = status & STATUS_MASK_CMD;
-
-            midi1Bytes.push_back(status);
-
-            // Program Change (0xC0) and Channel Pressure (0xD0) are 2 bytes
-            if (cmd == STATUS_PROG_CHANGE || cmd == STATUS_CHAN_PRESSURE) {
-                midi1Bytes.push_back(data1);
-            } else {
-                // Note On, Note Off, Poly Pressure, Control Change, Pitch Bend are 3 bytes
-                midi1Bytes.push_back(data1);
-                midi1Bytes.push_back(data2);
-            }
-        } else if (mt == UMP_MT_SYSTEM) {
-            // Type 1: System Common / Real Time Messages (32-bit)
-            // Format: [4b MT][4b Group][8b Status][8b Data1][8b Data2]
-            uint8_t status = (ump >> UMP_SHIFT_STATUS) & UMP_MASK_BYTE;
-            uint8_t data1 = (ump >> UMP_SHIFT_DATA1) & UMP_MASK_BYTE;
-            uint8_t data2 = ump & UMP_MASK_BYTE;
-
-            midi1Bytes.push_back(status);
-
-            switch (status) {
-                case 0xF1: // MIDI Time Code Quarter Frame (2 bytes)
-                case 0xF3: // Song Select (2 bytes)
-                    midi1Bytes.push_back(data1);
-                    break;
-                case 0xF2: // Song Position Pointer (3 bytes)
-                    midi1Bytes.push_back(data1);
-                    midi1Bytes.push_back(data2);
-                    break;
-                case 0xF6: // Tune Request (1 byte)
-                case 0xF8: // Timing Clock (1 byte)
-                case 0xFA: // Start (1 byte)
-                case 0xFB: // Continue (1 byte)
-                case 0xFC: // Stop (1 byte)
-                case 0xFE: // Active Sensing (1 byte)
-                case 0xFF: // Reset (1 byte)
-                    // No data bytes
-                    break;
-                default:
-                    // 0xF0 (Sysex Start) and 0xF7 (Sysex End) are handled in Type 3 usually,
-                    // but simple 1-packet sysex might appear here.
-                    break;
-            }
-        }
-    }
-}
 
 static int64_t GetCurNano()
 {
@@ -137,6 +59,46 @@ static int64_t GetCurNano()
     return result;
 }
 
+// Convert UMP data to MIDI 1.0 bytes
+static std::vector<uint8_t> ConvertUmpToMidi1(
+    const std::shared_ptr<UmpProcessor>& processor,
+    const uint32_t* umpData, size_t umpLen)
+{
+    std::vector<uint8_t> midi1Buffer;
+    if (processor == nullptr || umpData == nullptr || umpLen == 0) {
+        return midi1Buffer;
+    }
+    processor->ProcessUmp(umpData, umpLen,
+        [&midi1Buffer](const uint8_t* data, size_t len) {
+            for (size_t i = 0; i < len; ++i) {
+                midi1Buffer.push_back(data[i]);
+            }
+        });
+    return midi1Buffer;
+}
+
+// Get BLE MIDI timestamp from event (ns -> ms, 13-bit)
+static uint16_t GetBleTimestampMs(int64_t eventTimestampNs)
+{
+    if (eventTimestampNs != 0) {
+        return static_cast<uint16_t>(
+            static_cast<uint64_t>(eventTimestampNs / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+            & BleMidiConstants::TIMESTAMP_MASK);
+    }
+    return static_cast<uint16_t>(
+        static_cast<uint64_t>(GetCurNano() / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+        & BleMidiConstants::TIMESTAMP_MASK);
+}
+
+// Send BLE MIDI packet to device
+static int32_t SendBleMidiPacket(int32_t clientId, const BtGattCharacteristic& dataChar,
+    const std::vector<uint8_t>& blePacket)
+{
+    const char* payload = reinterpret_cast<const char*>(blePacket.data());
+    int32_t payloadLen = static_cast<int32_t>(blePacket.size());
+    return BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
+        payloadLen, payload);
+}
 
 static std::vector<MidiPortInfo> GetPortInfo(const std::string &deviceName)
 {
@@ -629,8 +591,9 @@ int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t 
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
+        CHECK_AND_RETURN_RET_LOG(!d.outputOpen, -1, "already open");
         d.outputOpen = true;
+        d.outProcessor = std::make_shared<UmpProcessor>();
         MIDI_INFO_LOG("OpenOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
@@ -644,8 +607,9 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
+        CHECK_AND_RETURN_RET_LOG(d.outputOpen, -1, "not open");
         d.outputOpen = false;
+        d.outProcessor = nullptr;
         MIDI_INFO_LOG("CloseOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
@@ -657,32 +621,48 @@ int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
     std::vector<MidiEventInner> &list)
 {
     CHECK_AND_RETURN_RET(portIndex == 0, -1);
+
+    // Get device context
     int32_t clientId = -1;
     BtGattCharacteristic dataChar{};
+    std::shared_ptr<UmpProcessor> processor;
     {
-        // Scope for the lock: only protect the access to the devices_ map
         std::lock_guard<std::mutex> lock(lock_);
         auto it = devices_.find(deviceId);
         CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
-        const auto &d = it->second;
-        CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady, -1, "Device state invalid");
-        // Copy necessary values to avoid holding the lock during I/O
+        const auto& d = it->second;
+        CHECK_AND_RETURN_RET_LOG(d.outputOpen && d.connected && d.serviceReady && d.outProcessor, -1,
+            "Device state invalid");
         clientId = static_cast<int32_t>(d.id);
         dataChar = d.dataChar;
+        processor = d.outProcessor;
     }
+
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
-    for (auto midiEvent : list) {
-        // Validate data pointer before use
-        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "HandleUmpInput: midiEvent.data is nullptr");
-        std::vector<uint8_t> midi1Buffer;
-        ConvertUmpToMidi1(midiEvent.data, midiEvent.length, midi1Buffer);
-        CHECK_AND_CONTINUE_LOG(!midi1Buffer.empty(), "midi1Buffer is empty");
-        const char *payload = reinterpret_cast<const char*>(midi1Buffer.data());
-        int32_t payloadLen = static_cast<int32_t>(midi1Buffer.size());
-        CHECK_AND_CONTINUE_LOG(BleGattcWriteCharacteristic(clientId, dataChar, OHOS_GATT_WRITE_NO_RSP,
-            payloadLen, payload) == 0, "write characteristic failed");
+
+    // Process each MIDI event
+    for (const auto& midiEvent : list) {
+        CHECK_AND_CONTINUE_LOG(midiEvent.data != nullptr, "midiEvent.data is nullptr");
+
+        // Convert UMP to MIDI 1.0
+        auto midi1Buffer = ConvertUmpToMidi1(processor, midiEvent.data, midiEvent.length);
+        if (midi1Buffer.empty()) {
+            MIDI_WARNING_LOG("UMP to MIDI 1.0 conversion produced empty data");
+            continue;
+        }
+        // Encode and send BLE packet
+        uint16_t timestampMs = GetBleTimestampMs(midiEvent.timestamp);
+        auto blePacket = BleMidiPacketEncoder::EncodeEvent(
+            midi1Buffer.data(), midi1Buffer.size(), timestampMs);
+        if (blePacket.empty()) {
+            MIDI_WARNING_LOG("BLE packet encoding failed");
+            continue;
+        }
+        int32_t result = SendBleMidiPacket(clientId, dataChar, blePacket);
+        CHECK_AND_CONTINUE_LOG(result == 0, "BleGattcWriteCharacteristic failed: %{public}d", result);
     }
-    MIDI_DEBUG_LOG("HandleUmpInput completed: deviceId=%{public}" PRId64 ", processed %{public}zu events",
+
+    MIDI_DEBUG_LOG("HandleUmpInput completed: deviceId=%{public}" PRId64 ", %{public}zu events",
         deviceId, list.size());
     return 0;
 }

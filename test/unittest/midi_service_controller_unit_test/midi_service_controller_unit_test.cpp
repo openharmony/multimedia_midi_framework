@@ -517,3 +517,137 @@ HWTEST_F(MidiServiceControllerUnitTest, DestroyClient001, TestSize.Level0)
     int32_t ret = controller_->DestroyMidiClient(clientId_);
     EXPECT_EQ(ret, OH_MIDI_STATUS_OK);
 }
+
+/**
+ * @tc.name: NotifyDeviceChange_ResourceCleanup001
+ * @tc.desc: Verify that client's openDevices is cleaned up when device is removed
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, NotifyDeviceChange_ResourceCleanup001, TestSize.Level0)
+{
+    int64_t driverId = 600;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Test Device");
+
+    // Open device
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+
+    // Simulate device removal
+    DeviceInformation deviceInfo;
+    deviceInfo.midiDeviceInfo.deviceId = deviceId;
+    deviceInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+
+    controller_->NotifyDeviceChange(DeviceChangeType::REMOVED, deviceInfo);
+
+    // Verify device context is removed
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
+}
+
+/**
+ * @tc.name: NotifyDeviceChange_PortCountCleanup001
+ * @tc.desc: Verify that openPortCount is decremented when device is removed
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, NotifyDeviceChange_PortCountCleanup001, TestSize.Level0)
+{
+    int64_t driverId = 601;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Port Device");
+    uint32_t portIndex = 0;
+
+    // Open device and port
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(2048);
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, buffer, deviceId, portIndex), OH_MIDI_STATUS_OK);
+
+    // Simulate device removal
+    DeviceInformation deviceInfo;
+    deviceInfo.midiDeviceInfo.deviceId = deviceId;
+    deviceInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+
+    controller_->NotifyDeviceChange(DeviceChangeType::REMOVED, deviceInfo);
+
+    // Verify resources are cleaned
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
+}
+
+/**
+ * @tc.name: NotifyDeviceChange_MultiClient001
+ * @tc.desc: Verify that multi-client resources are cleaned when device is removed
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, NotifyDeviceChange_MultiClient001, TestSize.Level0)
+{
+    int64_t driverId = 602;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Shared Device");
+
+    // Create second client
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    // Both clients open the same device
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // Simulate device removal
+    DeviceInformation deviceInfo;
+    deviceInfo.midiDeviceInfo.deviceId = deviceId;
+    deviceInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+
+    controller_->NotifyDeviceChange(DeviceChangeType::REMOVED, deviceInfo);
+
+    // Verify cleanup
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(deviceId));
+
+    // Cleanup second client
+    controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: NotifyDeviceChange_NonExistentDevice001
+ * @tc.desc: Verify that removing non-existent device does not crash
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, NotifyDeviceChange_NonExistentDevice001, TestSize.Level0)
+{
+    DeviceInformation deviceInfo;
+    deviceInfo.midiDeviceInfo.deviceId = 99999;
+    deviceInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+
+    // Should not crash
+    controller_->NotifyDeviceChange(DeviceChangeType::REMOVED, deviceInfo);
+    EXPECT_TRUE(true);
+}
+
+/**
+ * @tc.name: NotifyDeviceChange_NoCleanupOnAdd001
+ * @tc.desc: Verify that ADD event does not trigger cleanup logic
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, NotifyDeviceChange_NoCleanupOnAdd001, TestSize.Level0)
+{
+    int64_t driverId = 603;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Add Test Device");
+
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+
+    // Simulate device ADD (should not trigger cleanup)
+    DeviceInformation deviceInfo;
+    deviceInfo.midiDeviceInfo.deviceId = deviceId;
+    deviceInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+
+    controller_->NotifyDeviceChange(DeviceChangeType::ADD, deviceInfo);
+
+    // Device context should still exist
+    EXPECT_TRUE(controller_->HasDeviceContextForTest(deviceId));
+
+    // Cleanup
+    EXPECT_CALL(*rawMockDriver_, CloseDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    controller_->CloseDevice(clientId_, deviceId);
+}

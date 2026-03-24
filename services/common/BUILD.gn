@@ -29,6 +29,7 @@ ohos_shared_library("midi_common") {
   install_enable = true
 
   sources = [
+    "src/ble_midi_encoder.cpp",
     "src/futex_tool.cpp",
     "src/midi_shared_ring.cpp",
     "src/ump_packet.cpp",
