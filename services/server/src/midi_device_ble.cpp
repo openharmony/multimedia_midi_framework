@@ -82,11 +82,11 @@ static uint16_t GetBleTimestampMs(int64_t eventTimestampNs)
 {
     if (eventTimestampNs != 0) {
         return static_cast<uint16_t>(
-            (eventTimestampNs / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+            static_cast<uint64_t>(eventTimestampNs / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
             & BleMidiConstants::TIMESTAMP_MASK);
     }
     return static_cast<uint16_t>(
-        (GetCurNano() / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+        static_cast<uint64_t>(GetCurNano() / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
         & BleMidiConstants::TIMESTAMP_MASK);
 }
 

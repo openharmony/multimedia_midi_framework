@@ -127,14 +127,3 @@ std::vector<uint8_t> BleMidiPacketEncoder::EncodeEvents(
 
     return result;
 }
-
-uint16_t BleMidiPacketEncoder::GetCurrentTimestampMs()
-{
-    // Get current time in milliseconds since steady_clock epoch
-    auto now = std::chrono::steady_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()).count();
-
-    // Mask to 13-bit timestamp (wraps at 8192 ms)
-    return static_cast<uint16_t>(ms & BleMidiConstants::TIMESTAMP_MASK);
-}

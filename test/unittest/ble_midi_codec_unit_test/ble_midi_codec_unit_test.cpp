@@ -239,24 +239,6 @@ HWTEST_F(BleMidiEncoderUnitTest, EncodeNoteOnAndControlChange, TestSize.Level1)
     EXPECT_EQ(result[6], 0xB0);  // Control Change
 }
 
-// ====================================================================
-// Timestamp Utilities Tests
-// ====================================================================
-
-/**
- * @tc.name: GetCurrentTimestampMs
- * @tc.desc: Test timestamp generation
- * @tc.type: FUNC
- */
-HWTEST_F(BleMidiEncoderUnitTest, GetCurrentTimestampMs, TestSize.Level1)
-{
-    uint16_t ts1 = BleMidiPacketEncoder::GetCurrentTimestampMs();
-    uint16_t ts2 = BleMidiPacketEncoder::GetCurrentTimestampMs();
-
-    EXPECT_LE(ts1, 8191u);
-    EXPECT_LE(ts2, 8191u);
-}
-
 /**
  * @tc.name: TimestampMaskingOverflow
  * @tc.desc: Test that timestamps above 8191 are correctly masked
@@ -303,7 +285,7 @@ HWTEST_F(BleMidiEncoderUnitTest, EncodeWithEventTimestamp, TestSize.Level1)
 
     // 1234567890 ns = 1234 ms
     int64_t timestampNs = 1234567890;
-    uint16_t timestampMs = static_cast<uint16_t>((timestampNs / 1000000) & 0x1FFF);
+    uint16_t timestampMs = static_cast<uint16_t>(static_cast<uint64_t>(timestampNs / 1000000) & 0x1FFF);
 
     std::vector<uint8_t> result = BleMidiPacketEncoder::EncodeEvent(
         midiData, sizeof(midiData), timestampMs);
@@ -315,26 +297,6 @@ HWTEST_F(BleMidiEncoderUnitTest, EncodeWithEventTimestamp, TestSize.Level1)
 }
 
 /**
- * @tc.name: EncodeWithZeroTimestamp
- * @tc.desc: Test encoding when event timestamp is 0
- * @tc.type: FUNC
- */
-HWTEST_F(BleMidiEncoderUnitTest, EncodeWithZeroTimestamp, TestSize.Level1)
-{
-    uint8_t midiData[] = { 0x90, 0x3C, 0x64 };
-
-    uint16_t timestampMs = BleMidiPacketEncoder::GetCurrentTimestampMs();
-
-    std::vector<uint8_t> result = BleMidiPacketEncoder::EncodeEvent(
-        midiData, sizeof(midiData), timestampMs);
-
-    EXPECT_EQ(result.size(), 5u);
-    EXPECT_EQ(result[0] & 0x80, 0x80);  // Header bit 7 set
-    EXPECT_EQ(result[1] & 0x80, 0x80);  // Timestamp bit 7 set
-    EXPECT_EQ(result[0] & 0x40, 0x00);  // Header bit 6 must be 0
-}
-
-/**
  * @tc.name: NanosecondToMillisecondConversion
  * @tc.desc: Test ns to ms conversion
  * @tc.type: FUNC
@@ -343,16 +305,16 @@ HWTEST_F(BleMidiEncoderUnitTest, NanosecondToMillisecondConversion, TestSize.Lev
 {
     // 1 second = 1000 ms
     int64_t oneSecondNs = 1000000000;
-    uint16_t ts1 = static_cast<uint16_t>((oneSecondNs / 1000000) & 0x1FFF);
+    uint16_t ts1 = static_cast<uint16_t>(static_cast<uint64_t>(oneSecondNs / 1000000) & 0x1FFF);
     EXPECT_EQ(ts1, 1000u);
 
     // 10 seconds -> masked to 1808
     int64_t largeNs = 10000000000;
-    uint16_t ts2 = static_cast<uint16_t>((largeNs / 1000000) & 0x1FFF);
+    uint16_t ts2 = static_cast<uint16_t>(static_cast<uint64_t>(largeNs / 1000000) & 0x1FFF);
     EXPECT_EQ(ts2, 1808u);
 
     // 8191 ms
     int64_t maxNs = 8191000000;
-    uint16_t ts3 = static_cast<uint16_t>((maxNs / 1000000) & 0x1FFF);
+    uint16_t ts3 = static_cast<uint16_t>(static_cast<uint64_t>(maxNs / 1000000) & 0x1FFF);
     EXPECT_EQ(ts3, 8191u);
 }

@@ -25,7 +25,7 @@ namespace BleMidiConstants {
     constexpr uint16_t TIMESTAMP_MAX = 8191;
 
     // Time conversion constants
-    constexpr int64_t NANOSECONDS_PER_MILLISECOND = 1000000;
+    constexpr uint64_t NANOSECONDS_PER_MILLISECOND = 1000000;
 } // namespace BleMidiConstants
 
 /**
@@ -63,12 +63,6 @@ public:
     static std::vector<uint8_t> EncodeEvents(
         const std::vector<std::pair<std::vector<uint8_t>, uint16_t>>& events
     );
-
-    /**
-     * @brief Get current timestamp in milliseconds (13-bit, wraps at 8192).
-     * @return Current timestamp value (0-8191).
-     */
-    static uint16_t GetCurrentTimestampMs();
 };
 
 #endif // BLE_MIDI_ENCODER_H
