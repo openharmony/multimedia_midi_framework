@@ -98,6 +98,11 @@ public:
     void NotifyError(int32_t code);
     MidiDeviceInfo GetDevice(int64_t deviceId);
 
+    // Dump helper methods
+    void DumpClientInfo(std::string &dumpString);
+    void DumpPortMapping(std::string &dumpString);
+    void DumpStatistics(std::string &dumpString);
+
     // Runtime configuration (callable from tests)
     void SetUnloadDelay(int64_t delayMs) { unloadDelayTime_ = delayMs; }
 

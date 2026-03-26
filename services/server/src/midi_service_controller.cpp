@@ -888,6 +888,150 @@ void MidiServiceController::NotifyError(int32_t code)
     }
 }
 
+void MidiServiceController::DumpClientInfo(std::string &dumpString)
+{
+    std::lock_guard lock(lock_);
+
+    dumpString += "[Client Information]\n";
+    dumpString += "- " + std::to_string(clients_.size()) + " Client(s) connected:\n\n";
+
+    for (const auto &[clientId, client] : clients_) {
+        dumpString += "  Client " + std::to_string(clientId) + ":\n";
+
+        auto resIt = clientResourceInfo_.find(clientId);
+        if (resIt != clientResourceInfo_.end()) {
+            const auto &info = resIt->second;
+            dumpString += "  - UID: " + std::to_string(info.uid) + "\n";
+
+            dumpString += "  - Open Devices: [";
+            bool first = true;
+            for (const auto &devId : info.openDevices) {
+                if (!first) dumpString += ", ";
+                dumpString += std::to_string(devId);
+                first = false;
+            }
+            dumpString += "]\n";
+
+            dumpString += "  - Open Ports: " + std::to_string(info.openPortCount) + "\n";
+        }
+        dumpString += "\n";
+    }
+
+    dumpString += "Resource Limits:\n";
+    dumpString += "  MAX_CLIENTS: " + std::to_string(MAX_CLIENTS) + "\n";
+    dumpString += "  MAX_CLIENTS_PER_APP: " + std::to_string(MAX_CLIENTS_PER_APP) + "\n";
+    dumpString += "  MAX_DEVICES_PER_CLIENT: " + std::to_string(MAX_DEVICES_PER_CLIENT) + "\n";
+    dumpString += "  MAX_PORTS_PER_CLIENT: " + std::to_string(MAX_PORTS_PER_CLIENT) + "\n";
+}
+
+void MidiServiceController::DumpPortMapping(std::string &dumpString)
+{
+    std::lock_guard lock(lock_);
+
+    dumpString += "[Port Mapping]\n";
+
+    for (const auto &[deviceId, context] : deviceClientContexts_) {
+        auto deviceInfo = deviceManager_->GetDeviceForDeviceId(deviceId);
+        dumpString += "\nDevice " + std::to_string(deviceId) + " (" + deviceInfo.midiDeviceInfo.deviceName + "):\n";
+
+        // Input Ports
+        dumpString += "  Input Ports:\n";
+        if (context->inputDeviceconnections_.empty()) {
+            dumpString += "    (none)\n";
+        } else {
+            for (const auto &[portIndex, conn] : context->inputDeviceconnections_) {
+                dumpString += "    - Port " + std::to_string(portIndex) + ": ";
+                if (conn) {
+                    dumpString += "active\n";
+                    auto stats = conn->GetStats();
+                    // Format duration as seconds
+                    double durationSec = stats.statsDurationMs / 1000.0;
+                    dumpString += "      Events: " + std::to_string(stats.eventCount);
+                    dumpString += " (over " + std::to_string(durationSec) + "s)\n";
+                    dumpString += "      Bytes: " + std::to_string(stats.byteCount) + "\n";
+                } else {
+                    dumpString += "inactive\n";
+                }
+            }
+        }
+
+        // Output Ports
+        dumpString += "  Output Ports:\n";
+        if (context->outputDeviceconnections_.empty()) {
+            dumpString += "    (none)\n";
+        } else {
+            for (const auto &[portIndex, conn] : context->outputDeviceconnections_) {
+                dumpString += "    - Port " + std::to_string(portIndex) + ": ";
+                if (conn) {
+                    dumpString += "active\n";
+                    auto stats = conn->GetStats();
+                    double durationSec = stats.statsDurationMs / 1000.0;
+                    dumpString += "      Events: " + std::to_string(stats.eventCount);
+                    dumpString += " (over " + std::to_string(durationSec) + "s)\n";
+                    dumpString += "      Bytes: " + std::to_string(stats.byteCount) + "\n";
+                } else {
+                    dumpString += "inactive\n";
+                }
+            }
+        }
+    }
+}
+
+void MidiServiceController::DumpStatistics(std::string &dumpString)
+{
+    std::lock_guard lock(lock_);
+
+    dumpString += "[Traffic Statistics]\n\n";
+
+    uint64_t totalInputEvents = 0;
+    uint64_t totalOutputEvents = 0;
+    uint64_t totalInputBytes = 0;
+    uint64_t totalOutputBytes = 0;
+
+    dumpString += "Per-Device Statistics:\n";
+    for (const auto &[deviceId, context] : deviceClientContexts_) {
+        auto deviceInfo = deviceManager_->GetDeviceForDeviceId(deviceId);
+        dumpString += "  Device " + std::to_string(deviceId) + " (" + deviceInfo.midiDeviceInfo.deviceName + "):\n";
+
+        uint64_t deviceInputEvents = 0;
+        uint64_t deviceOutputEvents = 0;
+        uint64_t deviceInputBytes = 0;
+        uint64_t deviceOutputBytes = 0;
+
+        for (const auto &[portIndex, conn] : context->inputDeviceconnections_) {
+            if (conn) {
+                auto stats = conn->GetStats();
+                deviceInputEvents += stats.eventCount;
+                deviceInputBytes += stats.byteCount;
+            }
+        }
+
+        for (const auto &[portIndex, conn] : context->outputDeviceconnections_) {
+            if (conn) {
+                auto stats = conn->GetStats();
+                deviceOutputEvents += stats.eventCount;
+                deviceOutputBytes += stats.byteCount;
+            }
+        }
+
+        dumpString += "    Input Events: " + std::to_string(deviceInputEvents) + "\n";
+        dumpString += "    Output Events: " + std::to_string(deviceOutputEvents) + "\n";
+        dumpString += "    Input Bytes: " + std::to_string(deviceInputBytes) + "\n";
+        dumpString += "    Output Bytes: " + std::to_string(deviceOutputBytes) + "\n\n";
+
+        totalInputEvents += deviceInputEvents;
+        totalOutputEvents += deviceOutputEvents;
+        totalInputBytes += deviceInputBytes;
+        totalOutputBytes += deviceOutputBytes;
+    }
+
+    dumpString += "System Totals:\n";
+    dumpString += "  Total Input Events: " + std::to_string(totalInputEvents) + "\n";
+    dumpString += "  Total Output Events: " + std::to_string(totalOutputEvents) + "\n";
+    dumpString += "  Total Input Bytes: " + std::to_string(totalInputBytes) + "\n";
+    dumpString += "  Total Output Bytes: " + std::to_string(totalOutputBytes) + "\n";
+}
+
 #ifdef UNIT_TEST_SUPPORT
 void MidiServiceController::ClearStateForTest()
 {

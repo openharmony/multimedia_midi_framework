@@ -22,6 +22,7 @@
 #include "system_ability.h"
 #include "midi_service_stub.h"
 #include "midi_service_controller.h"
+#include "midi_server_dump.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -33,6 +34,7 @@ public:
     explicit MidiServer(int32_t systemAbilityId, bool runOnCreate = true);
     virtual ~MidiServer() = default;
     void OnDump() override;
+    int32_t Dump(int32_t fd, const std::vector<std::u16string> &args) override;
     void OnStart() override;
     void OnStop() override;
     int32_t CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
@@ -40,6 +42,7 @@ public:
 
 private:
     std::shared_ptr<MidiServiceController> controller_;
+    std::unique_ptr<MidiServerDump> dumpHelper_;
 };
 } // namespace MIDI
 } // namespace OHOS

@@ -110,6 +110,77 @@ std::vector<std::shared_ptr<ClientConnectionInServer>> DeviceConnectionBase::Sna
     return clients_;
 }
 
+DeviceConnectionStats DeviceConnectionBase::GetStats() const
+{
+    DeviceConnectionStats stats;
+    stats.eventCount = eventCount_.load();
+    stats.byteCount = byteCount_.load();
+    stats.errorCount = errorCount_.load();
+    stats.statsStartTimeMs = statsStartTimeMs_.load();
+
+    int64_t startTime = stats.statsStartTimeMs;
+    if (startTime > 0) {
+        int64_t now = GetCurrentTimeMs();
+        stats.statsDurationMs = now - startTime;
+    }
+    return stats;
+}
+
+void DeviceConnectionBase::ResetStats()
+{
+    eventCount_.store(0);
+    byteCount_.store(0);
+    errorCount_.store(0);
+    statsStartTimeMs_.store(GetCurrentTimeMs());
+}
+
+void DeviceConnectionBase::IncrementEventCount(size_t bytes)
+{
+    // Overflow protection: reset if approaching limit
+    uint64_t current = eventCount_.load();
+    if (current >= MAX_EVENT_COUNT) {
+        eventCount_.store(0);
+        byteCount_.store(0);
+        statsStartTimeMs_.store(GetCurrentTimeMs());
+    }
+
+    eventCount_.fetch_add(1);
+
+    // Initialize stats start time on first event
+    if (statsStartTimeMs_.load() == 0) {
+        int64_t expected = 0;
+        int64_t now = GetCurrentTimeMs();
+        statsStartTimeMs_.compare_exchange_strong(expected, now);
+    }
+
+    if (bytes > 0) {
+        // Overflow protection for byte count
+        uint64_t currentBytes = byteCount_.load();
+        if (currentBytes >= MAX_BYTE_COUNT || (MAX_BYTE_COUNT - currentBytes) < bytes) {
+            byteCount_.store(bytes);
+        } else {
+            byteCount_.fetch_add(bytes);
+        }
+    }
+}
+
+void DeviceConnectionBase::IncrementErrorCount()
+{
+    // Overflow protection
+    uint64_t current = errorCount_.load();
+    if (current >= MAX_EVENT_COUNT) {
+        errorCount_.store(0);
+    }
+    errorCount_.fetch_add(1);
+}
+
+int64_t DeviceConnectionBase::GetCurrentTimeMs() const
+{
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+}
+
 // ====== DeviceConnectionForInput ======
 DeviceConnectionForInput::DeviceConnectionForInput(DeviceConnectionInfo info) : DeviceConnectionBase(info)
 {}
@@ -117,6 +188,7 @@ DeviceConnectionForInput::DeviceConnectionForInput(DeviceConnectionInfo info) : 
 void DeviceConnectionForInput::HandleDeviceUmpInput(std::vector<MidiEventInner> &events)
 {
     for (auto &event : events) {
+        IncrementEventCount(event.length * sizeof(uint32_t));
         BroadcastToClients(event);
     }
 }
@@ -504,6 +576,12 @@ void DeviceConnectionForOutput::FlushSendCacheToDriver()
         return;
     }
     CHECK_AND_RETURN_LOG(info_.driver != nullptr, "driver is null!");
+
+    // Update statistics for output events
+    for (const auto &event : sendCache_) {
+        IncrementEventCount(event.length * sizeof(uint32_t));
+    }
+
     info_.driver->HandleUmpInput(info_.deviceId, info_.portIndex, sendCache_);
     sendCache_.clear();
     sendCachePayloadBuffers_.clear();
