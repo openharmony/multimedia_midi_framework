@@ -23,6 +23,7 @@
 #include <locale>
 #include "midi_service_controller.h"
 #include "midi_device_mananger.h"
+#include "midi_info.h"
 #include "midi_log.h"
 
 namespace OHOS {
@@ -110,8 +111,8 @@ void MidiServerDump::DumpServiceStatus(std::string &dumpString)
 std::string MidiServerDump::DeviceTypeToString(int type) const
 {
     switch (type) {
-        case 0: return "USB";
-        case 1: return "BLE";
+        case static_cast<int>(DEVICE_TYPE_USB): return "USB";
+        case static_cast<int>(DEVICE_TYPE_BLE): return "BLE";
         default: return "Unknown";
     }
 }
@@ -119,8 +120,8 @@ std::string MidiServerDump::DeviceTypeToString(int type) const
 std::string MidiServerDump::ProtocolToString(int protocol) const
 {
     switch (protocol) {
-        case 1: return "MIDI 1.0";
-        case 2: return "MIDI 2.0";
+        case static_cast<int>(PROTOCOL_1_0): return "MIDI 1.0";
+        case static_cast<int>(PROTOCOL_2_0): return "MIDI 2.0";
         default: return "Unknown";
     }
 }
@@ -128,8 +129,8 @@ std::string MidiServerDump::ProtocolToString(int protocol) const
 std::string MidiServerDump::PortDirectionToString(int direction) const
 {
     switch (direction) {
-        case 0: return "INPUT";
-        case 1: return "OUTPUT";
+        case static_cast<int>(PORT_DIRECTION_INPUT): return "INPUT";
+        case static_cast<int>(PORT_DIRECTION_OUTPUT): return "OUTPUT";
         default: return "Unknown";
     }
 }

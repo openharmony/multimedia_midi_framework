@@ -103,6 +103,26 @@ public:
     void DumpPortMapping(std::string &dumpString);
     void DumpStatistics(std::string &dumpString);
 
+private:
+    // Dump implementation helper methods (to reduce nesting depth)
+    void DumpSingleClientInfo(std::string &dumpString, uint32_t clientId);
+    void DumpResourceLimits(std::string &dumpString);
+    void DumpDevicePortMapping(std::string &dumpString, int64_t deviceId,
+        const std::shared_ptr<DeviceClientContext> &context);
+    void DumpPortList(std::string &dumpString, const std::string &label,
+        const std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForInput>> &ports);
+    void DumpPortList(std::string &dumpString, const std::string &label,
+        const std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForOutput>> &ports);
+    template<typename PortConnection>
+    void DumpSinglePort(std::string &dumpString, int64_t portIndex,
+        const std::shared_ptr<PortConnection> &conn);
+    void DumpDeviceStatistics(std::string &dumpString, int64_t deviceId,
+        const std::shared_ptr<DeviceClientContext> &context,
+        uint64_t &totalInputEvents, uint64_t &totalOutputEvents,
+        uint64_t &totalInputBytes, uint64_t &totalOutputBytes);
+
+public:
+
     // Runtime configuration (callable from tests)
     void SetUnloadDelay(int64_t delayMs) { unloadDelayTime_ = delayMs; }
 
