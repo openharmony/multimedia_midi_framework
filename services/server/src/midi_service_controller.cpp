@@ -274,6 +274,7 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
             deviceId,
             clientId);
         it->second->clients.insert(clientId);
+        resourceInfo.openDevices.insert(deviceId);
         MIDI_INFO_LOG(
             "Client added to existing device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
         return OH_MIDI_STATUS_OK;
@@ -428,17 +429,25 @@ int32_t MidiServiceController::OpenInputPort(
         deviceId);
 
     auto &inputPortConnections = it->second->inputDeviceconnections_;
+    auto &resourceInfo = clientResourceInfo_[clientId];
+
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
             OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
+        // Check port count limit for this client
+        if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+            MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+                clientId, MAX_PORTS_PER_CLIENT);
+            return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+        }
         inputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect inputport success");
         return OH_MIDI_STATUS_OK;
     }
 
     // Check port count limit for this client
-    auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
         MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
@@ -479,17 +488,25 @@ int32_t MidiServiceController::OpenOutputPort(
         deviceId);
 
     auto &outputPortConnections = it->second->outputDeviceconnections_;
+    auto &resourceInfo = clientResourceInfo_[clientId];
+
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId) != true,
             OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
+        // Check port count limit for this client
+        if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+            MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+                clientId, MAX_PORTS_PER_CLIENT);
+            return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+        }
         outputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect outputport success");
         return OH_MIDI_STATUS_OK;
     }
 
     // Check port count limit for this client
-    auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
         MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
@@ -907,12 +924,12 @@ void MidiServiceController::DumpSingleClientInfo(std::string &dumpString, uint32
     dumpString += "  Client " + std::to_string(clientId) + ":\n";
 
     auto resIt = clientResourceInfo_.find(clientId);
-    CHECK_AND_RETURN_LOG(resIt == clientResourceInfo_.end(), "Client resource not found");
+    CHECK_AND_RETURN_LOG(resIt != clientResourceInfo_.end(), "Client resource not found");
 
     const auto &info = resIt->second;
-    dumpString += "  - UID: " + std::to_string(info.uid) + "\n";
+    dumpString += "    - UID: " + std::to_string(info.uid) + "\n";
 
-    dumpString += "  - Open Devices: [";
+    dumpString += "    - Open Devices: [";
     bool first = true;
     for (const auto &devId : info.openDevices) {
         if (!first) dumpString += ", ";
@@ -921,7 +938,7 @@ void MidiServiceController::DumpSingleClientInfo(std::string &dumpString, uint32
     }
     dumpString += "]\n";
 
-    dumpString += "  - Open Ports: " + std::to_string(info.openPortCount) + "\n\n";
+    dumpString += "    - Open Ports: " + std::to_string(info.openPortCount) + "\n\n";
 }
 
 void MidiServiceController::DumpResourceLimits(std::string &dumpString)
@@ -931,6 +948,27 @@ void MidiServiceController::DumpResourceLimits(std::string &dumpString)
     dumpString += "  MAX_CLIENTS_PER_APP: " + std::to_string(MAX_CLIENTS_PER_APP) + "\n";
     dumpString += "  MAX_DEVICES_PER_CLIENT: " + std::to_string(MAX_DEVICES_PER_CLIENT) + "\n";
     dumpString += "  MAX_PORTS_PER_CLIENT: " + std::to_string(MAX_PORTS_PER_CLIENT) + "\n";
+}
+
+void MidiServiceController::DumpDeviceOpenStatus(std::string &dumpString, int64_t deviceId)
+{
+    std::lock_guard lock(lock_);
+
+    auto it = deviceClientContexts_.find(deviceId);
+    if (it == deviceClientContexts_.end()) {
+        dumpString += "    - Opened by: (none)\n";
+        return;
+    }
+
+    const auto &context = it->second;
+    dumpString += "    - Opened by " + std::to_string(context->clients.size()) + " client(s): [";
+    bool first = true;
+    for (const auto &clientId : context->clients) {
+        if (!first) dumpString += ", ";
+        dumpString += std::to_string(clientId);
+        first = false;
+    }
+    dumpString += "]\n";
 }
 
 void MidiServiceController::DumpPortMapping(std::string &dumpString)
@@ -950,11 +988,11 @@ void MidiServiceController::DumpDevicePortMapping(std::string &dumpString, int64
     auto deviceInfo = deviceManager_->GetDeviceForDeviceId(deviceId);
     dumpString += "\nDevice " + std::to_string(deviceId) + " (" + deviceInfo.midiDeviceInfo.deviceName + "):\n";
 
-    DumpPortList(dumpString, "Input Ports", context->inputDeviceconnections_);
-    DumpPortList(dumpString, "Output Ports", context->outputDeviceconnections_);
+    DumpPortList(dumpString, "Input Ports", deviceId, context->inputDeviceconnections_);
+    DumpPortList(dumpString, "Output Ports", deviceId, context->outputDeviceconnections_);
 }
 
-void MidiServiceController::DumpPortList(std::string &dumpString, const std::string &label,
+void MidiServiceController::DumpPortList(std::string &dumpString, const std::string &label, int64_t deviceId,
     const std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForInput>> &ports)
 {
     dumpString += "  " + label + ":\n";
@@ -963,12 +1001,23 @@ void MidiServiceController::DumpPortList(std::string &dumpString, const std::str
         return;
     }
 
+    // Get all port info once for this device
+    std::vector<MidiPortInfo> portInfos;
+    deviceManager_->GetDevicePorts(deviceId, portInfos);
+
     for (const auto &[portIndex, conn] : ports) {
-        DumpSinglePort(dumpString, portIndex, conn);
+        std::string portName;
+        for (const auto &portInfo : portInfos) {
+            if (portInfo.portId == portIndex) {
+                portName = portInfo.name;
+                break;
+            }
+        }
+        DumpSinglePort(dumpString, portIndex, portName, conn);
     }
 }
 
-void MidiServiceController::DumpPortList(std::string &dumpString, const std::string &label,
+void MidiServiceController::DumpPortList(std::string &dumpString, const std::string &label, int64_t deviceId,
     const std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForOutput>> &ports)
 {
     dumpString += "  " + label + ":\n";
@@ -977,13 +1026,24 @@ void MidiServiceController::DumpPortList(std::string &dumpString, const std::str
         return;
     }
 
+    // Get all port info once for this device
+    std::vector<MidiPortInfo> portInfos;
+    deviceManager_->GetDevicePorts(deviceId, portInfos);
+
     for (const auto &[portIndex, conn] : ports) {
-        DumpSinglePort(dumpString, portIndex, conn);
+        std::string portName;
+        for (const auto &portInfo : portInfos) {
+            if (portInfo.portId == portIndex) {
+                portName = portInfo.name;
+                break;
+            }
+        }
+        DumpSinglePort(dumpString, portIndex, portName, conn);
     }
 }
 
 template<typename PortConnection>
-void MidiServiceController::DumpSinglePort(std::string &dumpString, int64_t portIndex,
+void MidiServiceController::DumpSinglePort(std::string &dumpString, int64_t portIndex, const std::string &portName,
     const std::shared_ptr<PortConnection> &conn)
 {
     dumpString += "    - Port " + std::to_string(portIndex) + ": ";
@@ -992,7 +1052,23 @@ void MidiServiceController::DumpSinglePort(std::string &dumpString, int64_t port
         return;
     }
 
-    dumpString += "active\n";
+    dumpString += "active";
+    if (!portName.empty()) {
+        dumpString += " \"" + portName + "\"";
+    }
+    dumpString += "\n";
+
+    // Show which clients have opened this port
+    auto clientIds = conn->GetConnectedClientIds();
+    dumpString += "      Opened by: " + std::to_string(clientIds.size()) + " client(s) [";
+    bool first = true;
+    for (const auto &clientId : clientIds) {
+        if (!first) dumpString += ", ";
+        dumpString += std::to_string(clientId);
+        first = false;
+    }
+    dumpString += "]\n";
+
     auto stats = conn->GetStats();
     double durationSec = stats.statsDurationMs / 1000.0;
     dumpString += "      Events: " + std::to_string(stats.eventCount);
@@ -1097,6 +1173,26 @@ bool MidiServiceController::HasClientForDeviceForTest(int64_t deviceId, uint32_t
         return false;
     }
     return it->second->clients.find(static_cast<int32_t>(clientId)) != it->second->clients.end();
+}
+
+std::unordered_set<int64_t> MidiServiceController::GetOpenDevicesForTest(uint32_t clientId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    auto it = clientResourceInfo_.find(clientId);
+    if (it == clientResourceInfo_.end()) {
+        return {};
+    }
+    return it->second.openDevices;
+}
+
+uint32_t MidiServiceController::GetOpenPortCountForTest(uint32_t clientId) const
+{
+    std::lock_guard<std::mutex> lock(lock_);
+    auto it = clientResourceInfo_.find(clientId);
+    if (it == clientResourceInfo_.end()) {
+        return 0;
+    }
+    return it->second.openPortCount;
 }
 #endif
 }  // namespace MIDI

@@ -150,22 +150,26 @@ void MidiServerDump::DeviceListDump(std::string &dumpString)
     for (size_t i = 0; i < devices.size(); ++i) {
         const auto &device = devices[i];
         dumpString += "  Device " + std::to_string(i + 1) + ":\n";
-        dumpString += "  - Device ID: " + std::to_string(device.deviceId) + "\n";
-        dumpString += "  - Name: " + device.deviceName + "\n";
-        dumpString += "  - Type: " + DeviceTypeToString(static_cast<int>(device.deviceType)) + "\n";
-        dumpString += "  - Address: " + device.address + "\n";
-        dumpString += "  - Protocol: " + ProtocolToString(static_cast<int>(device.transportProtocol)) + "\n";
-        dumpString += "  - Product ID: 0x" + std::to_string(device.productId) + "\n";
-        dumpString += "  - Vendor ID: 0x" + std::to_string(device.vendorId) + "\n";
+        dumpString += "    - Device ID: " + std::to_string(device.deviceId) + "\n";
+        dumpString += "    - Name: " + device.deviceName + "\n";
+        dumpString += "    - Type: " + DeviceTypeToString(static_cast<int>(device.deviceType)) + "\n";
+        dumpString += "    - Address: " + device.address + "\n";
+        dumpString += "    - Protocol: " + ProtocolToString(static_cast<int>(device.transportProtocol)) + "\n";
+        dumpString += "    - Product ID: 0x" + std::to_string(device.productId) + "\n";
+        dumpString += "    - Vendor ID: 0x" + std::to_string(device.vendorId) + "\n";
+
+        // Show which clients have opened this device
+        controller->DumpDeviceOpenStatus(dumpString, device.deviceId);
 
         // Get port info
         std::vector<MidiPortInfo> portInfos;
         controller->GetDevicePorts(device.deviceId, portInfos);
-        dumpString += "  - Ports (" + std::to_string(portInfos.size()) + "):\n";
+        dumpString += "    - Ports (" + std::to_string(portInfos.size()) + "):\n";
         for (const auto &port : portInfos) {
-            dumpString += "    - Port " + std::to_string(port.portId) + ": "
+            dumpString += "      - Port " + std::to_string(port.portId) + ": "
                         + PortDirectionToString(static_cast<int>(port.direction))
-                        + " (" + ProtocolToString(static_cast<int>(port.transportProtocol)) + ")\n";
+                        + " (" + ProtocolToString(static_cast<int>(port.transportProtocol)) + ")"
+                        + " \"" + port.name + "\"\n";
         }
         dumpString += "\n";
     }

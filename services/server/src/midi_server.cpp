@@ -57,7 +57,7 @@ int32_t MidiServer::Dump(int32_t fd, const std::vector<std::u16string> &args)
     MIDI_INFO_LOG("MIDI service Dump invoked");
     if (fd < 0) {
         MIDI_ERR_LOG("Invalid fd: %{public}d", fd);
-        return OH_MIDI_STATUS_INVALID_PARAM;
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
 
     std::string dumpString;

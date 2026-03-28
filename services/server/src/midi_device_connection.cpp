@@ -104,6 +104,19 @@ bool DeviceConnectionBase::IsEmptyClientConnections()
     return clients_.empty();
 }
 
+std::vector<uint32_t> DeviceConnectionBase::GetConnectedClientIds() const
+{
+    std::lock_guard<std::mutex> lock(clientsMutex_);
+    std::vector<uint32_t> clientIds;
+    clientIds.reserve(clients_.size());
+    for (const auto &client : clients_) {
+        if (client) {
+            clientIds.push_back(client->GetClientId());
+        }
+    }
+    return clientIds;
+}
+
 std::vector<std::shared_ptr<ClientConnectionInServer>> DeviceConnectionBase::SnapshotClients() const
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);

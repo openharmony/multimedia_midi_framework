@@ -651,3 +651,195 @@ HWTEST_F(MidiServiceControllerUnitTest, NotifyDeviceChange_NoCleanupOnAdd001, Te
     EXPECT_CALL(*rawMockDriver_, CloseDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
     controller_->CloseDevice(clientId_, deviceId);
 }
+
+// ============================================================================
+// Bug Fix Tests: Resource Tracking for Multi-Client Scenarios
+// ============================================================================
+
+/**
+ * @tc.name: OpenDevice_ResourceTrackingForSecondClient
+ * @tc.desc: Verify that openDevices is correctly updated when second client opens the same device
+ * @tc.type: FUNC
+ * @tc.require: Bug fix - OpenDevice() should update openDevices for all clients
+ */
+HWTEST_F(MidiServiceControllerUnitTest, OpenDevice_ResourceTrackingForSecondClient, TestSize.Level0)
+{
+    int64_t driverId = 700;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Shared Device");
+
+    // Create a second client
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    // First client opens device
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+
+    // Verify first client's openDevices
+    auto openDevices1 = controller_->GetOpenDevicesForTest(clientId_);
+    EXPECT_EQ(openDevices1.size(), 1);
+    EXPECT_NE(openDevices1.find(deviceId), openDevices1.end());
+
+    // Second client opens the same device (should NOT call driver again)
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(_)).Times(0);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // Verify second client's openDevices is also updated (BUG FIX VERIFICATION)
+    auto openDevices2 = controller_->GetOpenDevicesForTest(clientId2);
+    EXPECT_EQ(openDevices2.size(), 1);
+    EXPECT_NE(openDevices2.find(deviceId), openDevices2.end());
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: OpenInputPort_ResourceTrackingForSecondClient
+ * @tc.desc: Verify that openPortCount is correctly updated when second client opens the same input port
+ * @tc.type: FUNC
+ * @tc.require: Bug fix - OpenInputPort() should update openPortCount for all clients
+ */
+HWTEST_F(MidiServiceControllerUnitTest, OpenInputPort_ResourceTrackingForSecondClient, TestSize.Level0)
+{
+    int64_t driverId = 701;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Shared Port Device");
+    uint32_t portIndex = 0;
+
+    // Create a second client
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    // Both clients open device
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // First client opens input port
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, portIndex, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer1;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, buffer1, deviceId, portIndex), OH_MIDI_STATUS_OK);
+
+    // Verify first client's openPortCount
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);
+
+    // Second client opens the same input port (should NOT call driver again)
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(_, _, _)).Times(0);
+    std::shared_ptr<MidiSharedRing> buffer2;
+    ASSERT_EQ(controller_->OpenInputPort(clientId2, buffer2, deviceId, portIndex), OH_MIDI_STATUS_OK);
+
+    // Verify second client's openPortCount is also updated (BUG FIX VERIFICATION)
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: OpenOutputPort_ResourceTrackingForSecondClient
+ * @tc.desc: Verify that openPortCount is correctly updated when second client opens the same output port
+ * @tc.type: FUNC
+ * @tc.require: Bug fix - OpenOutputPort() should update openPortCount for all clients
+ */
+HWTEST_F(MidiServiceControllerUnitTest, OpenOutputPort_ResourceTrackingForSecondClient, TestSize.Level0)
+{
+    int64_t driverId = 702;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Shared Output Port Device");
+    uint32_t portIndex = 0;
+
+    // Create a second client
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    // Both clients open device
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // First client opens output port
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(driverId, portIndex)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer1;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId_, buffer1, deviceId, portIndex), OH_MIDI_STATUS_OK);
+
+    // Verify first client's openPortCount
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);
+
+    // Second client opens the same output port (should NOT call driver again)
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(_, _)).Times(0);
+    std::shared_ptr<MidiSharedRing> buffer2;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId2, buffer2, deviceId, portIndex), OH_MIDI_STATUS_OK);
+
+    // Verify second client's openPortCount is also updated (BUG FIX VERIFICATION)
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: MultiClient_ResourceTrackingIntegration
+ * @tc.desc: Integration test - verify all resource tracking works correctly for multiple clients
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, MultiClient_ResourceTrackingIntegration, TestSize.Level0)
+{
+    int64_t driverId = 703;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Integration Device");
+    uint32_t inputPortIndex = 0;
+    uint32_t outputPortIndex = 1;
+
+    // Create two additional clients
+    uint32_t clientId2 = 0;
+    uint32_t clientId3 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    sptr<MockMidiCallbackStub> cb3 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+    controller_->CreateMidiInServer(cb3->AsObject(), clientObj, clientId3);
+
+    // All three clients open device
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId3, deviceId), OH_MIDI_STATUS_OK);
+
+    // Verify all clients have device in openDevices
+    for (uint32_t cid : {clientId_, clientId2, clientId3}) {
+        auto openDevices = controller_->GetOpenDevicesForTest(cid);
+        EXPECT_EQ(openDevices.size(), 1);
+        EXPECT_NE(openDevices.find(deviceId), openDevices.end());
+    }
+
+    // Client1 opens input port
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, inputPortIndex, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer1;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, buffer1, deviceId, inputPortIndex), OH_MIDI_STATUS_OK);
+
+    // Client2 and Client3 also open input port
+    std::shared_ptr<MidiSharedRing> buffer2, buffer3;
+    ASSERT_EQ(controller_->OpenInputPort(clientId2, buffer2, deviceId, inputPortIndex), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenInputPort(clientId3, buffer3, deviceId, inputPortIndex), OH_MIDI_STATUS_OK);
+
+    // Client1 opens output port
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(driverId, outputPortIndex)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> outBuffer1;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId_, outBuffer1, deviceId, outputPortIndex), OH_MIDI_STATUS_OK);
+
+    // Client2 opens output port
+    std::shared_ptr<MidiSharedRing> outBuffer2;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId2, outBuffer2, deviceId, outputPortIndex), OH_MIDI_STATUS_OK);
+
+    // Verify port counts
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 2);  // 1 input + 1 output
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 2);  // 1 input + 1 output
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId3), 1);  // 1 input only
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+    controller_->DestroyMidiClient(clientId3);
+}

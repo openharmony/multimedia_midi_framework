@@ -102,6 +102,7 @@ public:
     void DumpClientInfo(std::string &dumpString);
     void DumpPortMapping(std::string &dumpString);
     void DumpStatistics(std::string &dumpString);
+    void DumpDeviceOpenStatus(std::string &dumpString, int64_t deviceId);
 
 private:
     // Dump implementation helper methods (to reduce nesting depth)
@@ -109,12 +110,12 @@ private:
     void DumpResourceLimits(std::string &dumpString);
     void DumpDevicePortMapping(std::string &dumpString, int64_t deviceId,
         const std::shared_ptr<DeviceClientContext> &context);
-    void DumpPortList(std::string &dumpString, const std::string &label,
+    void DumpPortList(std::string &dumpString, const std::string &label, int64_t deviceId,
         const std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForInput>> &ports);
-    void DumpPortList(std::string &dumpString, const std::string &label,
+    void DumpPortList(std::string &dumpString, const std::string &label, int64_t deviceId,
         const std::unordered_map<int64_t, std::shared_ptr<DeviceConnectionForOutput>> &ports);
     template<typename PortConnection>
-    void DumpSinglePort(std::string &dumpString, int64_t portIndex,
+    void DumpSinglePort(std::string &dumpString, int64_t portIndex, const std::string &portName,
         const std::shared_ptr<PortConnection> &conn);
     void DumpDeviceStatistics(std::string &dumpString, int64_t deviceId,
         const std::shared_ptr<DeviceClientContext> &context,
@@ -156,6 +157,22 @@ public:
      * @note Only available when UNIT_TEST_SUPPORT is defined
      */
     bool HasClientForDeviceForTest(int64_t deviceId, uint32_t clientId) const;
+
+    /**
+     * @brief Test helper: Get open devices for a client
+     * @param clientId The client ID to check
+     * @return Set of device IDs that the client has opened
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    std::unordered_set<int64_t> GetOpenDevicesForTest(uint32_t clientId) const;
+
+    /**
+     * @brief Test helper: Get open port count for a client
+     * @param clientId The client ID to check
+     * @return Number of ports the client has opened
+     * @note Only available when UNIT_TEST_SUPPORT is defined
+     */
+    uint32_t GetOpenPortCountForTest(uint32_t clientId) const;
 #endif
 
 private:

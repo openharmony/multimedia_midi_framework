@@ -68,6 +68,7 @@ public:
     virtual void RemoveClientConnection(uint32_t clientId);
     virtual bool IsEmptyClientConnections();
     virtual bool HasClientConnection(uint32_t clientId) const;
+    virtual std::vector<uint32_t> GetConnectedClientIds() const;
 
     // Statistics methods
     DeviceConnectionStats GetStats() const;
