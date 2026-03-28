@@ -286,6 +286,8 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
         return OH_MIDI_STATUS_OK;
     }
 
+    // Check device count limit for this client
+
     CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == OH_MIDI_STATUS_OK,
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "Open device failed: deviceId=%{public}" PRId64,
@@ -440,6 +442,12 @@ int32_t MidiServiceController::OpenInputPort(
     if (inputPort != inputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
             OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
+        // Check port count limit for this client
+        if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+            MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+                clientId, MAX_PORTS_PER_CLIENT);
+            return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+        }
         inputPort->second->AddClientConnection(clientId, deviceId, buffer);
         resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect inputport success");
@@ -582,15 +590,18 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
     auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
+        auto &resourceInfo = clientResourceInfo_[clientId];
+        if (resourceInfo.openPortCount > 0) {
+            resourceInfo.openPortCount--;
+            MIDI_INFO_LOG("Client %{public}u closed input port, openPortCount now: %{public}u",
+                clientId, resourceInfo.openPortCount);
+        }
         inputPort->second->RemoveClientConnection(clientId);
         if (inputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseInputPort(deviceId, portIndex);
             inputPortConnections.erase(inputPort);
-            // Decrement port count when port is fully closed
-            auto &resourceInfo = clientResourceInfo_[clientId];
-            if (resourceInfo.openPortCount > 0) {
-                resourceInfo.openPortCount--;
-            }
+            MIDI_INFO_LOG("All clients disconnected, closed input port %{public}u on device %{public}" PRId64,
+                portIndex, deviceId);
             CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail!");
         }
     }
@@ -612,15 +623,18 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
+        auto &resourceInfo = clientResourceInfo_[clientId];
+        if (resourceInfo.openPortCount > 0) {
+            resourceInfo.openPortCount--;
+            MIDI_INFO_LOG("Client %{public}u closed output port, openPortCount now: %{public}u",
+                clientId, resourceInfo.openPortCount);
+        }
         outputPort->second->RemoveClientConnection(clientId);
         if (outputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
             outputPortConnections.erase(outputPort);
-            // Decrement port count when port is fully closed
-            auto &resourceInfo = clientResourceInfo_[clientId];
-            if (resourceInfo.openPortCount > 0) {
-                resourceInfo.openPortCount--;
-            }
+            MIDI_INFO_LOG("All clients disconnected, closed output port %{public}u on device %{public}" PRId64,
+                portIndex, deviceId);
             CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail!");
         }
     }
