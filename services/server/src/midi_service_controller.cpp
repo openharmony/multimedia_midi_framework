@@ -266,6 +266,12 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
             deviceId);
     }
 
+    if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+            clientId, MAX_DEVICES_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
+    }
+
     auto it = deviceClientContexts_.find(deviceId);
     if (it != deviceClientContexts_.end()) {
         CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) == it->second->clients.end(),
@@ -281,11 +287,6 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     }
 
     // Check device count limit for this client
-    if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
-            clientId, MAX_DEVICES_PER_CLIENT);
-        return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
-    }
 
     CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == OH_MIDI_STATUS_OK,
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
@@ -428,9 +429,15 @@ int32_t MidiServiceController::OpenInputPort(
         clientId,
         deviceId);
 
-    auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto &resourceInfo = clientResourceInfo_[clientId];
+    // Check port count limit for this client
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
 
+    auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
@@ -445,13 +452,6 @@ int32_t MidiServiceController::OpenInputPort(
         resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect inputport success");
         return OH_MIDI_STATUS_OK;
-    }
-
-    // Check port count limit for this client
-    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
-            clientId, MAX_PORTS_PER_CLIENT);
-        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
 
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
@@ -487,9 +487,15 @@ int32_t MidiServiceController::OpenOutputPort(
         clientId,
         deviceId);
 
-    auto &outputPortConnections = it->second->outputDeviceconnections_;
+    // Check port count limit for this client
     auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
 
+    auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId) != true,
@@ -504,13 +510,6 @@ int32_t MidiServiceController::OpenOutputPort(
         resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect outputport success");
         return OH_MIDI_STATUS_OK;
-    }
-
-    // Check port count limit for this client
-    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
-            clientId, MAX_PORTS_PER_CLIENT);
-        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
 
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
