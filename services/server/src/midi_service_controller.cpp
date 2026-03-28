@@ -286,8 +286,6 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
         return OH_MIDI_STATUS_OK;
     }
 
-    // Check device count limit for this client
-
     CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == OH_MIDI_STATUS_OK,
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
         "Open device failed: deviceId=%{public}" PRId64,
