@@ -440,12 +440,6 @@ int32_t MidiServiceController::OpenInputPort(
     if (inputPort != inputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
             OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
-        // Check port count limit for this client
-        if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-            MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
-                clientId, MAX_PORTS_PER_CLIENT);
-            return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
-        }
         inputPort->second->AddClientConnection(clientId, deviceId, buffer);
         resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect inputport success");
