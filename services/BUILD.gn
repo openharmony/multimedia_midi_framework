@@ -48,6 +48,7 @@ ohos_shared_library("midi_service") {
     "server/src/midi_device_usb.cpp",
     "server/src/midi_listener_callback.cpp",
     "server/src/midi_server.cpp",
+    "server/src/midi_server_dump.cpp",
     "server/src/midi_service_controller.cpp",
     "server/src/midi_permission.cpp",
     "server/src/midi_client_connection.cpp",

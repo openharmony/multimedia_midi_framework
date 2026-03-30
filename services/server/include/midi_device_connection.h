@@ -19,6 +19,8 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <atomic>
+#include <chrono>
 
 #include "midi_device_driver.h"
 #include "midi_client_connection.h"
@@ -30,6 +32,19 @@ static constexpr size_t MAX_PENDING_EVENTS = 4096;
 }
 
 enum class MidiPortDirection : uint32_t { INPUT = 0, OUTPUT = 1 };
+
+// Maximum values to prevent overflow
+constexpr uint64_t MAX_EVENT_COUNT = UINT64_MAX - 1000000;  // Leave margin
+constexpr uint64_t MAX_BYTE_COUNT = UINT64_MAX - (1024 * 1024 * 1024ULL);  // Leave 1GB margin
+
+// Statistics for device connection with time window
+struct DeviceConnectionStats {
+    uint64_t eventCount = 0;         // Number of events received/sent
+    uint64_t byteCount = 0;          // Number of bytes received/sent
+    uint64_t errorCount = 0;         // Number of errors
+    int64_t statsStartTimeMs = 0;    // Statistics start time (milliseconds since epoch)
+    int64_t statsDurationMs = 0;     // Statistics duration (milliseconds)
+};
 
 struct DeviceConnectionInfo {
     MidiDeviceDriver *driver = nullptr;
@@ -53,14 +68,28 @@ public:
     virtual void RemoveClientConnection(uint32_t clientId);
     virtual bool IsEmptyClientConnections();
     virtual bool HasClientConnection(uint32_t clientId) const;
+    virtual std::vector<uint32_t> GetConnectedClientIds() const;
+
+    // Statistics methods
+    DeviceConnectionStats GetStats() const;
+    void ResetStats();
 
 protected:
     std::vector<std::shared_ptr<ClientConnectionInServer>> SnapshotClients() const;
+    void IncrementEventCount(size_t bytes = 0);
+    void IncrementErrorCount();
+    int64_t GetCurrentTimeMs() const;
 
 protected:
     DeviceConnectionInfo info_;
     mutable std::mutex clientsMutex_;
     std::vector<std::shared_ptr<ClientConnectionInServer>> clients_;
+
+    // Statistics counters with overflow protection
+    mutable std::atomic<uint64_t> eventCount_{0};
+    mutable std::atomic<uint64_t> byteCount_{0};
+    mutable std::atomic<uint64_t> errorCount_{0};
+    mutable std::atomic<int64_t> statsStartTimeMs_{0};  // Statistics start time
 };
 
 class DeviceConnectionForInput final : public DeviceConnectionBase {

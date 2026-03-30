@@ -78,15 +78,20 @@ static std::vector<uint8_t> ConvertUmpToMidi1(
 }
 
 // Get BLE MIDI timestamp from event (ns -> ms, 13-bit)
-static uint16_t GetBleTimestampMs(int64_t eventTimestampNs)
+static uint16_t GetBleTimestampMs(uint64_t eventTimestampNs)
 {
+    uint64_t ns;
     if (eventTimestampNs != 0) {
-        return static_cast<uint16_t>(
-            static_cast<uint64_t>(eventTimestampNs / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
-            & BleMidiConstants::TIMESTAMP_MASK);
+        // Handle negative timestamp (error case) by using absolute value
+        ns = eventTimestampNs;
+    } else {
+        // Get current time and handle potential negative value
+        int64_t curNs = GetCurNano();
+        ns = static_cast<uint64_t>(curNs < 0 ? 0 : curNs);
     }
+
     return static_cast<uint16_t>(
-        static_cast<uint64_t>(GetCurNano() / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
+        (ns / BleMidiConstants::NANOSECONDS_PER_MILLISECOND)
         & BleMidiConstants::TIMESTAMP_MASK);
 }
 
@@ -394,8 +399,9 @@ static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t statu
     CHECK_AND_RETURN_LOG(!midi2.empty(), "Failed to parse UMP data");
 
     std::vector<MidiEventInner> events;
+    int64_t curNs = GetCurNano();
     MidiEventInner event = {
-        .timestamp = GetCurNano(),
+        .timestamp = static_cast<uint64_t>(curNs < 0 ? 0 : curNs),
         .length = midi2.size(),
         .data = midi2.data(),
     };
