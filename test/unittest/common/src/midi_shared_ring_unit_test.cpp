@@ -1107,5 +1107,111 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_003, TestSize.Leve
     EXPECT_EQ(0u, wrapSeq % 2) << "Wrap marker sequence should be even after correction, got: " << wrapSeq;
     EXPECT_EQ(static_cast<uint32_t>(ODD_SEQ + 3), wrapSeq) << "Expected seq=" << (ODD_SEQ + 3);
 }
+//==================== Write Path OOB Validation Tests ====================//
+
+/**
+ * @tc.name   : Test MidiSharedRing Write Path OOB Validation
+ * @tc.number : MidiSharedRingWriteOOB_001
+ * @tc.desc   : corrupted writePosition (>= capacity) should return SHM_BROKEN, not OOB write.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWriteOOB_001, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    // Simulate malicious client corrupting writePosition
+    ctrl->writePosition.store(0xFFFFFFFF);
+    ctrl->readPosition.store(0);
+
+    std::vector<uint32_t> payload{0xDEAD};
+    MidiEventInner ev = MakeEvent(1, payload);
+
+    uint32_t written = 99;
+    auto ret = ring.TryWriteEvents(&ev, 1, &written, false);
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ret);
+    EXPECT_EQ(0u, written);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Write Path OOB Validation
+ * @tc.number : MidiSharedRingWriteOOB_002
+ * @tc.desc   : corrupted readPosition (>= capacity) should return SHM_BROKEN.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWriteOOB_002, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    ctrl->writePosition.store(0);
+    ctrl->readPosition.store(0xFFFF0000); // corrupted
+
+    std::vector<uint32_t> payload{0xBEEF};
+    MidiEventInner ev = MakeEvent(2, payload);
+
+    uint32_t written = 99;
+    auto ret = ring.TryWriteEvents(&ev, 1, &written, false);
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ret);
+    EXPECT_EQ(0u, written);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Write Path OOB Validation
+ * @tc.number : MidiSharedRingWriteOOB_003
+ * @tc.desc   : readPosition corrupted mid-batch should stop writing without OOB.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWriteOOB_003, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    std::vector<uint32_t> p1(1, 0x11);
+    std::vector<uint32_t> p2(1, 0x22);
+    MidiEventInner evs[2] = {MakeEvent(1, p1), MakeEvent(2, p2)};
+
+    // Write first event normally
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&evs[0], 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // Now corrupt readPosition to simulate malicious client
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    ctrl->readPosition.store(0xFFFFFFFF);
+
+    // Try to write second event — should not OOB
+    auto ret = ring.TryWriteEvents(&evs[1], 1, &written, false);
+    // Should stop gracefully (WOULD_BLOCK because the corrupted readPos makes RingFree
+    // return a value that may or may not allow write, but the reload check catches it)
+    // The key point: no crash / OOB access
+    EXPECT_NE(MidiStatusCode::OK, ret);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Write Path OOB Validation
+ * @tc.number : MidiSharedRingWriteOOB_004
+ * @tc.desc   : writePosition == capacity (boundary) should be caught as invalid.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWriteOOB_004, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    ctrl->writePosition.store(256); // == capacity, invalid
+    ctrl->readPosition.store(0);
+
+    std::vector<uint32_t> payload{0xAA};
+    MidiEventInner ev = MakeEvent(1, payload);
+
+    uint32_t written = 99;
+    auto ret = ring.TryWriteEvents(&ev, 1, &written, false);
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ret);
+    EXPECT_EQ(0u, written);
+}
 } // namespace MIDI
 } // namespace OHOS

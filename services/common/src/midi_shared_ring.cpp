@@ -448,6 +448,13 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
     uint32_t readIndex = controler_->readPosition.load(std::memory_order_acquire);
     uint32_t writeIndex = controler_->writePosition.load(std::memory_order_acquire);
 
+    // Validate indices from shared memory to prevent OOB on corrupted values
+    if (!IsValidOffset(readIndex, capacity_) || !IsValidOffset(writeIndex, capacity_)) {
+        MIDI_WARNING_LOG("Invalid shm positions: read=%{public}u write=%{public}u cap=%{public}u",
+                         readIndex, writeIndex, capacity_);
+        return MidiStatusCode::SHM_BROKEN;
+    }
+
     for (uint32_t i = 0; i < eventCount; ++i) {
         const MidiEventInner &event = events[i];
         if (!ValidateOneEvent(event)) {
@@ -462,6 +469,11 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
         ++localWritten;
         // Reload readPosition with acquire
         readIndex = controler_->readPosition.load(std::memory_order_acquire);
+        if (!IsValidOffset(readIndex, capacity_)) {
+            MIDI_WARNING_LOG("Invalid readPosition after reload: %{public}u cap=%{public}u",
+                             readIndex, capacity_);
+            break;
+        }
     }
 
     if (eventsWritten) {
@@ -691,6 +703,11 @@ MidiStatusCode MidiSharedRing::TryWriteOneEvent(
 
 bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t totalBytes)
 {
+    if (writeIndex >= capacity_) {
+        MIDI_WARNING_LOG("Invalid writeIndex in UpdateWriteIndexIfNeed: %{public}u cap=%{public}u",
+                         writeIndex, capacity_);
+        return false;
+    }
     const uint32_t tail = capacity_ - writeIndex;
     if (tail >= totalBytes) {
         return false;
@@ -721,6 +738,10 @@ bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t total
 
 void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event)
 {
+    if (writeIndex >= capacity_) {
+        MIDI_WARNING_LOG("WriteEvent: writeIndex OOB: %{public}u cap=%{public}u", writeIndex, capacity_);
+        return;
+    }
     uint8_t *dst = ringBase_ + writeIndex;
     auto *header = reinterpret_cast<ShmMidiEventHeader *>(dst);
 
