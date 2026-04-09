@@ -142,6 +142,7 @@ private:
     MidiStatusCode HandleWrapIfNeeded(const ShmMidiEventHeader &hdr, uint32_t &r);
     MidiStatusCode BuildPeekedEvent(const ShmMidiEventHeader &hdr, uint32_t readIndex, PeekedEvent &outEvent);
     MidiEvent CopyOut(const PeekedEvent &peekedEvent, std::vector<uint32_t> &outPayloadBuffer) const;
+    void NotifyWrittenEvents();
 
     uint8_t *base_{nullptr};
     ControlHeader *controler_{nullptr};

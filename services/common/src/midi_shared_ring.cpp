@@ -457,17 +457,12 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
 
     for (uint32_t i = 0; i < eventCount; ++i) {
         const MidiEventInner &event = events[i];
-        if (!ValidateOneEvent(event)) {
-            break;
-        }
-        CHECK_AND_BREAK_LOG(ValidateOneEvent(event), "invalid envent");
+        CHECK_AND_BREAK_LOG(ValidateOneEvent(event), "invalid event");
         const size_t payloadBytesSize = event.length * sizeof(uint32_t);
         const uint32_t needed = static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + payloadBytesSize);
-
         auto ret = TryWriteOneEvent(event, needed, readIndex, writeIndex);
         CHECK_AND_BREAK_LOG(ret == MidiStatusCode::OK, "write event fail");
         ++localWritten;
-        // Reload readPosition with acquire
         readIndex = controler_->readPosition.load(std::memory_order_acquire);
         if (!IsValidOffset(readIndex, capacity_)) {
             MIDI_WARNING_LOG("Invalid readPosition after reload: %{public}u cap=%{public}u",
@@ -481,20 +476,11 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
     }
 
     if (localWritten == 0) {
-        // If eventCount was 0, this is a valid empty write, not a "would block" situation
-        if (eventCount == 0) {
-            return MidiStatusCode::OK;
-        }
-        return MidiStatusCode::WOULD_BLOCK;
+        return (eventCount == 0) ? MidiStatusCode::OK : MidiStatusCode::WOULD_BLOCK;
     }
 
     if (notify) {
-        NotifyConsumer();
-        if (notifyFd_ && notifyFd_->Valid()) {
-            MIDI_DEBUG_LOG("notify server to consume midi events");
-            uint64_t writed = 1;
-            (void)::write(notifyFd_->Get(), &writed, sizeof(writed));
-        }
+        NotifyWrittenEvents();
     }
     return (localWritten == eventCount) ? MidiStatusCode::OK : MidiStatusCode::WOULD_BLOCK;
 }
@@ -654,6 +640,16 @@ void MidiSharedRing::Flush()
 }
 
 //==================== Private Helpers (All <= 50 lines) ====================//
+
+void MidiSharedRing::NotifyWrittenEvents()
+{
+    NotifyConsumer();
+    if (notifyFd_ && notifyFd_->Valid()) {
+        MIDI_DEBUG_LOG("notify server to consume midi events");
+        uint64_t writed = 1;
+        (void)::write(notifyFd_->Get(), &writed, sizeof(writed));
+    }
+}
 
 MidiStatusCode MidiSharedRing::ValidateWriteArgs(const MidiEventInner *events, uint32_t eventCount) const
 {
