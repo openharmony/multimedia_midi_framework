@@ -447,7 +447,6 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
     // Use acquire ordering for position indices
     uint32_t readIndex = controler_->readPosition.load(std::memory_order_acquire);
     uint32_t writeIndex = controler_->writePosition.load(std::memory_order_acquire);
-
     // Validate indices from shared memory to prevent OOB on corrupted values
     if (!IsValidOffset(readIndex, capacity_) || !IsValidOffset(writeIndex, capacity_)) {
         MIDI_WARNING_LOG("Invalid shm positions: read=%{public}u write=%{public}u cap=%{public}u",
