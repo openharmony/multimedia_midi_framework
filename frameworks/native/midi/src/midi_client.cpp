@@ -675,10 +675,11 @@ void MidiClientPrivate::AddDeviceHandler(MidiDevicePrivate *device)
     deviceHandlers_.push_back(device);
 }
 
-void MidiClientPrivate::RemoveDeviceHandler(MidiDevicePrivate *device)
+void MidiClientPrivate::RemoveDeviceHandler(MidiDevice *device)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    deviceHandlers_.erase(std::remove(deviceHandlers_.begin(), deviceHandlers_.end(), device),
+    auto *priv = static_cast<MidiDevicePrivate *>(device);
+    deviceHandlers_.erase(std::remove(deviceHandlers_.begin(), deviceHandlers_.end(), priv),
                           deviceHandlers_.end());
 }
 

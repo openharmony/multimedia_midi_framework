@@ -44,6 +44,7 @@ public:
     virtual OH_MIDIStatusCode OpenBleDevice(std::string address, OH_MIDIClient_OnDeviceOpened callback, void *userData);
     virtual OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts);
     virtual OH_MIDIStatusCode DestroyMidiClient();
+    virtual void RemoveDeviceHandler(MidiDevice *device) {}
 };
 } // namespace MIDI
 } // namespace OHOS

@@ -36,7 +36,6 @@ ohos_shared_library("ohmidi") {
     "${midi_framework_root}/interfaces/",
     "${midi_framework_root}/interfaces/inner_api/native",
     "${midi_framework_root}/interfaces/kits/c/midi",
-    "${midi_framework_root}/frameworks/native/midi/include",
   ]
 
   deps = [

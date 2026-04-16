@@ -19,7 +19,6 @@
 #include "native_midi_base.h"
 #include "native_midi.h"
 #include "midi_client.h"
-#include "midi_client_private.h"
 #include "midi_log.h"
 
 OH_MIDIStatusCode OH_MIDIClient_Create(OH_MIDIClient **client, OH_MIDICallbacks callbacks, void *userData)
@@ -99,9 +98,9 @@ OH_MIDIStatusCode OH_MIDIClient_OpenBLEDevice(OH_MIDIClient *client, const char 
 
 OH_MIDIStatusCode OH_MIDIClient_CloseDevice(OH_MIDIClient *client, OH_MIDIDevice *device)
 {
-    OHOS::MIDI::MidiClientPrivate *midiclient = (OHOS::MIDI::MidiClientPrivate*) client;
+    OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, OH_MIDI_STATUS_INVALID_CLIENT, "Invalid client");
-    OHOS::MIDI::MidiDevicePrivate *midiDevice = (OHOS::MIDI::MidiDevicePrivate *)device;
+    OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, OH_MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid deivce");
     midiclient->RemoveDeviceHandler(midiDevice);
     OH_MIDIStatusCode ret = midiDevice->CloseDevice();
