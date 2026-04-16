@@ -247,6 +247,62 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingMarshalling_002, TestSize.Level0)
     delete out;
 }
 
+/**
+ * @tc.name   : Test MidiSharedRing Unmarshalling eventFd validation
+ * @tc.number : MidiSharedRingUnmarshalling_InvalidEventFd_001
+ * @tc.desc   : Unmarshalling should return nullptr when eventFd is invalid (<=2),
+ *              mirroring the dataFd validation.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingUnmarshalling_InvalidEventFd_001, TestSize.Level0)
+{
+    constexpr uint32_t RING_CAPACITY_BYTES = 256;
+    auto fd = std::make_shared<UniqueFd>();
+    int eventFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    fd->Reset(eventFd);
+    auto ring = MidiSharedRing::CreateFromLocal(RING_CAPACITY_BYTES, fd);
+    ASSERT_NE(nullptr, ring);
+
+    MessageParcel parcel;
+    ASSERT_TRUE(ring->Marshalling(parcel));
+
+    // Consume the valid parcel data and reconstruct with a bad eventFd
+    // We can't easily manipulate parcel internals, so we test via a crafted parcel.
+    // Instead, test the direct case: Create a parcel where eventFd is 0 (stdin).
+    MessageParcel badParcel;
+    badParcel.WriteUint32(RING_CAPACITY_BYTES);
+
+    int validDataFd = AshmemCreate("midi_ut_bad_eventfd", sizeof(ControlHeader) + RING_CAPACITY_BYTES);
+    ASSERT_GT(validDataFd, MINFD);
+    badParcel.WriteFileDescriptor(validDataFd);
+    badParcel.WriteFileDescriptor(0); // eventFd = 0 (stdin), should be rejected
+
+    auto *out = MidiSharedRing::Unmarshalling(badParcel);
+    EXPECT_EQ(nullptr, out);
+    close(validDataFd);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Unmarshalling eventFd validation
+ * @tc.number : MidiSharedRingUnmarshalling_InvalidEventFd_002
+ * @tc.desc   : Unmarshalling should return nullptr when eventFd is -1,
+ *              mirroring the dataFd validation.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingUnmarshalling_InvalidEventFd_002, TestSize.Level0)
+{
+    constexpr uint32_t RING_CAPACITY_BYTES = 256;
+    MessageParcel badParcel;
+    badParcel.WriteUint32(RING_CAPACITY_BYTES);
+
+    int validDataFd = AshmemCreate("midi_ut_bad_eventfd2", sizeof(ControlHeader) + RING_CAPACITY_BYTES);
+    ASSERT_GT(validDataFd, MINFD);
+    badParcel.WriteFileDescriptor(validDataFd);
+    badParcel.WriteFileDescriptor(-1); // eventFd = -1, should be rejected
+
+    auto *out = MidiSharedRing::Unmarshalling(badParcel);
+    EXPECT_EQ(nullptr, out);
+    close(validDataFd);
+}
+
 static MidiEventInner MakeEvent(uint64_t ts, const std::vector<uint32_t> &payload)
 {
     MidiEventInner ev{};

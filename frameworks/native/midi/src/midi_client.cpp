@@ -17,6 +17,7 @@
 #define LOG_TAG "MidiClient"
 #endif
 
+#include <algorithm>
 #include <cstring>
 #include <chrono>
 
@@ -672,6 +673,13 @@ void MidiClientPrivate::AddDeviceHandler(MidiDevicePrivate *device)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     deviceHandlers_.push_back(device);
+}
+
+void MidiClientPrivate::RemoveDeviceHandler(MidiDevicePrivate *device)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    deviceHandlers_.erase(std::remove(deviceHandlers_.begin(), deviceHandlers_.end(), device),
+                          deviceHandlers_.end());
 }
 
 bool MidiClientPrivate::IsDeviceOpened(int64_t deviceId)

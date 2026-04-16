@@ -333,6 +333,7 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
 
     int minfd = MINFD; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
+    CHECK_AND_RETURN_RET_LOG(eventFd > minfd, nullptr, "invalid eventFd: %{public}d", eventFd);
 
     auto notifyFd = std::make_shared<UniqueFd>(eventFd);
     auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);

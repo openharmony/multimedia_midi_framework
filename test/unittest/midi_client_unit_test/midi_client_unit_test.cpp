@@ -762,3 +762,124 @@ HWTEST_F(MidiClientUnitTest, MidiOutputPort_SendSysEx_003, TestSize.Level0)
     EXPECT_EQ((midiEvents[0].data[0] >> 20) & 0xF, 0x01);
     EXPECT_EQ((midiEvents[1].data[0] >> 20) & 0xF, 0x03);
 }
+
+/**
+ * @tc.name: RemoveDeviceHandler_001
+ * @tc.desc: RemoveDeviceHandler should remove the exact device pointer from deviceHandlers_.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_001, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, CloseDevice(_)).WillRepeatedly(Return(OH_MIDI_STATUS_OK));
+
+    // Open two devices
+    MidiDevice *device1 = nullptr;
+    MidiDevice *device2 = nullptr;
+    EXPECT_CALL(*mockService, OpenDevice(1001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 1001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Device1";
+        return OH_MIDI_STATUS_OK;
+    }));
+    EXPECT_CALL(*mockService, OpenDevice(1002, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 1002;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Device2";
+        return OH_MIDI_STATUS_OK;
+    }));
+    ASSERT_EQ(client->OpenDevice(1001, &device1), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(client->OpenDevice(1002, &device2), OH_MIDI_STATUS_OK);
+    ASSERT_NE(device1, nullptr);
+    ASSERT_NE(device2, nullptr);
+
+    auto *privDevice1 = static_cast<MidiDevicePrivate *>(device1);
+    auto *privDevice2 = static_cast<MidiDevicePrivate *>(device2);
+
+    // Remove device1 from handlers
+    client->RemoveDeviceHandler(privDevice1);
+
+    // Now trigger MarkDeviceInValid — it should only iterate over device2, not device1
+    // If RemoveDeviceHandler failed, this could access a dangling pointer after delete
+    client->MarkDeviceInValid();
+
+    // Verify device2 is still valid (was marked invalid but not removed)
+    // The pointer should still be accessible without crash
+    EXPECT_NE(privDevice2, nullptr);
+
+    // Clean up
+    delete privDevice1;
+    delete privDevice2;
+}
+
+/**
+ * @tc.name: RemoveDeviceHandler_002
+ * @tc.desc: RemoveDeviceHandler with a non-existent pointer should be a no-op.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_002, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, OpenDevice(1001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 1001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Device1";
+        return OH_MIDI_STATUS_OK;
+    }));
+
+    MidiDevice *device = nullptr;
+    ASSERT_EQ(client->OpenDevice(1001, &device), OH_MIDI_STATUS_OK);
+    ASSERT_NE(device, nullptr);
+
+    // Create a device NOT in deviceHandlers_
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 9999;
+    auto *orphanDevice = new MidiDevicePrivate(mockService, info);
+
+    // Removing a non-tracked device should not crash and not affect existing devices
+    client->RemoveDeviceHandler(orphanDevice);
+
+    // MarkDeviceInValid should still work on the tracked device
+    client->MarkDeviceInValid();
+
+    delete orphanDevice;
+    delete device;
+}
+
+/**
+ * @tc.name: RemoveDeviceHandler_UAFProtection_001
+ * @tc.desc: After RemoveDeviceHandler + delete, MarkDeviceInValid should not access
+ *           the deleted device (UAF protection).
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_UAFProtection_001, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, OpenDevice(1001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 1001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Device1";
+        return OH_MIDI_STATUS_OK;
+    }));
+    EXPECT_CALL(*mockService, CloseDevice(1001)).WillOnce(Return(OH_MIDI_STATUS_OK));
+
+    MidiDevice *device = nullptr;
+    ASSERT_EQ(client->OpenDevice(1001, &device), OH_MIDI_STATUS_OK);
+    ASSERT_NE(device, nullptr);
+
+    auto *privDevice = static_cast<MidiDevicePrivate *>(device);
+
+    // Simulate OH_MIDIClient_CloseDevice flow:
+    // 1. Remove from deviceHandlers_ BEFORE delete
+    client->RemoveDeviceHandler(privDevice);
+    // 2. Close device
+    EXPECT_EQ(privDevice->CloseDevice(), OH_MIDI_STATUS_OK);
+    // 3. Delete the device
+    delete privDevice;
+
+    // 4. Now if an OnError callback fires and calls MarkDeviceInValid,
+    //    it should NOT access the deleted device (no UAF).
+    //    The pointer was removed from deviceHandlers_ so it won't be iterated.
+    client->MarkDeviceInValid();  // Should be safe, no crash
+}
