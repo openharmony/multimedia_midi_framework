@@ -133,7 +133,7 @@ public:
 private:
     bool ValidateOneEvent(const MidiEventInner &event) const;
     void WakeFutex(uint32_t wakeVal = IS_READY);
-    void WriteEvent(uint32_t writeIndex, const MidiEventInner &event);
+    bool WriteEvent(uint32_t writeIndex, const MidiEventInner &event);
     MidiStatusCode ValidateWriteArgs(const MidiEventInner *events, uint32_t eventCount) const;
     MidiStatusCode TryWriteOneEvent(
         const MidiEventInner &event, uint32_t length, uint32_t readIndex, uint32_t &writeIndex);

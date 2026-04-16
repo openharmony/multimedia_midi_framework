@@ -645,8 +645,8 @@ void MidiSharedRing::NotifyWrittenEvents()
     NotifyConsumer();
     if (notifyFd_ && notifyFd_->Valid()) {
         MIDI_DEBUG_LOG("notify server to consume midi events");
-        uint64_t writed = 1;
-        (void)::write(notifyFd_->Get(), &writed, sizeof(writed));
+        uint64_t written = 1;
+        (void)::write(notifyFd_->Get(), &written, sizeof(written));
     }
 }
 
@@ -680,6 +680,7 @@ bool MidiSharedRing::ValidateOneEvent(const MidiEventInner &event) const
 MidiStatusCode MidiSharedRing::TryWriteOneEvent(
     const MidiEventInner &event, uint32_t totalBytes, uint32_t readIndex, uint32_t &writeIndex)
 {
+    CHECK_AND_RETURN_RET(writeIndex < capacity_, MidiStatusCode::SHM_BROKEN);
     const uint32_t freeSize = RingFree(readIndex, writeIndex, capacity_);
     CHECK_AND_RETURN_RET(freeSize >= totalBytes, MidiStatusCode::WOULD_BLOCK);
 
@@ -687,7 +688,9 @@ MidiStatusCode MidiSharedRing::TryWriteOneEvent(
     const uint32_t writeSize = (writeIndex < readIndex) ? (readIndex - writeIndex - 1u) : (capacity_ - writeIndex);
     CHECK_AND_RETURN_RET(writeSize >= totalBytes, MidiStatusCode::WOULD_BLOCK);
 
-    WriteEvent(writeIndex, event);
+    if (!WriteEvent(writeIndex, event)) {
+        return MidiStatusCode::SHM_BROKEN;
+    }
 
     writeIndex += totalBytes;
     writeIndex = writeIndex == capacity_ ? 0 : writeIndex;
@@ -698,11 +701,6 @@ MidiStatusCode MidiSharedRing::TryWriteOneEvent(
 
 bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t totalBytes)
 {
-    if (writeIndex >= capacity_) {
-        MIDI_WARNING_LOG("Invalid writeIndex in UpdateWriteIndexIfNeed: %{public}u cap=%{public}u",
-                         writeIndex, capacity_);
-        return false;
-    }
     const uint32_t tail = capacity_ - writeIndex;
     if (tail >= totalBytes) {
         return false;
@@ -731,11 +729,11 @@ bool MidiSharedRing::UpdateWriteIndexIfNeed(uint32_t &writeIndex, uint32_t total
     return true;
 }
 
-void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event)
+bool MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event)
 {
     if (writeIndex >= capacity_) {
         MIDI_WARNING_LOG("WriteEvent: writeIndex OOB: %{public}u cap=%{public}u", writeIndex, capacity_);
-        return;
+        return false;
     }
     uint8_t *dst = ringBase_ + writeIndex;
     auto *header = reinterpret_cast<ShmMidiEventHeader *>(dst);
@@ -762,6 +760,7 @@ void MidiSharedRing::WriteEvent(uint32_t writeIndex, const MidiEventInner &event
     // Increment sequence after writing
     std::atomic_thread_fence(std::memory_order_release);
     header->sequence.store(seq + SEQ_WRITE_COMPLETE_TOTAL, std::memory_order_release);
+    return true;
 }
 
 MidiStatusCode MidiSharedRing::UpdateReadIndexIfNeed(uint32_t &readIndex, uint32_t writeIndex)
