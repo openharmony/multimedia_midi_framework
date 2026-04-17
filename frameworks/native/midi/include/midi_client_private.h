@@ -127,6 +127,7 @@ public:
     OH_MIDIStatusCode DestroyMidiClient() override;
     void MarkDeviceInValid();
     void AddDeviceHandler(MidiDevicePrivate *device);
+    void RemoveDeviceHandler(MidiDevice *device) override;
 private:
     void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
     bool IsDeviceOpened(int64_t deviceId);

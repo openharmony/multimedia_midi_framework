@@ -133,7 +133,7 @@ public:
 private:
     bool ValidateOneEvent(const MidiEventInner &event) const;
     void WakeFutex(uint32_t wakeVal = IS_READY);
-    void WriteEvent(uint32_t writeIndex, const MidiEventInner &event);
+    bool WriteEvent(uint32_t writeIndex, const MidiEventInner &event);
     MidiStatusCode ValidateWriteArgs(const MidiEventInner *events, uint32_t eventCount) const;
     MidiStatusCode TryWriteOneEvent(
         const MidiEventInner &event, uint32_t length, uint32_t readIndex, uint32_t &writeIndex);
@@ -142,6 +142,7 @@ private:
     MidiStatusCode HandleWrapIfNeeded(const ShmMidiEventHeader &hdr, uint32_t &r);
     MidiStatusCode BuildPeekedEvent(const ShmMidiEventHeader &hdr, uint32_t readIndex, PeekedEvent &outEvent);
     MidiEvent CopyOut(const PeekedEvent &peekedEvent, std::vector<uint32_t> &outPayloadBuffer) const;
+    void NotifyWrittenEvents();
 
     uint8_t *base_{nullptr};
     ControlHeader *controler_{nullptr};

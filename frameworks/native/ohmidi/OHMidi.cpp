@@ -98,10 +98,11 @@ OH_MIDIStatusCode OH_MIDIClient_OpenBLEDevice(OH_MIDIClient *client, const char 
 
 OH_MIDIStatusCode OH_MIDIClient_CloseDevice(OH_MIDIClient *client, OH_MIDIDevice *device)
 {
-    OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient*) client;
+    OHOS::MIDI::MidiClient *midiclient = (OHOS::MIDI::MidiClient *)client;
     CHECK_AND_RETURN_RET_LOG(midiclient != nullptr, OH_MIDI_STATUS_INVALID_CLIENT, "Invalid client");
     OHOS::MIDI::MidiDevice *midiDevice = (OHOS::MIDI::MidiDevice *)device;
     CHECK_AND_RETURN_RET_LOG(midiDevice != nullptr, OH_MIDI_STATUS_INVALID_DEVICE_HANDLE, "Invalid deivce");
+    midiclient->RemoveDeviceHandler(midiDevice);
     OH_MIDIStatusCode ret = midiDevice->CloseDevice();
     delete midiDevice;
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "CloseDevice failed");
