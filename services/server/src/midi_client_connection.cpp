@@ -33,7 +33,13 @@ std::shared_ptr<MidiSharedRing> ClientConnectionInServer::GetRingBuffer()
 
 int32_t ClientConnectionInServer::CreateRingBuffer(int fd)
 {
-    auto fdObject = std::make_shared<UniqueFd>(fd);
+    // Only wrap in UniqueFd when a valid eventFd is provided (Output port path).
+    // For Input ports (fd == -1), pass nullptr so notifyFd_ stays null instead of
+    // wrapping an invalid fd value.
+    std::shared_ptr<UniqueFd> fdObject;
+    if (fd >= 0) {
+        fdObject = std::make_shared<UniqueFd>(fd);
+    }
     sharedRingBuffer_ = MidiSharedRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE, fdObject);
     CHECK_AND_RETURN_RET_LOG(sharedRingBuffer_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "create fail");
 
