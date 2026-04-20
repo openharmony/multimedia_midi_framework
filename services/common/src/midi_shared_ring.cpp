@@ -316,11 +316,13 @@ bool MidiSharedRing::Marshalling(Parcel &parcel) const
 {
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, false, "dataMem_ is nullptr.");
-    if (notifyFd_ == nullptr) {
-        return messageParcel.WriteUint32(capacity_) && messageParcel.WriteFileDescriptor(dataMem_->GetFd());
+    bool hasValidNotifyFd = (notifyFd_ != nullptr && notifyFd_->Valid());
+    bool ok = messageParcel.WriteUint32(capacity_) && messageParcel.WriteFileDescriptor(dataMem_->GetFd()) &&
+        messageParcel.WriteBool(hasValidNotifyFd);
+    if (ok && hasValidNotifyFd) {
+        ok = messageParcel.WriteFileDescriptor(notifyFd_->Get());
     }
-    return messageParcel.WriteUint32(capacity_) &&
-        messageParcel.WriteFileDescriptor(dataMem_->GetFd()) && messageParcel.WriteFileDescriptor(notifyFd_->Get());
+    return ok;
 }
 
 MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
@@ -329,13 +331,18 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     uint32_t ringSize = messageParcel.ReadUint32();
     int dataFd = messageParcel.ReadFileDescriptor();
-    int eventFd = messageParcel.ReadFileDescriptor();
+    bool hasNotifyFd = messageParcel.ReadBool();
 
     int minfd = MINFD; // ignore stdout, stdin and stderr.
     CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
-    CHECK_AND_RETURN_RET_LOG(eventFd > minfd, nullptr, "invalid eventFd: %{public}d", eventFd);
 
-    auto notifyFd = std::make_shared<UniqueFd>(eventFd);
+    std::shared_ptr<UniqueFd> notifyFd;
+    if (hasNotifyFd) {
+        int eventFd = messageParcel.ReadFileDescriptor();
+        CHECK_AND_RETURN_RET_LOG(eventFd > minfd, nullptr, "invalid eventFd: %{public}d", eventFd);
+        notifyFd = std::make_shared<UniqueFd>(eventFd);
+    }
+
     auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);
     if (buffer == nullptr || buffer->Init(dataFd) != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("failed to init.");
