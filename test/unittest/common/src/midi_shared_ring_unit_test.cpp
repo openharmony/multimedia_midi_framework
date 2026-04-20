@@ -248,13 +248,12 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingMarshalling_002, TestSize.Level0)
 }
 
 /**
- * @tc.name   : Test MidiSharedRing Unmarshalling eventFd validation
+ * @tc.name   : Test MidiSharedRing round-trip with pre-close of source eventFd
  * @tc.number : MidiSharedRingUnmarshalling_InvalidEventFd_001
- * @tc.desc   : Unmarshalling should return nullptr when hasNotifyFd=true but eventFd is invalid.
- *              We close a valid eventFd before Unmarshalling reads it, so the fd number becomes
- *              invalid (< MINFD after kernel reclamation). WriteFileDescriptor cannot transmit
- *              deliberately invalid fds (0, -1) — the IPC layer silently rejects them — so we
- *              use a real fd that gets closed on the read side.
+ * @tc.desc   : Verify round-trip Marshalling/Unmarshalling succeeds even when the source eventFd
+ *              is closed before Unmarshalling. WriteFileDescriptor dups the fd into the parcel,
+ *              so the transmitted copy remains valid regardless. This validates that the normal
+ *              IPC path is not affected by source fd lifecycle.
  */
 HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingUnmarshalling_InvalidEventFd_001, TestSize.Level0)
 {
@@ -273,8 +272,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingUnmarshalling_InvalidEventFd_001,
     // Release the UniqueFd so the eventFd gets closed before Unmarshalling reads it.
     // Note: this tests the defense-in-depth; in normal IPC the fd is dup'd by the kernel
     // during WriteFileDescriptor, so closing the source does not invalidate the transmitted fd.
-    fd->Reset(-1);
-    close(eventFd);
+    fd->Reset(-1); // Reset(-1) closes the old fd and sets to -1; no manual close needed.
 
     // In practice, WriteFileDescriptor dups the fd into the parcel, so the transmitted fd
     // remains valid even after we close the source. The validation `eventFd > minfd` is

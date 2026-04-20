@@ -339,7 +339,11 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
     std::shared_ptr<UniqueFd> notifyFd;
     if (hasNotifyFd) {
         int eventFd = messageParcel.ReadFileDescriptor();
-        CHECK_AND_RETURN_RET_LOG(eventFd > minfd, nullptr, "invalid eventFd: %{public}d", eventFd);
+        if (eventFd <= minfd) {
+            MIDI_ERR_LOG("invalid eventFd: %{public}d", eventFd);
+            CloseFd(dataFd);
+            return nullptr;
+        }
         notifyFd = std::make_shared<UniqueFd>(eventFd);
     }
 
