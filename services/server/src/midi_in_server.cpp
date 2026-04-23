@@ -20,15 +20,15 @@
 #include "midi_service_controller.h"
 #include "midi_permission.h"
 #include "midi_utils.h"
+#include "ipc_skeleton.h"
 namespace OHOS {
 namespace MIDI {
 MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback)
+    : clientId_(id), callerTokenId_(IPCSkeleton::GetCallingTokenID()), callback_(callback),
+      hasBluetoothPermission_(MidiPermissionManager::VerifyBluetoothPermission(callerTokenId_))
 {
-    clientId_ = id;
-    callback_ = callback;
-    hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission();
-    MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, hasBluetoothPermission:%{public}d",
-        clientId_, hasBluetoothPermission_);
+    MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, callerTokenId:%u, hasBluetoothPermission:%{public}d",
+        clientId_, callerTokenId_, hasBluetoothPermission_);
 }
 
 MidiInServer::~MidiInServer()
@@ -39,7 +39,7 @@ MidiInServer::~MidiInServer()
 int32_t MidiInServer::GetDevices(std::vector<MidiDeviceInfo> &devices)
 {
     auto deviceList = MidiServiceController::GetInstance()->GetDevices();
-    UpdateBluetoothPermission();
+    UpdateBluetoothPermission(true);
     if (hasBluetoothPermission_) {
         devices = deviceList;
         return OH_MIDI_STATUS_OK;
@@ -68,7 +68,8 @@ int32_t MidiInServer::OpenDevice(int64_t deviceId, MidiDeviceInfo &deviceInfo)
 
 int32_t MidiInServer::OpenBleDevice(const std::string &address, const sptr<IRemoteObject> &object)
 {
-    if (!MidiPermissionManager::VerifyBluetoothPermission()) {
+    UpdateBluetoothPermission(true);
+    if (!hasBluetoothPermission_) {
         MIDI_ERR_LOG("Bluetooth permission verification failed");
         return OH_MIDI_STATUS_PERMISSION_DENIED;
     }
@@ -120,7 +121,7 @@ int32_t MidiInServer::DestroyMidiClient()
 void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
     CHECK_AND_RETURN(callback_ != nullptr);
-
+    UpdateBluetoothPermission(false);
     if (!hasBluetoothPermission_ && IsBluetoothDevice(deviceInfo)) {
         MIDI_INFO_LOG("Filtered BLE device change notification, no permission");
         return;
@@ -134,11 +135,10 @@ void MidiInServer::NotifyError(int32_t code)
     callback_->NotifyError(code);
 }
 
-void MidiInServer::UpdateBluetoothPermission()
+void MidiInServer::UpdateBluetoothPermission(bool useFreshToken)
 {
-    hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission();
-    MIDI_INFO_LOG("UpdateBluetoothPermission: clientId:%{public}u, hasBluetoothPermission:%{public}d",
-        clientId_, hasBluetoothPermission_);
+    callerTokenId_ = useFreshToken ? IPCSkeleton::GetCallingTokenID() : callerTokenId_;
+    hasBluetoothPermission_ = MidiPermissionManager::VerifyBluetoothPermission(callerTokenId_);
 }
 
 bool MidiInServer::IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const

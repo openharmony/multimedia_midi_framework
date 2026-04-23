@@ -24,6 +24,8 @@ class MidiPermissionManager {
 public:
     static bool VerifyBluetoothPermission();
     static bool VerifyPermission(const std::string &permissionName);
+    static bool VerifyBluetoothPermission(uint32_t tokenId);
+    static bool VerifyPermission(uint32_t tokenId, const std::string &permissionName);
 };
 } // namespace MIDI
 } // namespace OHOS
