@@ -20,14 +20,11 @@
 #include <algorithm>
 #include <cstring>
 #include <chrono>
-#include <cerrno>
-
 #include "midi_log.h"
 #include "midi_client_private.h"
 #include "midi_service_client.h"
 #include "ump_converter.h"
 #include "securec.h"
-#include "qos.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -356,9 +353,6 @@ bool MidiInputPort::StopReceiverThread()
 
 void MidiInputPort::ReceiverThreadLoop()
 {
-    int ret = OHOS::QOS::SetThreadQos(OHOS::QOS::QosLevel::QOS_USER_INTERACTIVE);
-    MIDI_INFO_LOG("SetThreadQos QOS_USER_INTERACTIVE ret=%{public}d, errno=%{public}d", ret, errno);
-
     if (!ringBuffer_) {
         running_.store(false);
         return;

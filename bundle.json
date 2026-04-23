@@ -38,8 +38,7 @@
                 "safwk",
                 "samgr",
                 "usb_manager",
-                "drivers_interface_midi",
-                "qos_manager"
+                "drivers_interface_midi"
             ],
             "third_party": []
         },
