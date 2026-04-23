@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <cstring>
 #include <chrono>
-
 #include "midi_log.h"
 #include "midi_client_private.h"
 #include "midi_service_client.h"
@@ -140,6 +139,12 @@ int32_t MidiClientCallback::NotifyDeviceChange(int32_t change, const MidiDeviceI
     OH_MIDIDeviceInformation info;
     ConvertToDeviceInformation(deviceInfo, info);
 
+    if (static_cast<OH_MIDIDeviceChangeAction>(change) == OH_MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED) {
+        if (client_ != nullptr) {
+            client_->HandleDeviceDisconnect(deviceInfo.deviceId);
+        }
+    }
+
     callbacks_.onDeviceChange(userData_, static_cast<OH_MIDIDeviceChangeAction>(change), info);
     return 0;
 }
@@ -168,6 +173,9 @@ MidiDevicePrivate::~MidiDevicePrivate()
 
 OH_MIDIStatusCode MidiDevicePrivate::CloseDevice()
 {
+    if (!isValid_.load()) {
+        return OH_MIDI_STATUS_OK;
+    }
     auto ipc = ipc_.lock();
     CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     return ipc->CloseDevice(deviceId_);
@@ -189,8 +197,11 @@ OH_MIDIStatusCode MidiDevicePrivate::OpenInputPort(OH_MIDIPortDescriptor descrip
     auto ret = ipc->OpenInputPort(buffer, deviceId_, descriptor.portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open inputport fail");
 
-    CHECK_AND_RETURN_RET_LOG(
-        inputPort->StartReceiverThread() == true, OH_MIDI_STATUS_SYSTEM_ERROR, "start receiver thread fail");
+    if (!inputPort->StartReceiverThread()) {
+        MIDI_ERR_LOG("start receiver thread fail, rolling back IPC OpenInputPort");
+        ipc->CloseInputPort(deviceId_, descriptor.portIndex);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
 
     inputPortsMap_.emplace(descriptor.portIndex, std::move(inputPort));
     MIDI_INFO_LOG("port[%{public}u] success", descriptor.portIndex);
@@ -255,13 +266,16 @@ OH_MIDIStatusCode MidiDevicePrivate::CloseInputPort(uint32_t portIndex)
     auto ipc = ipc_.lock();
     CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
 
-    std::lock_guard<std::mutex> lock(inputPortsMutex_);
-    auto it = inputPortsMap_.find(portIndex);
-    CHECK_AND_RETURN_RET_LOG(it != inputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid input port");
+    {
+        std::lock_guard<std::mutex> lock(inputPortsMutex_);
+        auto it = inputPortsMap_.find(portIndex);
+        CHECK_AND_RETURN_RET_LOG(it != inputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid input port");
+        it->second.reset();
+        inputPortsMap_.erase(it);
+    }
 
     auto ret = ipc->CloseInputPort(deviceId_, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail");
-    inputPortsMap_.erase(it);
     return OH_MIDI_STATUS_OK;
 }
 
@@ -270,14 +284,28 @@ OH_MIDIStatusCode MidiDevicePrivate::CloseOutputPort(uint32_t portIndex)
     auto ipc = ipc_.lock();
     CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
 
-    std::lock_guard<std::mutex> lock(outputPortsMutex_);
-    auto it = outputPortsMap_.find(portIndex);
-    CHECK_AND_RETURN_RET_LOG(it != outputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid output port");
+    {
+        std::lock_guard<std::mutex> lock(outputPortsMutex_);
+        auto it = outputPortsMap_.find(portIndex);
+        CHECK_AND_RETURN_RET_LOG(it != outputPortsMap_.end(), OH_MIDI_STATUS_INVALID_PORT, "invalid output port");
+        outputPortsMap_.erase(it);
+    }
 
     auto ret = ipc->CloseOutputPort(deviceId_, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail");
-    outputPortsMap_.erase(it);
     return OH_MIDI_STATUS_OK;
+}
+
+void MidiDevicePrivate::CloseAllPorts()
+{
+    {
+        std::lock_guard<std::mutex> lock(inputPortsMutex_);
+        inputPortsMap_.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(outputPortsMutex_);
+        outputPortsMap_.clear();
+    }
 }
 
 void MidiDevicePrivate::SetInValid()
@@ -558,6 +586,14 @@ MidiClientPrivate::MidiClientPrivate() : ipc_(std::make_shared<MidiServiceClient
 MidiClientPrivate::~MidiClientPrivate()
 {
     MIDI_INFO_LOG("MidiClientPrivate destroyed");
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto *device : deviceHandlers_) {
+        if (device != nullptr) {
+            device->CloseAllPorts();
+            delete device;
+        }
+    }
+    deviceHandlers_.clear();
 }
 
 OH_MIDIStatusCode MidiClientPrivate::Init(OH_MIDICallbacks callbacks, void *userData)
@@ -655,9 +691,12 @@ OH_MIDIStatusCode MidiClient::CreateMidiClient(MidiClient **client, OH_MIDICallb
     CHECK_AND_RETURN_RET_LOG(client != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "client is nullptr");
     *client = new MidiClientPrivate();
     OH_MIDIStatusCode ret = (*client)->Init(callbacks, userData);
-    CHECK_AND_RETURN_RET(ret != OH_MIDI_STATUS_OK, ret);
-    delete *client;
-    return ret;
+    if (ret != OH_MIDI_STATUS_OK) {
+        delete *client;
+        *client = nullptr;
+        return ret;
+    }
+    return OH_MIDI_STATUS_OK;
 }
 
 void MidiClientPrivate::MarkDeviceInValid()
@@ -666,6 +705,18 @@ void MidiClientPrivate::MarkDeviceInValid()
     for (auto &device: deviceHandlers_) {
         CHECK_AND_CONTINUE(device != nullptr);
         device->SetInValid();
+    }
+}
+
+void MidiClientPrivate::HandleDeviceDisconnect(int64_t deviceId)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto *device : deviceHandlers_) {
+        if (device != nullptr && device->GetDeviceId() == deviceId) {
+            device->CloseAllPorts();
+            device->SetInValid();
+            break;
+        }
     }
 }
 
