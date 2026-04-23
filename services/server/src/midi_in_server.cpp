@@ -110,7 +110,6 @@ int32_t MidiInServer::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 
 int32_t MidiInServer::CloseDevice(int64_t deviceId)
 {
-    UpdateBluetoothPermission(true);
     return MidiServiceController::GetInstance()->CloseDevice(clientId_, deviceId);
 }
 
