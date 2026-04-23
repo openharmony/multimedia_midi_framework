@@ -157,6 +157,7 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
 
     EXPECT_EQ(client->OpenDevice(deviceId, &device), OH_MIDI_STATUS_OK);
     EXPECT_NE(device, nullptr);
+    client->RemoveDeviceHandler(static_cast<MidiDevicePrivate *>(device));
     delete device;
 }
 
@@ -810,6 +811,7 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_001, TestSize.Level0)
 
     // Clean up
     delete privDevice1;
+    client->RemoveDeviceHandler(privDevice2);
     delete privDevice2;
 }
 
@@ -844,6 +846,7 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_002, TestSize.Level0)
     client->MarkDeviceInValid();
 
     delete orphanDevice;
+    client->RemoveDeviceHandler(static_cast<MidiDevicePrivate *>(device));
     delete device;
 }
 
@@ -882,4 +885,176 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_UAFProtection_001, TestSize.Lev
     //    it should NOT access the deleted device (no UAF).
     //    The pointer was removed from deviceHandlers_ so it won't be iterated.
     client->MarkDeviceInValid();  // Should be safe, no crash
+}
+
+/**
+ * @tc.name: CloseAllPorts_001
+ * @tc.desc: CloseAllPorts should clear all input/output port maps and stop receiver threads.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, CloseAllPorts_001, TestSize.Level0)
+{
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 3001;
+    info.nativeProtocol = OH_MIDI_PROTOCOL_1_0;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
+
+    OH_MIDIPortDescriptor desc;
+    desc.portIndex = 0;
+    desc.protocol = OH_MIDI_PROTOCOL_1_0;
+    CallbackCapture capture;
+
+    EXPECT_CALL(*mockService, OpenInputPort(_, 3001, 0))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
+            return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
+        }));
+
+    ASSERT_EQ(device->OpenInputPort(desc, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_OK);
+
+    device->CloseAllPorts();
+
+    EXPECT_EQ(device->CloseInputPort(0), OH_MIDI_STATUS_INVALID_PORT);
+}
+
+/**
+ * @tc.name: OpenInputPort_RollbackOnThreadStartFail_001
+ * @tc.desc: When StartReceiverThread fails, OpenInputPort should rollback by calling IPC CloseInputPort.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, OpenInputPort_RollbackOnThreadStartFail_001, TestSize.Level0)
+{
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 3002;
+    info.nativeProtocol = OH_MIDI_PROTOCOL_1_0;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
+
+    OH_MIDIPortDescriptor desc;
+    desc.portIndex = 0;
+    desc.protocol = OH_MIDI_PROTOCOL_1_0;
+    CallbackCapture capture;
+
+    // IPC OpenInputPort returns OK but doesn't set buffer → ringBuffer_ stays nullptr
+    EXPECT_CALL(*mockService, OpenInputPort(_, 3002, 0))
+        .WillOnce(Return(OH_MIDI_STATUS_OK));
+
+    // StartReceiverThread fails (buffer nullptr) → rollback should call IPC CloseInputPort
+    EXPECT_CALL(*mockService, CloseInputPort(3002, 0))
+        .Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
+
+    EXPECT_EQ(device->OpenInputPort(desc, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    // Port should not be in the map
+    EXPECT_EQ(device->CloseInputPort(0), OH_MIDI_STATUS_INVALID_PORT);
+}
+
+/**
+ * @tc.name: HandleDeviceDisconnect_001
+ * @tc.desc: HandleDeviceDisconnect should stop receiver threads, clear ports, and mark device invalid.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_001, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, OpenDevice(4001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 4001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "TestDevice";
+        return OH_MIDI_STATUS_OK;
+    }));
+
+    MidiDevice *rawDevice = nullptr;
+    ASSERT_EQ(client->OpenDevice(4001, &rawDevice), OH_MIDI_STATUS_OK);
+    auto *device = static_cast<MidiDevicePrivate *>(rawDevice);
+
+    OH_MIDIPortDescriptor desc;
+    desc.portIndex = 0;
+    desc.protocol = OH_MIDI_PROTOCOL_1_0;
+    CallbackCapture capture;
+
+    EXPECT_CALL(*mockService, OpenInputPort(_, 4001, 0))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
+            return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
+        }));
+
+    ASSERT_EQ(device->OpenInputPort(desc, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_OK);
+
+    // Simulate disconnect
+    client->HandleDeviceDisconnect(4001);
+
+    // Ports should be cleared
+    EXPECT_EQ(device->CloseInputPort(0), OH_MIDI_STATUS_INVALID_PORT);
+
+    // CloseDevice should skip IPC (device is invalid) and return OK
+    EXPECT_CALL(*mockService, CloseDevice(_)).Times(0);
+    EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
+
+    // Cleanup: remove from handlers before TearDown destructor runs
+    client->RemoveDeviceHandler(device);
+    delete device;
+}
+
+/**
+ * @tc.name: CloseDevice_DisconnectedDevice_001
+ * @tc.desc: CloseDevice on an invalid device should return OK without calling IPC.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, CloseDevice_DisconnectedDevice_001, TestSize.Level0)
+{
+    OH_MIDIDeviceInformation info;
+    info.midiDeviceId = 6001;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
+
+    device->SetInValid();
+
+    EXPECT_CALL(*mockService, CloseDevice(_)).Times(0);
+    EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: DestructorCleanup_001
+ * @tc.desc: ~MidiClientPrivate should delete all devices and stop their receiver threads.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, DestructorCleanup_001, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, OpenDevice(5001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 5001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Dev1";
+        return OH_MIDI_STATUS_OK;
+    }));
+    EXPECT_CALL(*mockService, OpenDevice(5002, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 5002;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Dev2";
+        return OH_MIDI_STATUS_OK;
+    }));
+
+    MidiDevice *device1 = nullptr;
+    MidiDevice *device2 = nullptr;
+    ASSERT_EQ(client->OpenDevice(5001, &device1), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(client->OpenDevice(5002, &device2), OH_MIDI_STATUS_OK);
+
+    // Open input port on device1 to start a receiver thread
+    OH_MIDIPortDescriptor desc;
+    desc.portIndex = 0;
+    desc.protocol = OH_MIDI_PROTOCOL_1_0;
+    CallbackCapture capture;
+
+    EXPECT_CALL(*mockService, OpenInputPort(_, 5001, 0))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
+            return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
+        }));
+
+    ASSERT_EQ(static_cast<MidiDevicePrivate *>(device1)->OpenInputPort(
+        desc, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_OK);
+
+    // Reset client → destructor should CloseAllPorts + delete both devices
+    // No crash, no hang, no leak (ASan would catch issues)
+    client.reset();
 }
