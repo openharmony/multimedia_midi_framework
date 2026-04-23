@@ -176,6 +176,9 @@ MidiDevicePrivate::~MidiDevicePrivate()
 
 OH_MIDIStatusCode MidiDevicePrivate::CloseDevice()
 {
+    if (!isValid_.load()) {
+        return OH_MIDI_STATUS_OK;
+    }
     auto ipc = ipc_.lock();
     CHECK_AND_RETURN_RET_LOG(ipc != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "ipc_ is nullptr");
     return ipc->CloseDevice(deviceId_);
