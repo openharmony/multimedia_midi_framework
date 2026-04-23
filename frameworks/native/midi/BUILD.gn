@@ -17,13 +17,14 @@ import("//foundation/multimedia/midi_framework/config.gni")
 ohos_shared_library("midi_client") {
   stack_protector_ret = true
   sanitize = {
-    cfi = true
-    cfi_cross_dso = true
-    cfi_vcall_icall_only = true
+    # 以下 sanitize 选项使用 minimal runtime，与 ASan 冲突，调试时全部关闭：
+    # cfi = true
+    # cfi_cross_dso = true
+    # cfi_vcall_icall_only = true
+    # integer_overflow = true
+    # ubsan = true
+    # boundary_sanitize = true
     debug = false
-    integer_overflow = true
-    ubsan = true
-    boundary_sanitize = true
   }
   install_enable = true
 
@@ -37,11 +38,13 @@ ohos_shared_library("midi_client") {
     "${midi_framework_root}/interfaces/",
     "${midi_framework_root}/interfaces/inner_api/native",
     "${midi_framework_root}/interfaces/kits/c/midi",
+    "//foundation/resourceschedule/qos_manager/interfaces/inner_api",
   ]
 
   deps = [
     "${midi_framework_root}/services/idl:midi_framework_interface",
-    "${midi_framework_root}/services/common:midi_common"
+    "${midi_framework_root}/services/common:midi_common",
+    "//foundation/resourceschedule/qos_manager/qos:qos"
   ]
 
   external_deps = [
@@ -55,7 +58,25 @@ ohos_shared_library("midi_client") {
     "common_event_service:cesfwk_innerkits"
   ]
 
-  cflags_cc = [ "-std=c++20" ]
+  cflags = [
+    "-fsanitize=address",
+    "-fno-omit-frame-pointer",
+    "-fno-sanitize-trap=all",
+    "-fno-sanitize-minimal-runtime",
+  ]
+  cflags_cc = [
+    "-std=c++20",
+    "-fsanitize=address",
+    "-fno-omit-frame-pointer",
+    "-fno-sanitize-trap=all",
+    "-fno-sanitize-minimal-runtime",
+  ]
+  ldflags = [
+    "-fsanitize=address",
+    "-L${clang_base_path}/lib/clang/15.0.4/lib/arm-linux-ohos",
+    "-lclang_rt.asan",
+    "-lclang_rt.asan_cxx",
+  ]
 
   innerapi_tags = ["platformsdk"]
   subsystem_name = "multimedia"
