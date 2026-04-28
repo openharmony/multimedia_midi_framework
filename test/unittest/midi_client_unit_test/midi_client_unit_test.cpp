@@ -157,8 +157,7 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
 
     EXPECT_EQ(client->OpenDevice(deviceId, &device), OH_MIDI_STATUS_OK);
     EXPECT_NE(device, nullptr);
-    client->RemoveDeviceHandler(static_cast<MidiDevicePrivate *>(device));
-    delete device;
+    client->CloseAndRemoveDevice(device);
 }
 
 /**
@@ -349,7 +348,7 @@ HWTEST_F(MidiClientUnitTest, GetDevicePorts_001, TestSize.Level0)
     size_t numPorts = 2;
     OH_MIDIDeviceInformation info;
     info.midiDeviceId = 1001;
-    auto device = new MidiDevicePrivate(mockService, info);
+    auto device = std::make_shared<MidiDevicePrivate>(mockService, info);
     client->AddDeviceHandler(device);
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, portArray, &numPorts);
 
@@ -432,7 +431,7 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
 
     OH_MIDIDeviceInformation info;
     info.midiDeviceId = 1001;
-    auto device = new MidiDevicePrivate(mockService, info);
+    auto device = std::make_shared<MidiDevicePrivate>(mockService, info);
     client->AddDeviceHandler(device);
     size_t numPorts = 0;  // Start with zero
     OH_MIDIStatusCode status = client->GetDevicePorts(deviceId, nullptr, &numPorts);
@@ -809,10 +808,8 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_001, TestSize.Level0)
     // The pointer should still be accessible without crash
     EXPECT_NE(privDevice2, nullptr);
 
-    // Clean up
-    delete privDevice1;
-    client->RemoveDeviceHandler(privDevice2);
-    delete privDevice2;
+    // Clean up: use CloseAndRemoveDevice for the remaining device
+    client->CloseAndRemoveDevice(device2);
 }
 
 /**
@@ -837,17 +834,15 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_002, TestSize.Level0)
     // Create a device NOT in deviceHandlers_
     OH_MIDIDeviceInformation info;
     info.midiDeviceId = 9999;
-    auto *orphanDevice = new MidiDevicePrivate(mockService, info);
+    auto orphanDevice = std::make_unique<MidiDevicePrivate>(mockService, info);
 
     // Removing a non-tracked device should not crash and not affect existing devices
-    client->RemoveDeviceHandler(orphanDevice);
+    client->RemoveDeviceHandler(orphanDevice.get());
 
     // MarkDeviceInValid should still work on the tracked device
     client->MarkDeviceInValid();
 
-    delete orphanDevice;
-    client->RemoveDeviceHandler(static_cast<MidiDevicePrivate *>(device));
-    delete device;
+    client->CloseAndRemoveDevice(device);
 }
 
 /**
@@ -873,17 +868,15 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_UAFProtection_001, TestSize.Lev
 
     auto *privDevice = static_cast<MidiDevicePrivate *>(device);
 
-    // Simulate OH_MIDIClient_CloseDevice flow:
-    // 1. Remove from deviceHandlers_ BEFORE delete
-    client->RemoveDeviceHandler(privDevice);
-    // 2. Close device
-    EXPECT_EQ(privDevice->CloseDevice(), OH_MIDI_STATUS_OK);
-    // 3. Delete the device
-    delete privDevice;
+    // Simulate OH_MIDIClient_CloseDevice flow using CloseAndRemoveDevice:
+    // This atomically removes from deviceHandlers_ and closes the device.
+    // The shared_ptr inside the handler list is released, but the device
+    // stays alive until CloseAndRemoveDevice returns.
+    EXPECT_EQ(client->CloseAndRemoveDevice(device), OH_MIDI_STATUS_OK);
 
-    // 4. Now if an OnError callback fires and calls MarkDeviceInValid,
-    //    it should NOT access the deleted device (no UAF).
-    //    The pointer was removed from deviceHandlers_ so it won't be iterated.
+    // Now if an OnError callback fires and calls MarkDeviceInValid,
+    // it should NOT access the removed device (no UAF).
+    // The pointer was removed from deviceHandlers_ so it won't be iterated.
     client->MarkDeviceInValid();  // Should be safe, no crash
 }
 
@@ -950,7 +943,8 @@ HWTEST_F(MidiClientUnitTest, OpenInputPort_RollbackOnThreadStartFail_001, TestSi
 
 /**
  * @tc.name: HandleDeviceDisconnect_001
- * @tc.desc: HandleDeviceDisconnect should stop receiver threads, clear ports, and mark device invalid.
+ * @tc.desc: HandleDeviceDisconnect should tombstone ports. First CloseInputPort returns OK,
+ *           second returns INVALID_PORT. CloseDevice skips IPC.
  * @tc.type: FUNC
  */
 HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_001, TestSize.Level0)
@@ -980,10 +974,14 @@ HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_001, TestSize.Level0)
 
     ASSERT_EQ(device->OpenInputPort(desc, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_OK);
 
-    // Simulate disconnect
+    // Simulate disconnect — tombstones ports instead of clearing
     client->HandleDeviceDisconnect(4001);
 
-    // Ports should be cleared
+    // First CloseInputPort: tombstoned entry erased, returns OK (no IPC)
+    EXPECT_CALL(*mockService, CloseInputPort(_, _)).Times(0);
+    EXPECT_EQ(device->CloseInputPort(0), OH_MIDI_STATUS_OK);
+
+    // Second CloseInputPort: key absent, returns INVALID_PORT
     EXPECT_EQ(device->CloseInputPort(0), OH_MIDI_STATUS_INVALID_PORT);
 
     // CloseDevice should skip IPC (device is invalid) and return OK
@@ -991,8 +989,89 @@ HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_001, TestSize.Level0)
     EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
 
     // Cleanup: remove from handlers before TearDown destructor runs
-    client->RemoveDeviceHandler(device);
-    delete device;
+    client->CloseAndRemoveDevice(rawDevice);
+}
+
+/**
+ * @tc.name: HandleDeviceDisconnect_OutputPort_001
+ * @tc.desc: After disconnect, first CloseOutputPort returns OK (tombstone erase),
+ *           second returns INVALID_PORT. No IPC on close.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_OutputPort_001, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, OpenDevice(4002, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 4002;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "TestDevice";
+        return OH_MIDI_STATUS_OK;
+    }));
+
+    MidiDevice *rawDevice = nullptr;
+    ASSERT_EQ(client->OpenDevice(4002, &rawDevice), OH_MIDI_STATUS_OK);
+    auto *device = static_cast<MidiDevicePrivate *>(rawDevice);
+
+    OH_MIDIPortDescriptor desc;
+    desc.portIndex = 0;
+    desc.protocol = OH_MIDI_PROTOCOL_1_0;
+
+    EXPECT_CALL(*mockService, OpenOutputPort(_, 4002, 0))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
+            return (buffer != nullptr) ? OH_MIDI_STATUS_OK : OH_MIDI_STATUS_SYSTEM_ERROR;
+        }));
+
+    ASSERT_EQ(device->OpenOutputPort(desc), OH_MIDI_STATUS_OK);
+
+    // Simulate disconnect
+    client->HandleDeviceDisconnect(4002);
+
+    // First CloseOutputPort: tombstoned entry erased, returns OK (no IPC)
+    EXPECT_CALL(*mockService, CloseOutputPort(_, _)).Times(0);
+    EXPECT_EQ(device->CloseOutputPort(0), OH_MIDI_STATUS_OK);
+
+    // Second CloseOutputPort: key absent, returns INVALID_PORT
+    EXPECT_EQ(device->CloseOutputPort(0), OH_MIDI_STATUS_INVALID_PORT);
+
+    // CloseDevice should skip IPC (device is invalid)
+    EXPECT_CALL(*mockService, CloseDevice(_)).Times(0);
+    EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
+
+    client->CloseAndRemoveDevice(rawDevice);
+}
+
+/**
+ * @tc.name: HandleDeviceDisconnect_UnopenedPort_001
+ * @tc.desc: Closing a port that was never opened after disconnect returns INVALID_PORT.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_UnopenedPort_001, TestSize.Level0)
+{
+    EXPECT_CALL(*mockService, OpenDevice(4003, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 4003;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "TestDevice";
+        return OH_MIDI_STATUS_OK;
+    }));
+
+    MidiDevice *rawDevice = nullptr;
+    ASSERT_EQ(client->OpenDevice(4003, &rawDevice), OH_MIDI_STATUS_OK);
+    auto *device = static_cast<MidiDevicePrivate *>(rawDevice);
+
+    // Simulate disconnect without opening any ports
+    client->HandleDeviceDisconnect(4003);
+
+    // Closing a port that was never opened should return INVALID_PORT
+    EXPECT_EQ(device->CloseInputPort(0), OH_MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->CloseOutputPort(0), OH_MIDI_STATUS_INVALID_PORT);
+
+    // CloseDevice should skip IPC
+    EXPECT_CALL(*mockService, CloseDevice(_)).Times(0);
+    EXPECT_EQ(device->CloseDevice(), OH_MIDI_STATUS_OK);
+
+    client->CloseAndRemoveDevice(rawDevice);
 }
 
 /**
@@ -1054,7 +1133,7 @@ HWTEST_F(MidiClientUnitTest, DestructorCleanup_001, TestSize.Level0)
     ASSERT_EQ(static_cast<MidiDevicePrivate *>(device1)->OpenInputPort(
         desc, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_OK);
 
-    // Reset client → destructor should CloseAllPorts + delete both devices
-    // No crash, no hang, no leak (ASan would catch issues)
+    // Reset client -> destructor should set destroyed flag, CloseAllPorts, then
+    // release shared_ptrs to both devices. No crash, no hang, no leak.
     client.reset();
 }
