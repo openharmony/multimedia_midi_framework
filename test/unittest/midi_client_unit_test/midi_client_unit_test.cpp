@@ -943,7 +943,7 @@ HWTEST_F(MidiClientUnitTest, OpenInputPort_RollbackOnThreadStartFail_001, TestSi
 
 /**
  * @tc.name: HandleDeviceDisconnect_001
- * @tc.desc: HandleDeviceDisconnect should tombstone ports. First CloseInputPort returns OK,
+ * @tc.desc: HandleDeviceDisconnect should close ports. First CloseInputPort returns OK,
  *           second returns INVALID_PORT. CloseDevice skips IPC.
  * @tc.type: FUNC
  */
@@ -994,7 +994,7 @@ HWTEST_F(MidiClientUnitTest, HandleDeviceDisconnect_001, TestSize.Level0)
 
 /**
  * @tc.name: HandleDeviceDisconnect_OutputPort_001
- * @tc.desc: After disconnect, first CloseOutputPort returns OK (tombstone erase),
+ * @tc.desc: After disconnect, first CloseOutputPort returns OK,
  *           second returns INVALID_PORT. No IPC on close.
  * @tc.type: FUNC
  */
