@@ -157,6 +157,7 @@ HWTEST_F(MidiClientUnitTest, OpenDevice_001, TestSize.Level0)
 
     EXPECT_EQ(client->OpenDevice(deviceId, &device), OH_MIDI_STATUS_OK);
     EXPECT_NE(device, nullptr);
+    EXPECT_CALL(*mockService, CloseDevice(1001)).WillOnce(Return(OH_MIDI_STATUS_OK));
     client->CloseAndRemoveDevice(device);
 }
 
@@ -865,8 +866,6 @@ HWTEST_F(MidiClientUnitTest, RemoveDeviceHandler_UAFProtection_001, TestSize.Lev
     MidiDevice *device = nullptr;
     ASSERT_EQ(client->OpenDevice(1001, &device), OH_MIDI_STATUS_OK);
     ASSERT_NE(device, nullptr);
-
-    auto *privDevice = static_cast<MidiDevicePrivate *>(device);
 
     // Simulate OH_MIDIClient_CloseDevice flow using CloseAndRemoveDevice:
     // This atomically removes from deviceHandlers_ and closes the device.
