@@ -52,7 +52,8 @@ ohos_shared_library("midi_client") {
     "ipc:ipc_single",
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
-    "common_event_service:cesfwk_innerkits"
+    "common_event_service:cesfwk_innerkits",
+    "qos_manager:qos",
   ]
 
   cflags_cc = [ "-std=c++20" ]

@@ -20,12 +20,14 @@
 #include <algorithm>
 #include <cstring>
 #include <chrono>
+#include <cerrno>
 
 #include "midi_log.h"
 #include "midi_client_private.h"
 #include "midi_service_client.h"
 #include "ump_converter.h"
 #include "securec.h"
+#include "qos.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -325,6 +327,8 @@ bool MidiInputPort::StopReceiverThread()
 
 void MidiInputPort::ReceiverThreadLoop()
 {
+    int ret = QOS::SetThreadQos(QOS::QosLevel::QOS_USER_INTERACTIVE);
+    MIDI_INFO_LOG("SetThreadQos ret = %{public}d", ret);
     if (!ringBuffer_) {
         running_.store(false);
         return;
@@ -337,7 +341,6 @@ void MidiInputPort::ReceiverThreadLoop()
     }
 
     constexpr int64_t kWaitForever = -1;
-
     while (running_.load()) {
         (void)FutexTool::FutexWait(futexPtr, kWaitForever, [this]() { return ShouldWakeForReadOrExit(); });
 

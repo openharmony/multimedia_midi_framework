@@ -35,6 +35,7 @@
                 "hilog",
                 "init",
                 "ipc",
+                "qos_manager",
                 "safwk",
                 "samgr",
                 "usb_manager",
