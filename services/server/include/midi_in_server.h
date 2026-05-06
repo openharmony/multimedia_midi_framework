@@ -37,12 +37,13 @@ public:
     int32_t DestroyMidiClient() override;
     void NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo);
     void NotifyError(int32_t code);
-    void UpdateBluetoothPermission();
+    void UpdateBluetoothPermission(bool useFreshToken = false);
 
     bool IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const;
 
 private:
     uint32_t clientId_;
+    uint32_t callerTokenId_;
     std::shared_ptr<MidiServiceCallback> callback_;
     bool hasBluetoothPermission_;
 };

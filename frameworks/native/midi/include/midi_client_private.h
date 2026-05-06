@@ -100,6 +100,7 @@ public:
                            uint32_t eventCount, uint32_t *eventsWritten) override;
     OH_MIDIStatusCode SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
+    void CloseAllPorts();
     void SetInValid();
     int64_t GetDeviceId() const;
 
@@ -126,6 +127,7 @@ public:
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
     void MarkDeviceInValid();
+    void HandleDeviceDisconnect(int64_t deviceId);
     void AddDeviceHandler(MidiDevicePrivate *device);
     void RemoveDeviceHandler(MidiDevice *device) override;
 private:

@@ -35,5 +35,17 @@ bool MidiPermissionManager::VerifyBluetoothPermission()
 {
     return VerifyPermission(ACCESS_BLUETOOTH_PERMISSION);
 }
+
+bool MidiPermissionManager::VerifyPermission(uint32_t tokenId, const std::string &permissionName)
+{
+    int result = OHOS::Security::AccessToken::AccessTokenKit::VerifyAccessToken(tokenId, permissionName);
+    MIDI_INFO_LOG("VerifyPermission with tokenId:%u, result:%{public}d", tokenId, result);
+    return result == PERMISSION_GRANTED;
+}
+
+bool MidiPermissionManager::VerifyBluetoothPermission(uint32_t tokenId)
+{
+    return VerifyPermission(tokenId, ACCESS_BLUETOOTH_PERMISSION);
+}
 } // namespace MIDI
 } // namespace OHOS
