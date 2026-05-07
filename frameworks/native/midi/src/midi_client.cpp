@@ -20,8 +20,6 @@
 #include <algorithm>
 #include <cstring>
 #include <chrono>
-#include <cerrno>
-
 #include "midi_log.h"
 #include "midi_client_private.h"
 #include "midi_service_client.h"
