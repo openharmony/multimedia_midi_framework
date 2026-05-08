@@ -130,7 +130,8 @@ static ProtocolDirection GetCoverterDirection(OH_MIDIProtocol targetProtocol, OH
     return targetProtocol == OH_MIDI_PROTOCOL_1_0 ? MIDI_2_0_TO_MIDI_1_0 : MIDI_1_0_TO_MIDI_2_0;
 }
 
-MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData, std::shared_ptr<MidiClientPrivate> client)
+MidiClientCallback::MidiClientCallback(OH_MIDICallbacks callbacks, void *userData,
+    std::shared_ptr<MidiClientPrivate> client)
     : callbacks_(callbacks), userData_(userData), client_(client)
 {}
 
