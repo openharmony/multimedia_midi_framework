@@ -80,6 +80,9 @@ void MidiDeviceManager::Init()
 #endif
     UpdateDevices();
     MIDI_INFO_LOG("MidiDeviceManager initialized successfully");
+    std::unordered_map<std::string, std::string> payload;
+    payload["pid"] = std::to_string(getpid());
+    OHOS::ConcurrentTask::ConcurrentTaskClient::GetInstance().RequestAuth(payload);
 }
 
 static std::shared_ptr<EventSubscriber> SubscribeCommonEvent(std::function<void()> callback)
