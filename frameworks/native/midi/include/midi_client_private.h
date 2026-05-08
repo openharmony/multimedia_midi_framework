@@ -141,20 +141,21 @@ private:
     sptr<MidiClientCallback> callback_;
     std::mutex mutex_;
     std::atomic<bool> destroyed_{false};
+    std::shared_ptr<MidiClientPrivate> selfRef_;
     std::vector<std::shared_ptr<MidiDevicePrivate>> deviceHandlers_;
 };
 
 class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
 public:
     MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-        OH_MIDIClient_OnDeviceOpened callback, void *userData, MidiClientPrivate *client);
+        OH_MIDIClient_OnDeviceOpened callback, void *userData, std::shared_ptr<MidiClientPrivate> client);
     ~MidiClientDeviceOpenCallback() = default;
     int32_t NotifyDeviceOpened(bool opened, const MidiDeviceInfo &deviceInfo) override;
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
     OH_MIDIClient_OnDeviceOpened callback_;
     void *userData_;
-    MidiClientPrivate *client_ = nullptr;
+    std::weak_ptr<MidiClientPrivate> client_;
 };
 } // namespace MIDI
 } // namespace OHOS
