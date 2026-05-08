@@ -16,6 +16,7 @@
 #ifndef MIDI_DEVICE_USB_H
 #define MIDI_DEVICE_USB_H
 
+#include <atomic>
 #include <vector>
 #include "midi_info.h"
 #include "midi_device_driver.h"
@@ -31,6 +32,7 @@ public:
 
 private:
     UmpInputCallback callback_;
+    std::atomic<bool> qosElevated_{false};
 };
 
 class UsbMidiTransportDeviceDriver : public MidiDeviceDriver {
