@@ -21,6 +21,7 @@
 #include "midi_device_usb.h"
 #include "midi_device_ble.h"
 #include "midi_log.h"
+#include "concurrent_task_client.h"
 
 namespace OHOS {
 namespace MIDI {
