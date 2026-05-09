@@ -101,6 +101,7 @@ public:
     OH_MIDIStatusCode SendSysEx(uint32_t portIndex, const uint8_t *data, uint32_t byteSize) override;
     OH_MIDIStatusCode FlushOutputPort(uint32_t portIndex) override;
     void CloseAllPorts();
+    void TombstoneAllPorts();
     void SetInValid();
     int64_t GetDeviceId() const;
 
@@ -126,10 +127,12 @@ public:
         void *userData) override;
     OH_MIDIStatusCode GetDevicePorts(int64_t deviceId, OH_MIDIPortInformation *infos, size_t *numPorts) override;
     OH_MIDIStatusCode DestroyMidiClient() override;
+    OH_MIDIStatusCode CloseAndRemoveDevice(MidiDevice *device) override;
     void MarkDeviceInValid();
     void HandleDeviceDisconnect(int64_t deviceId);
-    void AddDeviceHandler(MidiDevicePrivate *device);
+    void AddDeviceHandler(std::shared_ptr<MidiDevicePrivate> device);
     void RemoveDeviceHandler(MidiDevice *device) override;
+    bool IsDestroyed() const { return destroyed_.load(); }
 private:
     void DeviceChange(OH_MIDIDeviceChangeAction change, OH_MIDIDeviceInformation info);
     bool IsDeviceOpened(int64_t deviceId);
@@ -137,20 +140,22 @@ private:
     uint32_t clientId_;
     sptr<MidiClientCallback> callback_;
     std::mutex mutex_;
-    std::vector<MidiDevicePrivate *> deviceHandlers_;
+    std::atomic<bool> destroyed_{false};
+    std::shared_ptr<MidiClientPrivate> selfRef_;
+    std::vector<std::shared_ptr<MidiDevicePrivate>> deviceHandlers_;
 };
 
 class MidiClientDeviceOpenCallback : public MidiDeviceOpenCallbackStub {
 public:
     MidiClientDeviceOpenCallback(std::shared_ptr<MidiServiceInterface> midiServiceInterface,
-        OH_MIDIClient_OnDeviceOpened callback, void *userData, MidiClientPrivate *client);
+        OH_MIDIClient_OnDeviceOpened callback, void *userData, std::shared_ptr<MidiClientPrivate> client);
     ~MidiClientDeviceOpenCallback() = default;
     int32_t NotifyDeviceOpened(bool opened, const MidiDeviceInfo &deviceInfo) override;
 private:
     std::weak_ptr<MidiServiceInterface> ipc_;
     OH_MIDIClient_OnDeviceOpened callback_;
     void *userData_;
-    MidiClientPrivate *client_ = nullptr;
+    std::weak_ptr<MidiClientPrivate> client_;
 };
 } // namespace MIDI
 } // namespace OHOS
