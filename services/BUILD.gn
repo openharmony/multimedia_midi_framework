@@ -79,6 +79,8 @@ ohos_shared_library("midi_service") {
     "hilog:libhilog",
     "init:libbegetutil",
     "ipc:ipc_single",
+    "qos_manager:concurrent_task_client",
+    "qos_manager:qos",
     "safwk:system_ability_fwk",
     "samgr:samgr_proxy",
     "usb_manager:usbsrv_client",

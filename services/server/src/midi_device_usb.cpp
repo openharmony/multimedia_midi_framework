@@ -19,6 +19,7 @@
 #include "midi_log.h"
 #include "midi_utils.h"
 #include "midi_device_usb.h"
+#include "qos.h"
 
 using namespace OHOS::HDI::Midi::V1_0;
 
@@ -139,6 +140,11 @@ int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
 
 int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> &messages)
 {
+    bool expected = false;
+    if (qosElevated_.compare_exchange_strong(expected, true)) {
+        int ret = QOS::SetThreadQos(QOS::QosLevel::QOS_USER_INTERACTIVE);
+        MIDI_INFO_LOG("SetThreadQos ret = %{public}d", ret);
+    }
     std::vector<MidiEventInner> events;
     events.reserve(messages.size());
     MIDI_DEBUG_LOG("[server]: get midi events from hdi");
