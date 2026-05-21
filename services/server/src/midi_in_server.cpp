@@ -146,5 +146,11 @@ bool MidiInServer::IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const
 {
     return deviceInfo.deviceType == DeviceType::DEVICE_TYPE_BLE;
 }
+
+void MidiInServer::ClearCallback()
+{
+    MIDI_INFO_LOG("ClearCallback: clientId:%{public}u", clientId_);
+    callback_.reset();
+}
 }  // namespace MIDI
 }  // namespace OHOS

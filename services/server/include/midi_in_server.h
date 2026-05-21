@@ -38,6 +38,7 @@ public:
     void NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo);
     void NotifyError(int32_t code);
     void UpdateBluetoothPermission(bool useFreshToken = false);
+    void ClearCallback();
 
     bool IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const;
 
