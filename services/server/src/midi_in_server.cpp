@@ -120,7 +120,7 @@ int32_t MidiInServer::DestroyMidiClient()
 
 void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
-    auto cb = callback_;
+    auto cb = std::atomic_load(&callback_);
     CHECK_AND_RETURN(cb != nullptr);
     UpdateBluetoothPermission(false);
     if (!hasBluetoothPermission_ && IsBluetoothDevice(deviceInfo)) {
@@ -132,7 +132,7 @@ void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceI
 
 void MidiInServer::NotifyError(int32_t code)
 {
-    auto cb = callback_;
+    auto cb = std::atomic_load(&callback_);
     CHECK_AND_RETURN(cb != nullptr);
     cb->NotifyError(code);
 }
@@ -152,7 +152,8 @@ bool MidiInServer::IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const
 void MidiInServer::ClearCallback()
 {
     MIDI_INFO_LOG("ClearCallback: clientId:%{public}u", clientId_);
-    callback_.reset();
+    auto nullptr_cb = std::shared_ptr<MidiServiceCallback>();
+    std::atomic_store(&callback_, nullptr_cb);
 }
 }  // namespace MIDI
 }  // namespace OHOS
