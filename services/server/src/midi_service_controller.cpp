@@ -774,6 +774,10 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
             }
             deathRecipients_.erase(deathIt);
         }
+
+        // Clear callback in MidiInServer to prevent use-after-free
+        it->second->ClearCallback();
+
         for (auto deviceId : devicesToClean) {
             CleanupDeviceForClient(clientId, deviceId);
         }
