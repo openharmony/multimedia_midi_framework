@@ -120,19 +120,21 @@ int32_t MidiInServer::DestroyMidiClient()
 
 void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
-    CHECK_AND_RETURN(callback_ != nullptr);
+    auto cb = callback_;
+    CHECK_AND_RETURN(cb != nullptr);
     UpdateBluetoothPermission(false);
     if (!hasBluetoothPermission_ && IsBluetoothDevice(deviceInfo)) {
         MIDI_INFO_LOG("Filtered BLE device change notification, no permission");
         return;
     }
-    callback_->NotifyDeviceChange(change, deviceInfo);
+    cb->NotifyDeviceChange(change, deviceInfo);
 }
 
 void MidiInServer::NotifyError(int32_t code)
 {
-    CHECK_AND_RETURN(callback_ != nullptr);
-    callback_->NotifyError(code);
+    auto cb = callback_;
+    CHECK_AND_RETURN(cb != nullptr);
+    cb->NotifyError(code);
 }
 
 void MidiInServer::UpdateBluetoothPermission(bool useFreshToken)
