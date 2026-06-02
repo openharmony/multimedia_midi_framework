@@ -230,17 +230,17 @@ static void GetDeviceInfo(DeviceCtx &d)
 {
     int32_t err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceName(d.deviceName);
-    MIDI_INFO_LOG("err: %{public}d, deviceName: %{public}s", err, d.deviceName.c_str());
+    MIDI_INFO_LOG("err: %{public}d, deviceName: %{public}s", err, GetEncryptStr(d.deviceName).c_str());
     uint16_t productId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(productId);
     d.productId = productId;
-    MIDI_INFO_LOG("err: %{public}d, productId: %{public}" PRIu64, err, d.productId);
+    MIDI_INFO_LOG("err: %{public}d, productId: %" PRIu64, err, d.productId);
     uint16_t vendorId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
     d.vendorId = vendorId;
-    MIDI_INFO_LOG("err: %{public}d, vendorId: %{public}" PRIu64, err, d.vendorId);
+    MIDI_INFO_LOG("err: %{public}d, vendorId: %" PRIu64, err, d.vendorId);
 }
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
