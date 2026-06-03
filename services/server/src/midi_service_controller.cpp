@@ -987,7 +987,8 @@ void MidiServiceController::DumpDevicePortMapping(std::string &dumpString, int64
     const std::shared_ptr<DeviceClientContext> &context)
 {
     auto deviceInfo = deviceManager_->GetDeviceForDeviceId(deviceId);
-    dumpString += "\nDevice " + std::to_string(deviceId) + " (" + deviceInfo.midiDeviceInfo.deviceName + "):\n";
+    dumpString += "\nDevice " + std::to_string(deviceId) + " (" +
+        GetEncryptStr(deviceInfo.midiDeviceInfo.deviceName) + "):\n";
 
     DumpPortList(dumpString, "Input Ports", deviceId, context->inputDeviceconnections_);
     DumpPortList(dumpString, "Output Ports", deviceId, context->outputDeviceconnections_);
@@ -1107,7 +1108,8 @@ void MidiServiceController::DumpDeviceStatistics(std::string &dumpString, int64_
     uint64_t &totalInputBytes, uint64_t &totalOutputBytes)
 {
     auto deviceInfo = deviceManager_->GetDeviceForDeviceId(deviceId);
-    dumpString += "  Device " + std::to_string(deviceId) + " (" + deviceInfo.midiDeviceInfo.deviceName + "):\n";
+    dumpString += "  Device " + std::to_string(deviceId) + " (" +
+        GetEncryptStr(deviceInfo.midiDeviceInfo.deviceName) + "):\n";
 
     uint64_t deviceInputEvents = 0;
     uint64_t deviceOutputEvents = 0;

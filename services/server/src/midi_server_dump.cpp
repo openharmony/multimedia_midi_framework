@@ -25,6 +25,7 @@
 #include "midi_device_mananger.h"
 #include "midi_info.h"
 #include "midi_log.h"
+#include "midi_utils.h"
 
 namespace OHOS {
 namespace MIDI {
@@ -151,9 +152,9 @@ void MidiServerDump::DeviceListDump(std::string &dumpString)
         const auto &device = devices[i];
         dumpString += "  Device " + std::to_string(i + 1) + ":\n";
         dumpString += "    - Device ID: " + std::to_string(device.deviceId) + "\n";
-        dumpString += "    - Name: " + device.deviceName + "\n";
+        dumpString += "    - Name: " + GetEncryptStr(device.deviceName) + "\n";
         dumpString += "    - Type: " + DeviceTypeToString(static_cast<int>(device.deviceType)) + "\n";
-        dumpString += "    - Address: " + device.address + "\n";
+        dumpString += "    - Address: " + GetEncryptStr(device.address) + "\n";
         dumpString += "    - Protocol: " + ProtocolToString(static_cast<int>(device.transportProtocol)) + "\n";
         dumpString += "    - Product ID: 0x" + std::to_string(device.productId) + "\n";
         dumpString += "    - Vendor ID: 0x" + std::to_string(device.vendorId) + "\n";

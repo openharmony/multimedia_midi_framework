@@ -21,6 +21,7 @@
 #include "midi_device_usb.h"
 #include "midi_device_ble.h"
 #include "midi_log.h"
+#include "midi_utils.h"
 #include "concurrent_task_client.h"
 
 namespace OHOS {
@@ -182,7 +183,7 @@ void MidiDeviceManager::CompareDevices(
             MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 newDevice.midiDeviceInfo.deviceId,
                 newDevice.midiDeviceInfo.driverDeviceId,
-                newDevice.midiDeviceInfo.deviceName.c_str());
+                GetEncryptStr(newDevice.midiDeviceInfo.deviceName).c_str());
         }
     }
 
@@ -197,7 +198,7 @@ void MidiDeviceManager::CompareDevices(
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 oldDevice.midiDeviceInfo.deviceId,
                 oldDevice.midiDeviceInfo.driverDeviceId,
-                oldDevice.midiDeviceInfo.deviceName.c_str());
+                GetEncryptStr(oldDevice.midiDeviceInfo.deviceName).c_str());
         }
     }
     if (!removedDriverIds.empty()) {
