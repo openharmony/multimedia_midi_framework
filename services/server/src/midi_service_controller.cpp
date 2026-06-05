@@ -743,6 +743,19 @@ void MidiServiceController::CleanupClientResources(uint32_t clientId, uint32_t c
     clientResourceInfo_.erase(clientId);
 }
 
+void MidiServiceController::RemovePendingBleConnectionsForClient(uint32_t clientId)
+{
+    for (auto it = pendingBleConnections_.begin(); it != pendingBleConnections_.end();) {
+        auto& list = it->second;
+        list.remove_if([clientId](const PendingBleConnection& conn) { return conn.clientId == clientId; });
+        if (list.empty()) {
+            it = pendingBleConnections_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 {
     MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
@@ -750,12 +763,16 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
     std::vector<int64_t> devicesToClose;
     std::vector<int64_t> devicesToClean;
     uint32_t clientUid = 0;
+    sptr<MidiInServer> clientToDrain;
 
     {
         std::lock_guard lock(lock_);
         auto it = clients_.find(clientId);
         CHECK_AND_RETURN_RET_LOG(
             it != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT, "Client not found: %{public}u", clientId);
+
+        // Extract client to local variable to keep it alive during drain
+        clientToDrain = it->second;
 
         CollectDevicesForClientDestruction(clientId, devicesToClose, devicesToClean);
 
@@ -775,14 +792,22 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
             deathRecipients_.erase(deathIt);
         }
 
-        // Clear callback in MidiInServer to prevent use-after-free
-        it->second->ClearCallback();
-
+        // Erase client from clients_ first to prevent new notifications from reaching it
         for (auto deviceId : devicesToClean) {
             CleanupDeviceForClient(clientId, deviceId);
         }
         CleanupClientResources(clientId, clientUid);
+        RemovePendingBleConnectionsForClient(clientId);
         clients_.erase(it);
+    }
+
+    // Drain in-flight IMidiCallback IPC calls OUTSIDE the controller lock.
+    // This blocks until all Acquire()'d Guards have been released, ensuring
+    // no thread will invoke IMidiCallback IPC after this returns.
+    // The client is already removed from clients_ so no new notifications
+    // will be dispatched to it.
+    if (clientToDrain != nullptr) {
+        clientToDrain->CloseCallbackAndDrain();
     }
 
     for (auto deviceId : devicesToClose) {

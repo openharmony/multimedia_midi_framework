@@ -24,7 +24,8 @@
 namespace OHOS {
 namespace MIDI {
 MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback)
-    : clientId_(id), callerTokenId_(IPCSkeleton::GetCallingTokenID()), callback_(callback),
+    : clientId_(id), callerTokenId_(IPCSkeleton::GetCallingTokenID()),
+      callbackSlot_(std::move(callback)),
       hasBluetoothPermission_(MidiPermissionManager::VerifyBluetoothPermission(callerTokenId_))
 {
     MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, callerTokenId:%u, hasBluetoothPermission:%{public}d",
@@ -120,21 +121,21 @@ int32_t MidiInServer::DestroyMidiClient()
 
 void MidiInServer::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
-    auto cb = std::atomic_load(&callback_);
-    CHECK_AND_RETURN(cb != nullptr);
+    auto guard = callbackSlot_.Acquire();
+    CHECK_AND_RETURN(guard);
     UpdateBluetoothPermission(false);
     if (!hasBluetoothPermission_ && IsBluetoothDevice(deviceInfo)) {
         MIDI_INFO_LOG("Filtered BLE device change notification, no permission");
         return;
     }
-    cb->NotifyDeviceChange(change, deviceInfo);
+    guard->NotifyDeviceChange(change, deviceInfo);
 }
 
 void MidiInServer::NotifyError(int32_t code)
 {
-    auto cb = std::atomic_load(&callback_);
-    CHECK_AND_RETURN(cb != nullptr);
-    cb->NotifyError(code);
+    auto guard = callbackSlot_.Acquire();
+    CHECK_AND_RETURN(guard);
+    guard->NotifyError(code);
 }
 
 void MidiInServer::UpdateBluetoothPermission(bool useFreshToken)
@@ -151,9 +152,13 @@ bool MidiInServer::IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const
 
 void MidiInServer::ClearCallback()
 {
-    MIDI_INFO_LOG("ClearCallback: clientId:%{public}u", clientId_);
-    auto nullptr_cb = std::shared_ptr<MidiServiceCallback>();
-    std::atomic_store(&callback_, nullptr_cb);
+    CloseCallbackAndDrain();
+}
+
+void MidiInServer::CloseCallbackAndDrain()
+{
+    MIDI_INFO_LOG("CloseCallbackAndDrain: clientId:%{public}u", clientId_);
+    callbackSlot_.CloseAndDrain();
 }
 }  // namespace MIDI
 }  // namespace OHOS

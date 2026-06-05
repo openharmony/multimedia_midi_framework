@@ -15,11 +15,126 @@
 
 #ifndef MIDI_IN_SERVER_H
 #define MIDI_IN_SERVER_H
+
+#include <mutex>
+#include <condition_variable>
 #include "midi_info.h"
 #include "midi_shared_ring.h"
 #include "ipc_midi_in_server_stub.h"
+
 namespace OHOS {
 namespace MIDI {
+
+/**
+ * @brief Thread-safe callback lifecycle manager with RAII acquire semantics.
+ *
+ * Provides a close-and-drain barrier: after CloseAndDrain() returns, no thread
+ * holds a Guard and the callback can be safely released (e.g. before dlclose).
+ */
+class CallbackSlot {
+public:
+    /**
+     * @brief RAII guard that holds a reference to the callback.
+     * Move-only. On destruction, decrements the active count and may notify
+     * a waiting CloseAndDrain().
+     */
+    class Guard {
+    public:
+        Guard() = default;
+        Guard(Guard &&other) noexcept
+            : callback_(std::move(other.callback_)), slot_(other.slot_)
+        {
+            other.slot_ = nullptr;
+        }
+        Guard &operator=(Guard &&other) noexcept
+        {
+            if (this != &other) {
+                Release();
+                callback_ = std::move(other.callback_);
+                slot_ = other.slot_;
+                other.slot_ = nullptr;
+            }
+            return *this;
+        }
+        Guard(const Guard &) = delete;
+        Guard &operator=(const Guard &) = delete;
+
+        explicit operator bool() const { return callback_ != nullptr; }
+        MidiServiceCallback *operator->() const { return callback_.get(); }
+        ~Guard() { Release(); }
+
+    private:
+        friend class CallbackSlot;
+        Guard(std::shared_ptr<MidiServiceCallback> cb, CallbackSlot *slot)
+            : callback_(std::move(cb)), slot_(slot)
+        {
+        }
+        void Release()
+        {
+            if (slot_ != nullptr) {
+                slot_->OnGuardReleased();
+                slot_ = nullptr;
+            }
+            callback_.reset();
+        }
+        std::shared_ptr<MidiServiceCallback> callback_;
+        CallbackSlot *slot_ = nullptr;
+    };
+
+    explicit CallbackSlot(std::shared_ptr<MidiServiceCallback> callback)
+        : callback_(std::move(callback))
+    {
+    }
+
+    /**
+     * @brief Acquire a Guard for the callback.
+     * @return Non-empty Guard if callback is valid and slot is not closing;
+     *         empty Guard otherwise.
+     */
+    Guard Acquire()
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (closing_ || !callback_) {
+            return Guard();
+        }
+        activeCallbacks_++;
+        return Guard(callback_, this);
+    }
+
+    /**
+     * @brief Block new acquires and wait for all active Guards to be released.
+     *
+     * Must NOT be called while holding MidiServiceController::lock_ to avoid
+     * deadlock when in-flight callbacks re-enter controller APIs.
+     */
+    void CloseAndDrain()
+    {
+        std::unique_lock<std::mutex> lk(mutex_);
+        if (closing_) {
+            return;
+        }
+        closing_ = true;
+        callback_.reset();
+        cv_.wait(lk, [this] { return activeCallbacks_ == 0; });
+    }
+
+private:
+    void OnGuardReleased()
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        activeCallbacks_--;
+        if (closing_ && activeCallbacks_ == 0) {
+            cv_.notify_one();
+        }
+    }
+
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::shared_ptr<MidiServiceCallback> callback_;
+    bool closing_ = false;
+    uint32_t activeCallbacks_ = 0;
+};
+
 class MidiInServer : public IpcMidiInServerStub {
 public:
     MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback);
@@ -39,13 +154,14 @@ public:
     void NotifyError(int32_t code);
     void UpdateBluetoothPermission(bool useFreshToken = false);
     void ClearCallback();
+    void CloseCallbackAndDrain();
 
     bool IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const;
 
 private:
     uint32_t clientId_;
     uint32_t callerTokenId_;
-    std::shared_ptr<MidiServiceCallback> callback_;
+    CallbackSlot callbackSlot_;
     bool hasBluetoothPermission_;
 };
 } // namespace MIDI

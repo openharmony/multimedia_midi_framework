@@ -187,6 +187,7 @@ private:
         std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean);
     void CleanupDeviceForClient(uint32_t clientId, int64_t deviceId);
     void CleanupClientResources(uint32_t clientId, uint32_t clientUid);
+    void RemovePendingBleConnectionsForClient(uint32_t clientId);
 
     // Helper function to check if a device is a Bluetooth device
     bool IsBluetoothDevice(int64_t deviceId) const;
