@@ -86,6 +86,7 @@ public:
     {
     }
 
+    ~CallbackSlot();
     /**
      * @brief Acquire a Guard for the callback.
      * @return Non-empty Guard if callback is valid and slot is not closing;
@@ -107,16 +108,7 @@ public:
      * Must NOT be called while holding MidiServiceController::lock_ to avoid
      * deadlock when in-flight callbacks re-enter controller APIs.
      */
-    void CloseAndDrain()
-    {
-        std::unique_lock<std::mutex> lk(mutex_);
-        if (closing_) {
-            return;
-        }
-        closing_ = true;
-        callback_.reset();
-        cv_.wait(lk, [this] { return activeCallbacks_ == 0; });
-    }
+    void CloseAndDrain();
 
 private:
     void OnGuardReleased()
@@ -153,7 +145,7 @@ public:
     void NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo);
     void NotifyError(int32_t code);
     void UpdateBluetoothPermission(bool useFreshToken = false);
-    void ClearCallback();
+    void ClearCallback(); // BLOCKING: drains in-flight callbacks, do NOT call under controller lock
     void CloseCallbackAndDrain();
 
     bool IsBluetoothDevice(const MidiDeviceInfo &deviceInfo) const;

@@ -23,6 +23,29 @@
 #include "ipc_skeleton.h"
 namespace OHOS {
 namespace MIDI {
+CallbackSlot::~CallbackSlot()
+{
+    // Defensive check: no active Guards should exist at destruction
+    // If triggered, CloseAndDrain() was not called properly
+    if (activeCallbacks_ != 0) {
+        MIDI_ERR_LOG("CallbackSlot destroyed with %{public}u active guards!", activeCallbacks_);
+    }
+}
+
+void CallbackSlot::CloseAndDrain()
+{
+    std::unique_lock<std::mutex> lk(mutex_);
+    if (closing_) {
+        return;
+    }
+    closing_ = true;
+    callback_.reset();
+    if (!cv_.wait_for(lk, std::chrono::seconds(3),
+            [this] { return activeCallbacks_ == 0; })) {
+        MIDI_ERR_LOG("CloseAndDrain timed out, %{public}u callbacks still active", activeCallbacks_);
+    }
+}
+
 MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> callback)
     : clientId_(id), callerTokenId_(IPCSkeleton::GetCallingTokenID()),
       callbackSlot_(std::move(callback)),
