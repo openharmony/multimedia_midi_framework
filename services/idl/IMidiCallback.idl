@@ -18,6 +18,6 @@ sequenceable OHOS.IRemoteObject;
 sequenceable midi_info..OHOS.MIDI.MidiDeviceInfo;
 
 interface IMidiCallback {
-    [ipccode 0] void NotifyDeviceChange([in] int change, [in] struct MidiDeviceInfo deviceInfo);
-    void NotifyError([in] int code);
+    [ipccode 0, oneway] void NotifyDeviceChange([in] int change, [in] struct MidiDeviceInfo deviceInfo);
+    [oneway] void NotifyError([in] int code);
 }

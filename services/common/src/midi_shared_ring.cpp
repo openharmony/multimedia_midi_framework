@@ -47,6 +47,9 @@ static constexpr int MINFD = 2;
 // Sequence lock increments: odd = write in progress, even = write complete
 static constexpr uint32_t SEQ_WRITE_START_INCREMENT = 1;
 static constexpr uint32_t SEQ_WRITE_COMPLETE_TOTAL = 2;
+// Flush timeout: 100ms wall-clock upper bound for CAS spin on flushFlag.
+// Normal hold time is O(microseconds); this provides >10,000x margin.
+static constexpr int64_t FLUSH_TIMEOUT_NS = 100 * 1000 * 1000LL; // 100ms
 } // namespace
 
 class MidiSharedMemoryImpl : public MidiSharedMemory {
@@ -630,13 +633,25 @@ void MidiSharedRing::Flush()
 {
     MIDI_INFO_LOG("reset data cache");
 
-    // Use atomic flag to synchronize with other operations
+    int64_t deadline = ClockTime::GetCurNano() + FLUSH_TIMEOUT_NS;
+
     uint32_t expected = 0;
     while (!controler_->flushFlag.compare_exchange_weak(expected, 1,
                                                         std::memory_order_acquire,
                                                         std::memory_order_relaxed)) {
         expected = 0;
-        // Yield CPU to prevent busy-wait spin
+        if (ClockTime::GetCurNano() >= deadline) {
+            MIDI_WARNING_LOG("Flush: timed out waiting for flushFlag, force-clearing");
+            controler_->flushFlag.store(0, std::memory_order_release);
+            expected = 0;
+            if (!controler_->flushFlag.compare_exchange_strong(expected, 1,
+                                                               std::memory_order_acquire,
+                                                               std::memory_order_relaxed)) {
+                MIDI_WARNING_LOG("Flush: CAS failed after force-clear, skipping flush");
+                return;
+            }
+            break;
+        }
         std::this_thread::yield();
     }
 

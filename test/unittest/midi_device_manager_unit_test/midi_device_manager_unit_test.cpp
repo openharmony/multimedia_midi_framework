@@ -96,7 +96,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, UpdateDevices001, TestSize.Level0)
     EXPECT_EQ(devices[0].midiDeviceInfo.driverDeviceId, driverId);
     EXPECT_NE(devices[0].midiDeviceInfo.deviceId, 0);
 
-    EXPECT_TRUE(manager_->HasDriverMappingForTest(driverId));
+    EXPECT_TRUE(manager_->HasDriverMappingForTest(driverId, DeviceType::DEVICE_TYPE_USB));
 }
 
 /**
@@ -214,7 +214,7 @@ HWTEST_F(MidiDeviceManagerUnitTest, DeviceRemoval001, TestSize.Level0)
     auto currentDevices = manager_->GetDevices();
     EXPECT_TRUE(currentDevices.empty());
 
-    EXPECT_FALSE(manager_->HasDriverMappingForTest(driverId));
+    EXPECT_FALSE(manager_->HasDriverMappingForTest(driverId, DeviceType::DEVICE_TYPE_USB));
 
     EXPECT_CALL(*rawUsbDriver_, OpenDevice(_)).Times(0);
     EXPECT_NE(manager_->OpenDevice(oldGlobalId), OH_MIDI_STATUS_OK);
@@ -256,4 +256,53 @@ HWTEST_F(MidiDeviceManagerUnitTest, MultiDriver001, TestSize.Level0)
     }
     EXPECT_TRUE(foundUsb);
     EXPECT_TRUE(foundBle);
+}
+
+/**
+ * @tc.name: UsbBleDriverIdCollision001
+ * @tc.desc: Verify that USB and BLE devices with the same numeric driverDeviceId receive distinct MIDI IDs
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiDeviceManagerUnitTest, UsbBleDriverIdCollision001, TestSize.Level0)
+{
+    auto mockBleDriver = std::make_unique<MockMidiDeviceDriver>();
+    MockMidiDeviceDriver *rawBleDriver = mockBleDriver.get();
+    manager_->InjectDriverForTest(DeviceType::DEVICE_TYPE_BLE, std::move(mockBleDriver));
+
+    // Both USB and BLE use the same numeric driverDeviceId (42)
+    int64_t collisionDriverId = 42;
+
+    EXPECT_CALL(*rawUsbDriver_, GetRegisteredDevices)
+        .WillOnce(Return(std::vector<DeviceInformation>{CreateDriverDeviceInfo(collisionDriverId, "USB Piano")}));
+
+    DeviceInformation bleDev = CreateDriverDeviceInfo(collisionDriverId, "BLE Guitar");
+    bleDev.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    EXPECT_CALL(*rawBleDriver, GetRegisteredDevices)
+        .WillOnce(Return(std::vector<DeviceInformation>{bleDev}));
+
+    manager_->UpdateDevices();
+    auto allDevices = manager_->GetDevices();
+
+    ASSERT_EQ(allDevices.size(), 2);
+
+    // Find USB and BLE devices
+    int64_t usbMidiId = 0;
+    int64_t bleMidiId = 0;
+    for (const auto &d : allDevices) {
+        if (d.midiDeviceInfo.deviceType == DeviceType::DEVICE_TYPE_USB) {
+            usbMidiId = d.midiDeviceInfo.deviceId;
+        } else if (d.midiDeviceInfo.deviceType == DeviceType::DEVICE_TYPE_BLE) {
+            bleMidiId = d.midiDeviceInfo.deviceId;
+        }
+    }
+
+    // Both must have valid IDs and they must be different
+    EXPECT_NE(usbMidiId, 0);
+    EXPECT_NE(bleMidiId, 0);
+    EXPECT_NE(usbMidiId, bleMidiId)
+        << "USB and BLE with same driverDeviceId must map to distinct MIDI IDs";
+
+    // Verify mapping exists for both types independently
+    EXPECT_TRUE(manager_->HasDriverMappingForTest(collisionDriverId, DeviceType::DEVICE_TYPE_USB));
+    EXPECT_TRUE(manager_->HasDriverMappingForTest(collisionDriverId, DeviceType::DEVICE_TYPE_BLE));
 }

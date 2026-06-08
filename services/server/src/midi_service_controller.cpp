@@ -310,6 +310,13 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u", clientId);
 
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+            clientId, MAX_DEVICES_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
+    }
+
     auto activeIt = activeBleDevices_.find(address);
     if (activeIt != activeBleDevices_.end()) {
         int64_t deviceId = activeIt->second;
@@ -318,6 +325,7 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
             MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
                 GetEncryptStr(address).c_str(), deviceId);
             ctxIt->second->clients.insert(clientId);
+            resourceInfo.openDevices.insert(deviceId);
             DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
             MidiDeviceInfo deviceInfo = device.midiDeviceInfo;
             lock.unlock();
@@ -385,6 +393,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
                 // Verify client still exists
                 if (clients_.find(req.clientId) != clients_.end()) {
                     initialClients.insert(req.clientId);
+                    clientResourceInfo_[req.clientId].openDevices.insert(deviceId);
                 }
             }
 

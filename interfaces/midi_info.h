@@ -71,8 +71,8 @@ struct MidiPortInfo : public Parcelable {
 };
 
 struct MidiDeviceInfo : public Parcelable {
-    int64_t deviceId;
-    int64_t driverDeviceId;
+    int64_t deviceId = 0;
+    int64_t driverDeviceId = 0;
     DeviceType deviceType;
     TransportProtocol transportProtocol;
     std::string address;
