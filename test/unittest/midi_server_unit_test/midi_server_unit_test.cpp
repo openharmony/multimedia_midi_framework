@@ -189,7 +189,7 @@ HWTEST_F(MidiServerUnitTest, MidiInServer_NotifyError001, TestSize.Level0)
 
     MidiInServer client(id, mockCallback);
     client.NotifyError(-1);
-    ASSERT_NE(nullptr, client.callback_);
+    ASSERT_TRUE(client.callbackSlot_.Acquire());
 }
 
 /**
