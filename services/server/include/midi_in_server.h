@@ -110,6 +110,8 @@ public:
      */
     void CloseAndDrain();
 
+    static constexpr int32_t DRAIN_TIMEOUT_SEC = 3;
+
 private:
     void OnGuardReleased()
     {

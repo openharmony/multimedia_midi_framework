@@ -40,8 +40,8 @@ void CallbackSlot::CloseAndDrain()
     }
     closing_ = true;
     callback_.reset();
-    if (!cv_.wait_for(lk, std::chrono::seconds(3),
-            [this] { return activeCallbacks_ == 0; })) {
+    if (!cv_.wait_for(lk, std::chrono::seconds(DRAIN_TIMEOUT_SEC),
+        [this] { return activeCallbacks_ == 0; })) {
         MIDI_ERR_LOG("CloseAndDrain timed out, %{public}u callbacks still active", activeCallbacks_);
     }
 }
