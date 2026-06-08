@@ -30,6 +30,7 @@ CallbackSlot::~CallbackSlot()
     if (activeCallbacks_ != 0) {
         MIDI_ERR_LOG("CallbackSlot destroyed with %{public}u active guards!", activeCallbacks_);
     }
+    destroyed_.store(true, std::memory_order_release);
 }
 
 void CallbackSlot::CloseAndDrain()

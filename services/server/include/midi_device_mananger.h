@@ -41,7 +41,7 @@ struct DriverKeyHash {
     {
         auto h1 = std::hash<int64_t>{}(p.first);
         auto h2 = std::hash<int>{}(static_cast<int>(p.second));
-        return h1 ^ (h2 << 1);
+        return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
     }
 };
 using BleOpenCallback = std::function<void(bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo)>;

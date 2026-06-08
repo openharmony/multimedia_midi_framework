@@ -16,6 +16,7 @@
 #ifndef MIDI_IN_SERVER_H
 #define MIDI_IN_SERVER_H
 
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
 #include "midi_info.h"
@@ -72,7 +73,9 @@ public:
         void Release()
         {
             if (slot_ != nullptr) {
-                slot_->OnGuardReleased();
+                if (!slot_->destroyed_.load(std::memory_order_acquire)) {
+                    slot_->OnGuardReleased();
+                }
                 slot_ = nullptr;
             }
             callback_.reset();
@@ -127,6 +130,7 @@ private:
     std::shared_ptr<MidiServiceCallback> callback_;
     bool closing_ = false;
     uint32_t activeCallbacks_ = 0;
+    std::atomic<bool> destroyed_{false};
 };
 
 class MidiInServer : public IpcMidiInServerStub {

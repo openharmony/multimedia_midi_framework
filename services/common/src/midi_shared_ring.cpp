@@ -641,16 +641,8 @@ void MidiSharedRing::Flush()
                                                         std::memory_order_relaxed)) {
         expected = 0;
         if (ClockTime::GetCurNano() >= deadline) {
-            MIDI_WARNING_LOG("Flush: timed out waiting for flushFlag, force-clearing");
-            controler_->flushFlag.store(0, std::memory_order_release);
-            expected = 0;
-            if (!controler_->flushFlag.compare_exchange_strong(expected, 1,
-                                                               std::memory_order_acquire,
-                                                               std::memory_order_relaxed)) {
-                MIDI_WARNING_LOG("Flush: CAS failed after force-clear, skipping flush");
-                return;
-            }
-            break;
+            MIDI_WARNING_LOG("Flush: timed out, skipping flush");
+            return;
         }
         std::this_thread::yield();
     }
