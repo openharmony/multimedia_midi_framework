@@ -59,10 +59,11 @@ int64_t MidiDeviceManager::GetOrCreateDeviceId(int64_t driverDeviceId, DeviceTyp
 {
     std::lock_guard<std::mutex> lock(mappingMutex_);
 
-    auto it = driverIdToMidiId_.find(driverDeviceId);
+    auto key = std::make_pair(driverDeviceId, type);
+    auto it = driverIdToMidiId_.find(key);
     CHECK_AND_RETURN_RET(it == driverIdToMidiId_.end(), it->second);
     int64_t deviceId = GenerateDeviceId();
-    driverIdToMidiId_[driverDeviceId] = deviceId;
+    driverIdToMidiId_[key] = deviceId;
     return deviceId;
 }
 
@@ -172,7 +173,7 @@ void MidiDeviceManager::CompareDevices(
 {
     std::vector<DeviceInformation> addedDevices;
     std::vector<DeviceInformation> removedDevices;
-    std::vector<int64_t> removedDriverIds;
+    std::vector<std::pair<int64_t, DeviceType>> removedDriverIds;
     for (const auto &newDevice : newDevices) {
         auto it = std::find_if(oldDevices.begin(), oldDevices.end(), [&newDevice](const DeviceInformation &oldDevice) {
             return oldDevice.midiDeviceInfo.driverDeviceId == newDevice.midiDeviceInfo.driverDeviceId &&
@@ -194,7 +195,8 @@ void MidiDeviceManager::CompareDevices(
         });
         if (it == newDevices.end()) {
             removedDevices.push_back(oldDevice);
-            removedDriverIds.push_back(oldDevice.midiDeviceInfo.driverDeviceId);
+            removedDriverIds.push_back(std::make_pair(
+                oldDevice.midiDeviceInfo.driverDeviceId, oldDevice.midiDeviceInfo.deviceType));
             MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
                 oldDevice.midiDeviceInfo.deviceId,
                 oldDevice.midiDeviceInfo.driverDeviceId,
@@ -203,8 +205,8 @@ void MidiDeviceManager::CompareDevices(
     }
     if (!removedDriverIds.empty()) {
         std::lock_guard<std::mutex> lock(mappingMutex_);
-        for (int64_t driverId : removedDriverIds) {
-            driverIdToMidiId_.erase(driverId);
+        for (const auto &driverKey : removedDriverIds) {
+            driverIdToMidiId_.erase(driverKey);
         }
     }
     if (!addedDevices.empty()) {
@@ -340,7 +342,8 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
     int64_t midiDeviceId = 0;
     {
         std::lock_guard<std::mutex> mapLock(mappingMutex_);
-        auto it = driverIdToMidiId_.find(driverDeviceId);
+        auto key = std::make_pair(driverDeviceId, DeviceType::DEVICE_TYPE_BLE);
+        auto it = driverIdToMidiId_.find(key);
         if (it != driverIdToMidiId_.end()) {
             midiDeviceId = it->second;
             driverIdToMidiId_.erase(it);
@@ -495,10 +498,10 @@ void MidiDeviceManager::ClearStateForTest()
     nextDeviceId_.store(0);
 }
 
-bool MidiDeviceManager::HasDriverMappingForTest(int64_t driverId) const
+bool MidiDeviceManager::HasDriverMappingForTest(int64_t driverId, DeviceType type) const
 {
     std::lock_guard<std::mutex> lock(mappingMutex_);
-    return driverIdToMidiId_.count(driverId) > 0;
+    return driverIdToMidiId_.count(std::make_pair(driverId, type)) > 0;
 }
 #endif
 }  // namespace MIDI

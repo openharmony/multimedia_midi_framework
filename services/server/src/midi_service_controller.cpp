@@ -310,23 +310,49 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT,
         "Client not found: %{public}u", clientId);
 
-    auto activeIt = activeBleDevices_.find(address);
-    if (activeIt != activeBleDevices_.end()) {
-        int64_t deviceId = activeIt->second;
-        auto ctxIt = deviceClientContexts_.find(deviceId);
-        if (ctxIt != deviceClientContexts_.end()) {
-            MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
-                GetEncryptStr(address).c_str(), deviceId);
-            ctxIt->second->clients.insert(clientId);
-            DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
-            MidiDeviceInfo deviceInfo = device.midiDeviceInfo;
-            lock.unlock();
-            callback->NotifyDeviceOpened(true, deviceInfo);
-            return OH_MIDI_STATUS_OK;
-        }
+    auto &resourceInfo = clientResourceInfo_[clientId];
+    if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+            clientId, MAX_DEVICES_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
     }
 
-    // 2. Check if a connection is already PENDING for this address
+    MidiDeviceInfo deviceInfo;
+    if (TryAttachToActiveBleDevice(clientId, address, deviceInfo)) {
+        lock.unlock();
+        callback->NotifyDeviceOpened(true, deviceInfo);
+        return OH_MIDI_STATUS_OK;
+    }
+
+    return EnqueueBleConnectionRequest(clientId, address, callback);
+}
+
+bool MidiServiceController::TryAttachToActiveBleDevice(uint32_t clientId, const std::string &address,
+    MidiDeviceInfo &outDeviceInfo)
+{
+    auto activeIt = activeBleDevices_.find(address);
+    if (activeIt == activeBleDevices_.end()) {
+        return false;
+    }
+
+    int64_t deviceId = activeIt->second;
+    auto ctxIt = deviceClientContexts_.find(deviceId);
+    if (ctxIt == deviceClientContexts_.end()) {
+        return false;
+    }
+
+    MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
+        GetEncryptStr(address).c_str(), deviceId);
+    ctxIt->second->clients.insert(clientId);
+    clientResourceInfo_[clientId].openDevices.insert(deviceId);
+    DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
+    outDeviceInfo = device.midiDeviceInfo;
+    return true;
+}
+
+int32_t MidiServiceController::EnqueueBleConnectionRequest(uint32_t clientId, const std::string &address,
+    const sptr<IMidiDeviceOpenCallback> &callback)
+{
     bool isFirstRequest = (pendingBleConnections_.find(address) == pendingBleConnections_.end());
     PendingBleConnection req = { clientId, callback };
     pendingBleConnections_[address].push_back(req);
@@ -338,7 +364,6 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     }
     MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(address).c_str());
 
-    // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     auto completeCallback = [weakSelf, address](bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo) {
         auto self = weakSelf.lock();
@@ -349,7 +374,6 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     int32_t ret = deviceManager_->OpenBleDevice(address, completeCallback);
     if (ret != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("Manager OpenBleDevice failed immediately: %{public}d", ret);
-        // Clean up pending list immediately
         pendingBleConnections_.erase(address);
         return ret;
     }
@@ -385,6 +409,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
                 // Verify client still exists
                 if (clients_.find(req.clientId) != clients_.end()) {
                     initialClients.insert(req.clientId);
+                    clientResourceInfo_[req.clientId].openDevices.insert(deviceId);
                 }
             }
 
@@ -743,6 +768,19 @@ void MidiServiceController::CleanupClientResources(uint32_t clientId, uint32_t c
     clientResourceInfo_.erase(clientId);
 }
 
+void MidiServiceController::RemovePendingBleConnectionsForClient(uint32_t clientId)
+{
+    for (auto it = pendingBleConnections_.begin(); it != pendingBleConnections_.end();) {
+        auto& list = it->second;
+        list.remove_if([clientId](const PendingBleConnection& conn) { return conn.clientId == clientId; });
+        if (list.empty()) {
+            it = pendingBleConnections_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 {
     MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
@@ -750,12 +788,16 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
     std::vector<int64_t> devicesToClose;
     std::vector<int64_t> devicesToClean;
     uint32_t clientUid = 0;
+    sptr<MidiInServer> clientToDrain;
 
     {
         std::lock_guard lock(lock_);
         auto it = clients_.find(clientId);
         CHECK_AND_RETURN_RET_LOG(
             it != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT, "Client not found: %{public}u", clientId);
+
+        // Extract client to local variable to keep it alive during drain
+        clientToDrain = it->second;
 
         CollectDevicesForClientDestruction(clientId, devicesToClose, devicesToClean);
 
@@ -775,14 +817,22 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
             deathRecipients_.erase(deathIt);
         }
 
-        // Clear callback in MidiInServer to prevent use-after-free
-        it->second->ClearCallback();
-
+        // Erase client from clients_ first to prevent new notifications from reaching it
         for (auto deviceId : devicesToClean) {
             CleanupDeviceForClient(clientId, deviceId);
         }
         CleanupClientResources(clientId, clientUid);
+        RemovePendingBleConnectionsForClient(clientId);
         clients_.erase(it);
+    }
+
+    // Drain in-flight IMidiCallback IPC calls OUTSIDE the controller lock.
+    // This blocks until all Acquire()'d Guards have been released, ensuring
+    // no thread will invoke IMidiCallback IPC after this returns.
+    // The client is already removed from clients_ so no new notifications
+    // will be dispatched to it.
+    if (clientToDrain != nullptr) {
+        clientToDrain->CloseCallbackAndDrain();
     }
 
     for (auto deviceId : devicesToClose) {

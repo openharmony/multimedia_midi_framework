@@ -25,6 +25,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <utility>
 #include "midi_device_connection.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
@@ -33,6 +34,21 @@
 
 namespace OHOS {
 namespace MIDI {
+
+/** Golden ratio fraction (sqrt(5)-1)/2 * 2^32, used in hash combining. */
+constexpr size_t GOLDEN_RATIO_FRACTION = 0x9e3779b9;
+constexpr size_t HASH_COMBINE_LEFT_SHIFT = 6;
+constexpr size_t HASH_COMBINE_RIGHT_SHIFT = 2;
+
+/** Custom hash functor for composite key (driverDeviceId, DeviceType). */
+struct DriverKeyHash {
+    size_t operator()(const std::pair<int64_t, DeviceType> &p) const
+    {
+        auto h1 = std::hash<int64_t>{}(p.first);
+        auto h2 = static_cast<size_t>(p.second);
+        return h1 ^ (h2 + GOLDEN_RATIO_FRACTION + (h1 << HASH_COMBINE_LEFT_SHIFT) + (h1 >> HASH_COMBINE_RIGHT_SHIFT));
+    }
+};
 using BleOpenCallback = std::function<void(bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo)>;
 
 struct DevicePortContext {
@@ -90,10 +106,11 @@ public:
     /**
      * @brief Test helper: Check if a driver ID mapping exists
      * @param driverId The driver device ID to check
+     * @param type The device type to check
      * @return true if mapping exists, false otherwise
      * @note Only available when UNIT_TEST_SUPPORT is defined
      */
-    bool HasDriverMappingForTest(int64_t driverId) const;
+    bool HasDriverMappingForTest(int64_t driverId, DeviceType type) const;
 #endif
 
 private:
@@ -108,7 +125,7 @@ private:
     std::unordered_map<DeviceType, std::unique_ptr<MidiDeviceDriver>> drivers_;
     std::vector<DeviceInformation> devices_{};
     std::shared_ptr<EventSubscriber> eventSubscriber_{nullptr};
-    std::unordered_map<int64_t, int64_t> driverIdToMidiId_;
+    std::unordered_map<std::pair<int64_t, DeviceType>, int64_t, DriverKeyHash> driverIdToMidiId_;
 
     std::atomic<int64_t> nextDeviceId_{1000};
     std::mutex devicesMutex_;

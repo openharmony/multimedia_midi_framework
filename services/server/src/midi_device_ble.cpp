@@ -130,7 +130,7 @@ static void NotifyManager(DeviceCtx &d, bool success)
     auto cb = d.deviceCallback;
 
     CHECK_AND_RETURN(cb != nullptr);
-    DeviceInformation devInfo;
+    DeviceInformation devInfo{};
     devInfo.midiDeviceInfo.driverDeviceId = d.id;
     devInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
     devInfo.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
@@ -153,7 +153,7 @@ static bool g_cleanupDeviceAndNotifyFailure(std::unique_lock<std::mutex> &lock, 
     }
     auto it = inst->devices_.find(clientId);
     if (it != inst->devices_.end()) {
-        DeviceCtx device = it->second;
+        DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
         BleGattcUnRegister(clientId);
         inst->devices_.erase(it);
         lock.unlock();
@@ -258,7 +258,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         // Device may have already been cleaned up by active disconnect (e.g., in OnSearvicesComplete)
         CHECK_AND_RETURN(it != inst->devices_.end());
         MIDI_INFO_LOG("Device disconnected or failed connection");
-        DeviceCtx device = it->second;
+        DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
         BleGattcUnRegister(clientId);
         inst->devices_.erase(it);
         lock.unlock();
@@ -343,7 +343,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         MIDI_INFO_LOG("BLE MIDI Device Fully Online. Notifying Manager.");
         // Copy device context before unlock to avoid dangling reference
         GetDeviceInfo(d);
-        DeviceCtx device = it->second;
+        DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
         lock.unlock();
         // SUCCESS! This is the only place we confirm the device is open.
         NotifyManager(device, true);
@@ -476,25 +476,18 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 
     auto it = devices_.find(deviceId);
     CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
-    auto &ctx = it->second;
-    // Copy all needed data before erase to avoid dangling references
-    std::string address = ctx.address;
-    int32_t clientId = static_cast<int32_t>(ctx.id);
-    BleDriverCallback callback = ctx.deviceCallback;
+    // Copy safe fields before erase to avoid dangling references
+    DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
+    int32_t clientId = static_cast<int32_t>(device.id);
     int32_t ret = BleGattcDisconnect(clientId);
     MIDI_INFO_LOG("BleGattcDisconnect : %{public}d", ret);
     BleGattcUnRegister(clientId);
     MIDI_INFO_LOG("Unregistered client: %{public}d", clientId);
     devices_.erase(it);
     lock.unlock();
-    // Create DeviceCtx for callback after erase
-    DeviceCtx device;
-    device.id = clientId;
-    device.address = address;
-    device.deviceCallback = callback;
     NotifyManager(device, false);
     MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
-        deviceId, GetEncryptStr(address).c_str());
+        deviceId, GetEncryptStr(device.address).c_str());
     return 0;
 }
 
@@ -632,6 +625,8 @@ int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
     int32_t clientId = -1;
     BtGattCharacteristic dataChar{};
     std::shared_ptr<UmpProcessor> processor;
+    std::string dataCharSvcStorage;
+    std::string dataCharCharStorage;
     {
         std::lock_guard<std::mutex> lock(lock_);
         auto it = devices_.find(deviceId);
@@ -642,6 +637,12 @@ int32_t BleMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t 
         clientId = static_cast<int32_t>(d.id);
         dataChar = d.dataChar;
         processor = d.outProcessor;
+        // Deep-copy UUID strings and re-point dataChar pointers to local storage
+        // to prevent dangling pointers if device is erased by another thread
+        dataCharSvcStorage = d.dataCharServiceUuidStorage;
+        dataCharCharStorage = d.dataCharCharacteristicUuidStorage;
+        dataChar.serviceUuid = MakeBtUuid(dataCharSvcStorage, dataCharSvcStorage);
+        dataChar.characteristicUuid = MakeBtUuid(dataCharCharStorage, dataCharCharStorage);
     }
 
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());

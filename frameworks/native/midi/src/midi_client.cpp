@@ -166,8 +166,8 @@ int32_t MidiClientCallback::NotifyError(int32_t code)
     }
     CHECK_AND_RETURN_RET_LOG(callbacks_.onError != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR,
         "callbacks_.onError is nullptr");
-    callbacks_.onError(userData_, (OH_MIDIStatusCode)code);
     client->MarkDeviceInValid();
+    callbacks_.onError(userData_, (OH_MIDIStatusCode)code);
     return 0;
 }
 
@@ -797,8 +797,8 @@ void MidiClientPrivate::HandleDeviceDisconnect(int64_t deviceId)
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto &device : deviceHandlers_) {
         if (device != nullptr && device->GetDeviceId() == deviceId) {
-            device->TombstoneAllPorts();
             device->SetInValid();
+            device->TombstoneAllPorts();
             break;
         }
     }

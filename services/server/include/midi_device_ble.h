@@ -50,6 +50,19 @@ struct DeviceCtx {
     uint64_t productId;
     uint64_t vendorId;
     bool initialCallbackCalled{false}; // Prevent double callbacks
+
+    // Copy only safe fields needed by NotifyManager to avoid dangling dataChar pointers
+    static DeviceCtx CopySafeFields(const DeviceCtx& src)
+    {
+        DeviceCtx ctx;
+        ctx.id = src.id;
+        ctx.address = src.address;
+        ctx.deviceName = src.deviceName;
+        ctx.productId = src.productId;
+        ctx.vendorId = src.vendorId;
+        ctx.deviceCallback = src.deviceCallback;
+        return ctx;
+    }
 };
 
 class BleMidiTransportDeviceDriver : public MidiDeviceDriver {
