@@ -73,12 +73,12 @@ struct MidiPortInfo : public Parcelable {
 struct MidiDeviceInfo : public Parcelable {
     int64_t deviceId = 0;
     int64_t driverDeviceId = 0;
-    DeviceType deviceType;
-    TransportProtocol transportProtocol;
+    DeviceType deviceType = DEVICE_TYPE_USB;
+    TransportProtocol transportProtocol = PROTOCOL_1_0;
     std::string address;
     std::string deviceName;
-    uint64_t productId;
-    uint64_t vendorId;
+    uint64_t productId = 0;
+    uint64_t vendorId = 0;
 
     bool Marshalling(Parcel &parcel) const override
     {
