@@ -317,24 +317,42 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
         return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
     }
 
-    auto activeIt = activeBleDevices_.find(address);
-    if (activeIt != activeBleDevices_.end()) {
-        int64_t deviceId = activeIt->second;
-        auto ctxIt = deviceClientContexts_.find(deviceId);
-        if (ctxIt != deviceClientContexts_.end()) {
-            MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
-                GetEncryptStr(address).c_str(), deviceId);
-            ctxIt->second->clients.insert(clientId);
-            resourceInfo.openDevices.insert(deviceId);
-            DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
-            MidiDeviceInfo deviceInfo = device.midiDeviceInfo;
-            lock.unlock();
-            callback->NotifyDeviceOpened(true, deviceInfo);
-            return OH_MIDI_STATUS_OK;
-        }
+    MidiDeviceInfo deviceInfo;
+    if (TryAttachToActiveBleDevice(clientId, address, deviceInfo)) {
+        lock.unlock();
+        callback->NotifyDeviceOpened(true, deviceInfo);
+        return OH_MIDI_STATUS_OK;
     }
 
-    // 2. Check if a connection is already PENDING for this address
+    return EnqueueBleConnectionRequest(clientId, address, callback);
+}
+
+bool MidiServiceController::TryAttachToActiveBleDevice(uint32_t clientId, const std::string &address,
+    MidiDeviceInfo &outDeviceInfo)
+{
+    auto activeIt = activeBleDevices_.find(address);
+    if (activeIt == activeBleDevices_.end()) {
+        return false;
+    }
+
+    int64_t deviceId = activeIt->second;
+    auto ctxIt = deviceClientContexts_.find(deviceId);
+    if (ctxIt == deviceClientContexts_.end()) {
+        return false;
+    }
+
+    MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
+        GetEncryptStr(address).c_str(), deviceId);
+    ctxIt->second->clients.insert(clientId);
+    clientResourceInfo_[clientId].openDevices.insert(deviceId);
+    DeviceInformation device = deviceManager_->GetDeviceForDeviceId(deviceId);
+    outDeviceInfo = device.midiDeviceInfo;
+    return true;
+}
+
+int32_t MidiServiceController::EnqueueBleConnectionRequest(uint32_t clientId, const std::string &address,
+    const sptr<IMidiDeviceOpenCallback> &callback)
+{
     bool isFirstRequest = (pendingBleConnections_.find(address) == pendingBleConnections_.end());
     PendingBleConnection req = { clientId, callback };
     pendingBleConnections_[address].push_back(req);
@@ -346,7 +364,6 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     }
     MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(address).c_str());
 
-    // We use a lambda that captures 'this' to callback into the controller
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     auto completeCallback = [weakSelf, address](bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo) {
         auto self = weakSelf.lock();
@@ -357,7 +374,6 @@ int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::strin
     int32_t ret = deviceManager_->OpenBleDevice(address, completeCallback);
     if (ret != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("Manager OpenBleDevice failed immediately: %{public}d", ret);
-        // Clean up pending list immediately
         pendingBleConnections_.erase(address);
         return ret;
     }

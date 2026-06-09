@@ -182,6 +182,11 @@ private:
     void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
         const MidiDeviceInfo &deviceInfo);
 
+    // Helper functions for OpenBleDevice
+    bool TryAttachToActiveBleDevice(uint32_t clientId, const std::string &address, MidiDeviceInfo &outDeviceInfo);
+    int32_t EnqueueBleConnectionRequest(uint32_t clientId, const std::string &address,
+        const sptr<IMidiDeviceOpenCallback> &callback);
+
     // Helper functions for DestroyMidiClient
     void CollectDevicesForClientDestruction(uint32_t clientId,
         std::vector<int64_t> &devicesToClose, std::vector<int64_t> &devicesToClean);
