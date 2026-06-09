@@ -37,15 +37,15 @@ namespace MIDI {
 
 /** Golden ratio fraction (sqrt(5)-1)/2 * 2^32, used in hash combining. */
 constexpr size_t GOLDEN_RATIO_FRACTION = 0x9e3779b9;
-constexpr int64_t HASH_COMBINE_LEFT_SHIFT = 6;
-constexpr int64_t HASH_COMBINE_RIGHT_SHIFT = 2;
+constexpr size_t HASH_COMBINE_LEFT_SHIFT = 6;
+constexpr size_t HASH_COMBINE_RIGHT_SHIFT = 2;
 
 /** Custom hash functor for composite key (driverDeviceId, DeviceType). */
 struct DriverKeyHash {
     size_t operator()(const std::pair<int64_t, DeviceType> &p) const
     {
         auto h1 = std::hash<int64_t>{}(p.first);
-        auto h2 = std::hash<int64_t>{}(static_cast<int64_t>(p.second));
+        auto h2 = static_cast<size_t>(p.second);
         return h1 ^ (h2 + GOLDEN_RATIO_FRACTION + (h1 << HASH_COMBINE_LEFT_SHIFT) + (h1 >> HASH_COMBINE_RIGHT_SHIFT));
     }
 };
