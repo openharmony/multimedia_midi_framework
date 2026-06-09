@@ -35,13 +35,18 @@
 namespace OHOS {
 namespace MIDI {
 
+/** Golden ratio fraction (sqrt(5)-1)/2 * 2^32, used in hash combining. */
+constexpr size_t GOLDEN_RATIO_FRACTION = 0x9e3779b9;
+constexpr int HASH_COMBINE_LEFT_SHIFT = 6;
+constexpr int HASH_COMBINE_RIGHT_SHIFT = 2;
+
 /** Custom hash functor for composite key (driverDeviceId, DeviceType). */
 struct DriverKeyHash {
     size_t operator()(const std::pair<int64_t, DeviceType> &p) const
     {
         auto h1 = std::hash<int64_t>{}(p.first);
         auto h2 = std::hash<int>{}(static_cast<int>(p.second));
-        return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
+        return h1 ^ (h2 + GOLDEN_RATIO_FRACTION + (h1 << HASH_COMBINE_LEFT_SHIFT) + (h1 >> HASH_COMBINE_RIGHT_SHIFT));
     }
 };
 using BleOpenCallback = std::function<void(bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo)>;
