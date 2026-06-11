@@ -1121,7 +1121,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWrapSequence_001, TestSize.Level0
     constexpr uint32_t RING_CAPACITY = 128;
     MidiSharedRing ring(RING_CAPACITY);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
- 
+
     // PAYLOAD_WORDS: 19 words = 76 bytes payload.
     // Aligned event size is 104 bytes, leaving a 24-byte tail for the wrap header.
     constexpr uint32_t PAYLOAD_WORDS = 19;
