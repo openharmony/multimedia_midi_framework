@@ -50,6 +50,30 @@ static constexpr uint32_t SEQ_WRITE_COMPLETE_TOTAL = 2;
 // Flush timeout: 100ms wall-clock upper bound for CAS spin on flushFlag.
 // Normal hold time is O(microseconds); this provides >10,000x margin.
 static constexpr int64_t FLUSH_TIMEOUT_NS = 100 * 1000 * 1000LL; // 100ms
+
+size_t AlignUpToHeader(size_t value)
+{
+    const size_t alignment = alignof(ShmMidiEventHeader);
+    const size_t remainder = value % alignment;
+    return remainder == 0 ? value : value + (alignment - remainder);
+}
+
+bool GetEventRecordSize(size_t wordCount, uint32_t &recordSize)
+{
+    const size_t alignment = alignof(ShmMidiEventHeader);
+    const size_t maxSize = std::numeric_limits<size_t>::max();
+    if (wordCount > (maxSize - sizeof(ShmMidiEventHeader) - (alignment - 1u)) / sizeof(uint32_t)) {
+        return false;
+    }
+
+    const size_t rawSize = sizeof(ShmMidiEventHeader) + wordCount * sizeof(uint32_t);
+    const size_t alignedSize = AlignUpToHeader(rawSize);
+    if (alignedSize > std::numeric_limits<uint32_t>::max()) {
+        return false;
+    }
+    recordSize = static_cast<uint32_t>(alignedSize);
+    return true;
+}
 } // namespace
 
 class MidiSharedMemoryImpl : public MidiSharedMemory {
@@ -471,8 +495,8 @@ MidiStatusCode MidiSharedRing::TryWriteEvents(
     for (uint32_t i = 0; i < eventCount; ++i) {
         const MidiEventInner &event = events[i];
         CHECK_AND_BREAK_LOG(ValidateOneEvent(event), "invalid event");
-        const size_t payloadBytesSize = event.length * sizeof(uint32_t);
-        const uint32_t needed = static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + payloadBytesSize);
+        uint32_t needed = 0;
+        CHECK_AND_BREAK_LOG(GetEventRecordSize(event.length, needed), "event length overflow");
         auto ret = TryWriteOneEvent(event, needed, readIndex, writeIndex);
         CHECK_AND_BREAK_LOG(ret == MidiStatusCode::OK, "write event fail");
         ++localWritten;
@@ -704,9 +728,10 @@ bool MidiSharedRing::ValidateOneEvent(const MidiEventInner &event) const
     if (event.length > (std::numeric_limits<size_t>::max() / sizeof(uint32_t))) {
         return false;
     }
-    const size_t payloadBytes = event.length * sizeof(uint32_t);
-    const size_t maxLeftBytes = static_cast<size_t>(capacity_) - 1u - sizeof(ShmMidiEventHeader);
-    CHECK_AND_RETURN_RET_LOG(payloadBytes <= maxLeftBytes, false, "event length overflow");
+
+    uint32_t recordSize = 0;
+    CHECK_AND_RETURN_RET_LOG(GetEventRecordSize(event.length, recordSize), false, "event length overflow");
+    CHECK_AND_RETURN_RET_LOG(recordSize <= (capacity_ - 1u), false, "event length overflow");
     return true;
 }
 
@@ -831,8 +856,8 @@ MidiStatusCode MidiSharedRing::HandleWrapIfNeeded(const ShmMidiEventHeader &head
 MidiStatusCode MidiSharedRing::BuildPeekedEvent(
     const ShmMidiEventHeader &header, uint32_t readIndex, PeekedEvent &outEvent)
 {
-    // Validate length against capacity (prevent overflow)
-    if (header.length > (capacity_ / sizeof(uint32_t))) {
+    uint32_t needed = 0;
+    if (!GetEventRecordSize(header.length, needed)) {
         return MidiStatusCode::SHM_BROKEN;
     }
 

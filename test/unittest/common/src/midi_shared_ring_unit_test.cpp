@@ -56,6 +56,12 @@ static void FillU32(std::vector<uint32_t> &buf, uint32_t base)
     }
 }
 
+static uint32_t AlignUpToHeader(uint32_t value)
+{
+    constexpr uint32_t HEADER_ALIGN = alignof(ShmMidiEventHeader);
+    return (value + HEADER_ALIGN - 1u) & ~(HEADER_ALIGN - 1u);
+}
+
 /**
  * @tc.name   : Test MidiSharedRing Init API
  * @tc.number : MidiSharedRingInit_001
@@ -486,6 +492,44 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_006, TestSize.Leve
 
 /**
  * @tc.name   : Test MidiSharedRing TryWriteEvents API
+ * @tc.number : MidiSharedRingTryWriteEvents_009
+ * @tc.desc   : odd-word payload records should still align the next event header.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_009, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    std::vector<uint32_t> payload1{0x11111111};
+    std::vector<uint32_t> payload2{0x22222222};
+    MidiEventInner events[2] = {MakeEvent(1, payload1), MakeEvent(2, payload2)};
+
+    const uint32_t expectedRecordSize =
+        AlignUpToHeader(static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + sizeof(uint32_t)));
+    ASSERT_EQ(0u, expectedRecordSize % alignof(ShmMidiEventHeader));
+
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(events, 2, &written, false));
+    ASSERT_EQ(2u, written);
+    EXPECT_EQ(expectedRecordSize * 2u, ring.GetWritePosition());
+
+    MidiSharedRing::PeekedEvent first{};
+    ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(first));
+    EXPECT_EQ(0u, first.beginOffset);
+    EXPECT_EQ(expectedRecordSize, first.endOffset);
+    ASSERT_TRUE(ring.CommitRead(first));
+    EXPECT_EQ(expectedRecordSize, ring.GetReadPosition());
+
+    MidiSharedRing::PeekedEvent second{};
+    ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(second));
+    EXPECT_EQ(expectedRecordSize, second.beginOffset);
+    EXPECT_EQ(expectedRecordSize * 2u, second.endOffset);
+    ASSERT_TRUE(ring.CommitRead(second));
+    EXPECT_TRUE(ring.IsEmpty());
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing TryWriteEvents API
  * @tc.number : MidiSharedRingTryWriteEvents_007
  * @tc.desc   : cover wrap marker branch in UpdateWriteIndexIfNeed.
  */
@@ -494,8 +538,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
     MidiSharedRing ring(128);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    // Use 19 words (76 bytes) payload so total is 24 + 76 = 100 bytes
-    // This leaves 128 - 100 = 28 bytes tail space, enough for 24-byte wrap header
+    // Use 19 words (76 bytes) payload so aligned event size is 104 bytes.
+    // This leaves 128 - 104 = 24 bytes tail space, enough for a wrap header.
     // (header is 24 bytes: 8 timestamp + 4 length + 4 flags + 4 sequence + 4 padding)
     std::vector<uint32_t> payload1(19, 0x1);
     MidiEventInner ev1 = MakeEvent(10, payload1);
@@ -505,7 +549,9 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingTryWriteEvents_007, TestSize.Leve
     ASSERT_EQ(1u, written);
 
     const uint32_t writeAfterEv1 = ring.GetWritePosition();
-    ASSERT_EQ(100u, writeAfterEv1);  // 24 + 19*4 = 100
+    const uint32_t ev1RecordSize = AlignUpToHeader(
+        static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + payload1.size() * sizeof(uint32_t)));
+    ASSERT_EQ(ev1RecordSize, writeAfterEv1);
 
     // release space to make event2 possible while tail is insufficient
     auto *ctrl = ring.GetControlHeader();
@@ -628,8 +674,8 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     MidiSharedRing ring(128);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
 
-    // Use 19 words (76 bytes) payload so total is 24 + 76 = 100 bytes
-    // This leaves 128 - 100 = 28 bytes tail space, enough for 24-byte wrap header
+    // Use 19 words (76 bytes) payload so aligned event size is 104 bytes.
+    // This leaves 128 - 104 = 24 bytes tail space, enough for a wrap header.
     // (header is 24 bytes: 8 timestamp + 4 length + 4 flags + 4 sequence + 4 padding)
     std::vector<uint32_t> payload1(19, 0);
     FillU32(payload1, 0x10);
@@ -639,7 +685,9 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_004, TestSize.Level0)
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
     ASSERT_EQ(1u, written);
     uint32_t writeAfterEv1 = ring.GetWritePosition();
-    ASSERT_EQ(100u, writeAfterEv1);  // 24 + 19*4 = 100
+    const uint32_t ev1RecordSize = AlignUpToHeader(
+        static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + payload1.size() * sizeof(uint32_t)));
+    ASSERT_EQ(ev1RecordSize, writeAfterEv1);
 
     // Read event1 first.
     MidiSharedRing::PeekedEvent p1{};
@@ -959,10 +1007,10 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_002, TestSize.Leve
     std::vector<uint32_t> payload2{0xBBBB};
     MidiEventInner ev2 = MakeEvent(2, payload2);
 
-    // Reset the header at old position to odd to test the correction logic
-    // Note: after CommitRead, write position is still at 28 (first event end)
-    // We're about to write to offset 28, so let's corrupt that location
-    auto *nextHeader = reinterpret_cast<ShmMidiEventHeader *>(base + 28);  // 28 = 24 (header) + 4 (1 word)
+    const uint32_t nextHeaderOffset =
+        AlignUpToHeader(static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + sizeof(uint32_t)));
+    // Reset the next header to odd to test the correction logic.
+    auto *nextHeader = reinterpret_cast<ShmMidiEventHeader *>(base + nextHeaderOffset);
     nextHeader->sequence.store(ODD_SEQUENCE_VALUE, std::memory_order_relaxed);
 
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev2, 1, &written, false));
@@ -1073,10 +1121,9 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWrapSequence_001, TestSize.Level0
     constexpr uint32_t RING_CAPACITY = 128;
     MidiSharedRing ring(RING_CAPACITY);
     ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
-
-    // PAYLOAD_WORDS: 19 words = 76 bytes payload
-    // Total event size: 24 (header) + 76 (payload) = 100 bytes
-    // Remaining tail: 128 - 100 = 28 bytes (enough for wrap header)
+ 
+    // PAYLOAD_WORDS: 19 words = 76 bytes payload.
+    // Aligned event size is 104 bytes, leaving a 24-byte tail for the wrap header.
     constexpr uint32_t PAYLOAD_WORDS = 19;
     std::vector<uint32_t> payload1(PAYLOAD_WORDS, 0x11);
     MidiEventInner ev1 = MakeEvent(10, payload1);
@@ -1084,12 +1131,12 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWrapSequence_001, TestSize.Level0
     uint32_t written = 0;
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
     ASSERT_EQ(1u, written);
+ 
+    const uint32_t eventSize =
+        AlignUpToHeader(static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + PAYLOAD_WORDS * sizeof(uint32_t)));
 
-    // EVENT_SIZE: 24 (sizeof ShmMidiEventHeader) + 76 (19 * 4 bytes)
-    constexpr uint32_t HEADER_SIZE = 24;  // sizeof(ShmMidiEventHeader)
-    constexpr uint32_t EVENT_SIZE = HEADER_SIZE + PAYLOAD_WORDS * sizeof(uint32_t);
     uint32_t writeAfterEv1 = ring.GetWritePosition();
-    ASSERT_EQ(EVENT_SIZE, writeAfterEv1);
+    ASSERT_EQ(eventSize, writeAfterEv1);
 
     // Move read position to free up space for wrap + second event
     // READ_POS: 64 is chosen to leave enough space for the second event after wrap
@@ -1136,10 +1183,10 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingSequenceNumber_003, TestSize.Leve
     uint32_t written = 0;
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
 
-    constexpr uint32_t HEADER_SIZE = 24;
-    constexpr uint32_t EVENT_SIZE = HEADER_SIZE + PAYLOAD_WORDS * sizeof(uint32_t);
+    const uint32_t eventSize =
+        AlignUpToHeader(static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + PAYLOAD_WORDS * sizeof(uint32_t)));
     uint32_t wrapOffset = ring.GetWritePosition();
-    ASSERT_EQ(EVENT_SIZE, wrapOffset);  // 100 bytes
+    ASSERT_EQ(eventSize, wrapOffset);
 
     // Corrupt the sequence at wrap position to odd value
     // This simulates uninitialized memory or previous interrupted write
