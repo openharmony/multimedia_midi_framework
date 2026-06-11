@@ -403,9 +403,11 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
     MidiSharedRing &clientRing = *ringShared;
     MidiSharedRing::PeekedEvent ringEvent{};
     MidiStatusCode status = MidiStatusCode::OK;
+    constexpr size_t MAX_DRAIN_PER_CLIENT = 128;
+    size_t drained = 0;
     while ((status = clientRing.PeekNext(ringEvent)) == MidiStatusCode::OK) {
-        if (status != MidiStatusCode::OK) {
-            break;
+        if (++drained > MAX_DRAIN_PER_CLIENT) {
+            break; // yield to other clients
         }
         if (ringEvent.localHeader.timestamp == 0) {  // todo: use func and judge if timestamp + 1 < now
             if (!ConsumeRealtimeEvent(clientRing, ringEvent)) {
@@ -429,7 +431,10 @@ bool DeviceConnectionForOutput::ConsumeRealtimeEvent(MidiSharedRing& clientRing,
     // try enqueue send cache
     auto res = TryAppendToSendCache(ringEvent.localHeader.timestamp, payloadWords, payloadWordCount);
     if (res) {
-        clientRing.CommitRead(ringEvent);
+        if (!clientRing.CommitRead(ringEvent)) {
+            MIDI_WARNING_LOG("ConsumeRealtimeEvent: CommitRead failed, TOCTOU conflict");
+            return false;
+        }
         return true;
     }
     // if unable to enqueue, flush the send cache, and try again
@@ -442,7 +447,10 @@ bool DeviceConnectionForOutput::ConsumeRealtimeEvent(MidiSharedRing& clientRing,
         SendToDriver(directEvent);
     }
 
-    clientRing.CommitRead(ringEvent);
+    if (!clientRing.CommitRead(ringEvent)) {
+        MIDI_WARNING_LOG("ConsumeRealtimeEvent: CommitRead failed (fallback), TOCTOU conflict");
+        return false;
+    }
     return true;
 }
 
@@ -474,7 +482,10 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         return false;
     }
 
-    clientRing.CommitRead(ringEvent);
+    if (!clientRing.CommitRead(ringEvent)) {
+        MIDI_WARNING_LOG("ConsumeNonRealtimeEvent: CommitRead failed, TOCTOU conflict");
+        return false;
+    }
     return true;
 }
 
@@ -627,15 +638,22 @@ void DeviceConnectionForOutput::UpdateNextTimer()
         }
     }
 
-    itimerspec newValue{};  // defaul all zero, hasDue == false to disarm
+    itimerspec newValue{};  // default all zero, hasDue == false to disarm
     if (hasDue) {
         auto now = std::chrono::steady_clock::now();
         if (earliestDueTime < now) {
-            earliestDueTime = now;
+            // Event is past due: wake worker directly + set minimal timer as fallback
+            newValue.it_value.tv_sec = 0;
+            newValue.it_value.tv_nsec = 1;
+            WakeWorkerByEventFd();
+        } else {
+            auto deltaNs = std::chrono::duration_cast<std::chrono::nanoseconds>(earliestDueTime - now).count();
+            if (deltaNs <= 0) {
+                deltaNs = 1; // Avoid {0,0} which disarms timerfd
+            }
+            newValue.it_value.tv_sec = static_cast<time_t>(deltaNs / MIDI_NS_PER_SECOND);
+            newValue.it_value.tv_nsec = static_cast<long>(deltaNs % MIDI_NS_PER_SECOND);
         }
-        const auto deltaNs = std::chrono::duration_cast<std::chrono::nanoseconds>(earliestDueTime - now).count();
-        newValue.it_value.tv_sec = static_cast<time_t>(deltaNs / MIDI_NS_PER_SECOND);
-        newValue.it_value.tv_nsec = static_cast<long>(deltaNs % MIDI_NS_PER_SECOND);
     } else {
         MIDI_DEBUG_LOG("UpdateNextTimer: no pending events, disarming timer");
     }

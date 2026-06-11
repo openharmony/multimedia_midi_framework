@@ -506,6 +506,14 @@ static bool ReadHeaderSafely(const ShmMidiEventHeader *header, ShmMidiEventHeade
     // Read sequence first (acquire ensures visibility of header data)
     uint32_t seq1 = header->sequence.load(std::memory_order_acquire);
 
+    // Reject: sequence==0 means this slot has never been written by the producer.
+    // An all-zero header (from memset/initialization) would otherwise pass the
+    // even-sequence check and be treated as a valid zero-length event.
+    // Writer pattern: 0→1(odd)→2(even), so first valid published sequence is >=2.
+    if (seq1 == 0) {
+        return false; // Slot never published
+    }
+
     // Check if sequence is odd (writer is currently modifying)
     // Writer pattern: seq+1 (odd) -> write data -> seq+2 (even)
     if (seq1 & 1) {
@@ -570,6 +578,13 @@ MidiStatusCode MidiSharedRing::PeekNext(PeekedEvent &outEvent)
         // Store local copy and sequence for verification
         outEvent.localHeader = localHeader;
         outEvent.sequence = seq;
+
+        // Hard guard: verify readIndex is still within the published range
+        uint32_t writeIndexNow = controler_->writePosition.load(std::memory_order_acquire);
+        if (readIndex == writeIndexNow) {
+            continue; // ring is empty or data was consumed, retry
+        }
+
         return BuildPeekedEvent(localHeader, readIndex, outEvent);
     }
 

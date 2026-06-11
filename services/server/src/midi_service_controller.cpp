@@ -205,7 +205,9 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
         self->DestroyMidiClient(clientId);
     });
-    object->AddDeathRecipient(deathRecipient);
+    bool added = object->AddDeathRecipient(deathRecipient);
+    CHECK_AND_RETURN_RET_LOG(added, OH_MIDI_STATUS_SYSTEM_ERROR,
+        "AddDeathRecipient failed for clientId=%{public}u", clientId);
     clientCallbackObjects_.emplace(clientId, object);
     deathRecipients_.emplace(clientId, deathRecipient);
     clients_.emplace(clientId, std::move(midiClient));
@@ -236,6 +238,11 @@ MidiDeviceInfo MidiServiceController::GetDevice(int64_t deviceId)
 
 int32_t MidiServiceController::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos)
 {
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "GetDevicePorts: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
+    }
     return deviceManager_->GetDevicePorts(deviceId, portInfos);
 }
 
@@ -452,6 +459,12 @@ int32_t MidiServiceController::OpenInputPort(
         clientId,
         deviceId);
 
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "OpenInputPort: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
+    }
+
     auto &resourceInfo = clientResourceInfo_[clientId];
     // Check port count limit for this client
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
@@ -504,6 +517,12 @@ int32_t MidiServiceController::OpenOutputPort(
         clientId,
         deviceId);
 
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "OpenOutputPort: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
+    }
+
     // Check port count limit for this client
     auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
@@ -523,7 +542,8 @@ int32_t MidiServiceController::OpenOutputPort(
                 clientId, MAX_PORTS_PER_CLIENT);
             return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
         }
-        outputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        int32_t addRet = outputPort->second->AddClientConnection(clientId, deviceId, buffer);
+        CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
         resourceInfo.openPortCount++;
         MIDI_INFO_LOG("connect outputport success");
         return OH_MIDI_STATUS_OK;
@@ -533,8 +553,10 @@ int32_t MidiServiceController::OpenOutputPort(
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
     // start events handle thread of output port
-    outputConnection->Start();
-    outputConnection->AddClientConnection(clientId, deviceId, buffer);
+    int32_t startRet = outputConnection->Start();
+    CHECK_AND_RETURN_RET_LOG(startRet == OH_MIDI_STATUS_OK, startRet, "Start output connection fail");
+    int32_t addRet = outputConnection->AddClientConnection(clientId, deviceId, buffer);
+    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
     resourceInfo.openPortCount++;
     outputPortConnections.emplace(portIndex, std::move(outputConnection));
     MIDI_INFO_LOG("OpenOutputPort Success");

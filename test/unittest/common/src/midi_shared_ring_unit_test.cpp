@@ -1269,5 +1269,142 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWriteOOB_004, TestSize.Level0)
     EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ret);
     EXPECT_EQ(0u, written);
 }
+
+// ====================================================================
+// Bug-fix regression tests
+// ====================================================================
+
+/**
+ * @tc.name   : Test PeekNext published range guard
+ * @tc.number : MidiSharedRingPeekNext_006
+ * @tc.desc   : When readIndex == writeIndex (ring empty or consumed), PeekNext should return
+ *              WOULD_BLOCK even if header data and sequence are intact. Regression test for
+ *              bug where ReadHeaderSafely only protected snapshot without verifying header
+ *              is within the published producer range.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_006, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write one event
+    std::vector<uint32_t> payload{0xDEADBEEF};
+    MidiEventInner ev = MakeEvent(100, payload);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // Peek should succeed
+    MidiSharedRing::PeekedEvent peeked{};
+    ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(peeked));
+
+    // Now simulate the producer having moved past: set writePosition == readPosition
+    // (ring appears empty even though header data is still intact with valid sequence)
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    uint32_t readPos = ctrl->readPosition.load(std::memory_order_acquire);
+    ctrl->writePosition.store(readPos, std::memory_order_release);
+
+    // PeekNext should now return WOULD_BLOCK (published range guard catches this)
+    MidiSharedRing::PeekedEvent peeked2{};
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.PeekNext(peeked2));
+}
+
+/**
+ * @tc.name   : Test CommitRead TOCTOU rejection with readPosition unchanged
+ * @tc.number : MidiSharedRingCommitRead_003
+ * @tc.desc   : CommitRead must return false when header sequence changed between PeekNext
+ *              and CommitRead. The readPosition must NOT advance, preventing the same entry
+ *              from being silently skipped or retried infinitely. Regression test for bug
+ *              where CommitRead return value was not checked by callers.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingCommitRead_003, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write one event
+    std::vector<uint32_t> payload{0xCAFEBABE};
+    MidiEventInner ev = MakeEvent(42, payload);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+
+    // Peek to get the event
+    MidiSharedRing::PeekedEvent peeked{};
+    ASSERT_EQ(MidiStatusCode::OK, ring.PeekNext(peeked));
+    uint32_t originalReadPos = ring.GetReadPosition();
+
+    // Simulate TOCTOU: modify the header sequence at the peeked position
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(ring.GetDataBase() + peeked.beginOffset);
+    ASSERT_NE(nullptr, header);
+    uint32_t oldSeq = header->sequence.load(std::memory_order_relaxed);
+    header->sequence.store(oldSeq + 100, std::memory_order_relaxed);
+
+    // CommitRead should return false (sequence mismatch)
+    EXPECT_FALSE(ring.CommitRead(peeked));
+
+    // readPosition must NOT have advanced
+    EXPECT_EQ(originalReadPos, ring.GetReadPosition());
+}
+
+/**
+ * @tc.name   : Test PeekNext rejects never-published (all-zero) header
+ * @tc.number : MidiSharedRingPeekNext_007
+ * @tc.desc   : When readPosition points to a region that was never written by the producer
+ *              (all-zero from initialization), PeekNext must reject it even though the
+ *              sequence lock sees seq=0 as even and stable. Regression test for the invariant
+ *              that "sequence==0 means never published" and must not be treated as a valid event.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_007, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Ring is initialized, all memory zeroed. readPosition=0, writePosition=0.
+    // PeekNext should return WOULD_BLOCK (ring is empty).
+    MidiSharedRing::PeekedEvent peeked{};
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.PeekNext(peeked));
+
+    // Now forge a corrupted scenario: set writePosition ahead of readPosition,
+    // but the region [readPos, writePos) is all zeros (never written by producer).
+    // PeekNext must still reject the all-zero header (sequence==0).
+    auto *ctrl = ring.GetControlHeader();
+    ASSERT_NE(nullptr, ctrl);
+    ctrl->writePosition.store(48, std::memory_order_release); // 48 > 0 = readPosition
+
+    // The header at position 0 has sequence=0 (never published).
+    // ReadHeaderSafely must reject it.
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.PeekNext(peeked));
+}
+
+/**
+ * @tc.name   : Test PeekNext accepts sequence >= 2 after real write
+ * @tc.number : MidiSharedRingPeekNext_008
+ * @tc.desc   : After a real write, the sequence is >= 2 (even). PeekNext must accept it.
+ *              This verifies that the sequence==0 rejection does not break normal operation.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_008, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    // Write one event normally
+    std::vector<uint32_t> payload{0x12345678};
+    MidiEventInner ev = MakeEvent(100, payload);
+    uint32_t written = 0;
+    ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev, 1, &written, false));
+    ASSERT_EQ(1u, written);
+
+    // After write, sequence at position 0 should be >= 2 (even)
+    auto *header = reinterpret_cast<const ShmMidiEventHeader *>(ring.GetDataBase());
+    ASSERT_NE(nullptr, header);
+    uint32_t seq = header->sequence.load(std::memory_order_acquire);
+    EXPECT_EQ(2u, seq); // First write: 0→1→2
+
+    // PeekNext must succeed
+    MidiSharedRing::PeekedEvent peeked{};
+    EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peeked));
+    EXPECT_EQ(100u, peeked.localHeader.timestamp);
+}
 } // namespace MIDI
 } // namespace OHOS
