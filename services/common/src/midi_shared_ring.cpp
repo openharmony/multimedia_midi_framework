@@ -725,10 +725,6 @@ bool MidiSharedRing::ValidateOneEvent(const MidiEventInner &event) const
 {
     CHECK_AND_RETURN_RET_LOG(event.data != nullptr, false, "invalid event!");
 
-    if (event.length > (std::numeric_limits<size_t>::max() / sizeof(uint32_t))) {
-        return false;
-    }
-
     uint32_t recordSize = 0;
     CHECK_AND_RETURN_RET_LOG(GetEventRecordSize(event.length, recordSize), false, "event length overflow");
     CHECK_AND_RETURN_RET_LOG(recordSize <= (capacity_ - 1u), false, "event length overflow");
@@ -861,7 +857,6 @@ MidiStatusCode MidiSharedRing::BuildPeekedEvent(
         return MidiStatusCode::SHM_BROKEN;
     }
 
-    const uint32_t needed = static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + header.length * sizeof(uint32_t));
     if (needed > (capacity_ - 1u)) {
         return MidiStatusCode::SHM_BROKEN;
     }
