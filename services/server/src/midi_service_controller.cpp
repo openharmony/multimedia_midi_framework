@@ -495,7 +495,6 @@ int32_t MidiServiceController::OpenInputPort(
     MIDI_INFO_LOG("OpenInputPort Success");
     return OH_MIDI_STATUS_OK;
 }
-
 int32_t MidiServiceController::OpenOutputPort(
     uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
 {
@@ -523,7 +522,6 @@ int32_t MidiServiceController::OpenOutputPort(
             "OpenOutputPort: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
     }
 
-    // Check port count limit for this client
     auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
         MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
@@ -534,31 +532,42 @@ int32_t MidiServiceController::OpenOutputPort(
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
-        CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId) != true,
-            OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
-        // Check port count limit for this client
-        if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-            MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
-                clientId, MAX_PORTS_PER_CLIENT);
-            return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
-        }
-        int32_t addRet = outputPort->second->AddClientConnection(clientId, deviceId, buffer);
-        CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
-        resourceInfo.openPortCount++;
-        MIDI_INFO_LOG("connect outputport success");
-        return OH_MIDI_STATUS_OK;
+        return ConnectToExistingOutputPort(clientId, deviceId, buffer, outputPort->second, resourceInfo);
     }
+    return CreateNewOutputPortConnection(clientId, deviceId, portIndex, buffer, it->second);
+}
 
+int32_t MidiServiceController::ConnectToExistingOutputPort(uint32_t clientId, int64_t deviceId,
+    std::shared_ptr<MidiSharedRing> &buffer,
+    const std::shared_ptr<DeviceConnectionForOutput> &portConn, ClientResourceInfo &resourceInfo)
+{
+    CHECK_AND_RETURN_RET_LOG(!portConn->HasClientConnection(clientId),
+        OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
+    int32_t addRet = portConn->AddClientConnection(clientId, deviceId, buffer);
+    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
+    resourceInfo.openPortCount++;
+    MIDI_INFO_LOG("connect outputport success");
+    return OH_MIDI_STATUS_OK;
+}
+
+int32_t MidiServiceController::CreateNewOutputPortConnection(uint32_t clientId, int64_t deviceId,
+    uint32_t portIndex, std::shared_ptr<MidiSharedRing> &buffer,
+    const std::shared_ptr<DeviceClientContext> &context)
+{
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
-    // start events handle thread of output port
     int32_t startRet = outputConnection->Start();
     CHECK_AND_RETURN_RET_LOG(startRet == OH_MIDI_STATUS_OK, startRet, "Start output connection fail");
     int32_t addRet = outputConnection->AddClientConnection(clientId, deviceId, buffer);
     CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
-    resourceInfo.openPortCount++;
-    outputPortConnections.emplace(portIndex, std::move(outputConnection));
+    clientResourceInfo_[clientId].openPortCount++;
+    context->outputDeviceconnections_.emplace(portIndex, std::move(outputConnection));
     MIDI_INFO_LOG("OpenOutputPort Success");
     return OH_MIDI_STATUS_OK;
 }
