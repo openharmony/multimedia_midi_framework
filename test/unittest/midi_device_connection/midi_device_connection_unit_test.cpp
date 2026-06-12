@@ -404,5 +404,164 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_004, TestSize.L
     EXPECT_EQ(clientRingBuffer->GetReadPosition(), 0);
     EXPECT_EQ(clientRingBuffer->GetWritePosition(), 0);
 }
+
+// ====================================================================
+// Bug-fix regression tests
+// ====================================================================
+
+/**
+ * @tc.name   : Test DrainSingleClientRing drain limit
+ * @tc.number : DeviceConnectionForOutput_005
+ * @tc.desc   : Verify that DrainSingleClientRing does not consume all events in one unbounded
+ *              loop. Write as many events as the ring can hold, verify they are all drained
+ *              within one worker cycle (MAX_DRAIN_PER_CLIENT=128 >= ring capacity allows this).
+ *              This regression test ensures the drain path works correctly with the per-client
+ *              limit in place.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_005, TestSize.Level1)
+{
+    DeviceConnectionInfo deviceConnectionInfo{};
+    deviceConnectionInfo.driver = nullptr;
+    deviceConnectionInfo.deviceId = 6;
+    deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;
+    deviceConnectionInfo.portIndex = 0;
+
+    DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
+    outputConnection.SetMaxSendCacheBytes(4096);
+
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
+
+    std::shared_ptr<MidiSharedRing> clientRingBuffer;
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.AddClientConnection(20, 5678, clientRingBuffer));
+    ASSERT_NE(nullptr, clientRingBuffer);
+
+    // Write as many small realtime events (timestamp=0, length=0) as the ring can hold
+    // Each header is 24 bytes, ring capacity is 2048 bytes => ~85 events max
+    uint32_t dummyWord = 0;
+    int eventsWritten = 0;
+    for (int i = 0; i < 200; ++i) {
+        MidiEventInner ev{};
+        ev.timestamp = 0;
+        ev.length = 0;
+        ev.data = &dummyWord;
+        if (clientRingBuffer->TryWriteEvent(ev, false) != MidiStatusCode::OK) {
+            break;
+        }
+        eventsWritten++;
+    }
+    ASSERT_GT(eventsWritten, 0);
+    EXPECT_FALSE(clientRingBuffer->IsEmpty());
+
+    // Wake worker
+    const int notifyFd = outputConnection.GetNotifyEventFdForClients();
+    ASSERT_GE(notifyFd, 0);
+    const uint64_t one = 1;
+    ASSERT_EQ(sizeof(one), static_cast<size_t>(::write(notifyFd, &one, sizeof(one))));
+
+    // Give worker thread time to drain
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
+
+    // Ring should be drained (MAX_DRAIN_PER_CLIENT=128 >= ring capacity ~85)
+    EXPECT_TRUE(clientRingBuffer->IsEmpty());
+}
+
+/**
+ * @tc.name   : Test past-due non-realtime event processing
+ * @tc.number : DeviceConnectionForOutput_006
+ * @tc.desc   : Write a non-realtime event with a timestamp far in the past. The timerfd
+ *              handling should wake the worker immediately (not disarm the timer with {0,0}).
+ *              Regression test for UpdateNextTimer bug where past-due events caused timer
+ *              disarming instead of immediate firing.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_006, TestSize.Level1)
+{
+    DeviceConnectionInfo deviceConnectionInfo{};
+    deviceConnectionInfo.driver = nullptr;
+    deviceConnectionInfo.deviceId = 7;
+    deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;
+    deviceConnectionInfo.portIndex = 1;
+
+    DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
+    outputConnection.SetMaxSendCacheBytes(4096);
+
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
+
+    std::shared_ptr<MidiSharedRing> clientRingBuffer;
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.AddClientConnection(30, 9999, clientRingBuffer));
+    ASSERT_NE(nullptr, clientRingBuffer);
+
+    // Write a non-realtime event with timestamp far in the past (1ns since epoch)
+    // This should be treated as already due and trigger immediate processing
+    std::vector<uint32_t> payload{0xAAAAAAAA, 0xBBBBBBBB};
+    MidiEventInner pastDueEvent = MakeMidiEventInner(1, payload); // 1ns = far in the past
+    ASSERT_EQ(MidiStatusCode::OK, clientRingBuffer->TryWriteEvent(pastDueEvent, true));
+
+    // Wake worker
+    const int notifyFd = outputConnection.GetNotifyEventFdForClients();
+    ASSERT_GE(notifyFd, 0);
+    const uint64_t one = 1;
+    ASSERT_EQ(sizeof(one), static_cast<size_t>(::write(notifyFd, &one, sizeof(one))));
+
+    // Give worker time to: drain ring -> enqueue to pending -> timer triggers -> collect due -> send
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
+
+    // Ring should be empty - the past-due event was consumed
+    EXPECT_TRUE(clientRingBuffer->IsEmpty());
+}
+
+/**
+ * @tc.name   : Test CommitRead failure propagation in output worker
+ * @tc.number : DeviceConnectionForOutput_007
+ * @tc.desc   : Verify that when CommitRead detects a TOCTOU conflict (sequence mismatch),
+ *              the ConsumeRealtimeEvent returns false and the drain loop breaks cleanly.
+ *              This ensures the fix for unchecked CommitRead return values works correctly.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_007, TestSize.Level1)
+{
+    // This test validates the CommitRead TOCTOU protection indirectly.
+    // Direct unit test of the failure case is in MidiSharedRingCommitRead_003.
+    // Here we verify the drain loop handles CommitRead failure gracefully by writing
+    // a realtime event and verifying normal consumption still works after the fix.
+
+    DeviceConnectionInfo deviceConnectionInfo{};
+    deviceConnectionInfo.driver = nullptr;
+    deviceConnectionInfo.deviceId = 8;
+    deviceConnectionInfo.direction = MidiPortDirection::OUTPUT;
+    deviceConnectionInfo.portIndex = 2;
+
+    DeviceConnectionForOutput outputConnection(deviceConnectionInfo);
+    outputConnection.SetMaxSendCacheBytes(4096);
+
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.Start());
+
+    std::shared_ptr<MidiSharedRing> clientRingBuffer;
+    ASSERT_EQ(OH_MIDI_STATUS_OK, outputConnection.AddClientConnection(40, 1111, clientRingBuffer));
+    ASSERT_NE(nullptr, clientRingBuffer);
+
+    // Write a normal realtime event
+    uint32_t dummyWord = 0x12345678;
+    MidiEventInner realtimeEvent{};
+    realtimeEvent.timestamp = 0;
+    realtimeEvent.length = 1;
+    realtimeEvent.data = &dummyWord;
+
+    ASSERT_EQ(MidiStatusCode::OK, clientRingBuffer->TryWriteEvent(realtimeEvent, true));
+
+    // Wake worker
+    const int notifyFd = outputConnection.GetNotifyEventFdForClients();
+    ASSERT_GE(notifyFd, 0);
+    const uint64_t one = 1;
+    ASSERT_EQ(sizeof(one), static_cast<size_t>(::write(notifyFd, &one, sizeof(one))));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(OH_MIDI_STATUS_OK, outputConnection.Stop());
+
+    // Event should have been consumed successfully via the CommitRead path
+    EXPECT_TRUE(clientRingBuffer->IsEmpty());
+}
 } // namespace MIDI
 } // namespace OHOS

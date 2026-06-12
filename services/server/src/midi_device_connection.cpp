@@ -403,9 +403,14 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
     MidiSharedRing &clientRing = *ringShared;
     MidiSharedRing::PeekedEvent ringEvent{};
     MidiStatusCode status = MidiStatusCode::OK;
+    // Ring buffer default capacity ~2048 bytes, header 24 bytes -> ~85 zero-length events max.
+    // 128 ~= 1.5x of max ensures a single drain pass handles a full buffer without
+    // starving other clients (excess events defer to next wakeup).
+    constexpr size_t MAX_DRAIN_PER_CLIENT = 128;
+    size_t drained = 0;
     while ((status = clientRing.PeekNext(ringEvent)) == MidiStatusCode::OK) {
-        if (status != MidiStatusCode::OK) {
-            break;
+        if (++drained > MAX_DRAIN_PER_CLIENT) {
+            break; // yield to other clients
         }
         if (ringEvent.localHeader.timestamp == 0) {  // todo: use func and judge if timestamp + 1 < now
             if (!ConsumeRealtimeEvent(clientRing, ringEvent)) {
@@ -419,30 +424,42 @@ void DeviceConnectionForOutput::DrainSingleClientRing(ClientConnectionInServer &
     }
 }
 
-bool DeviceConnectionForOutput::ConsumeRealtimeEvent(MidiSharedRing& clientRing,
-                                                     const MidiSharedRing::PeekedEvent& ringEvent)
+bool DeviceConnectionForOutput::ConsumeRealtimeEvent(MidiSharedRing &clientRing,
+    const MidiSharedRing::PeekedEvent &ringEvent)
 {
     const size_t payloadWordCount = static_cast<size_t>(ringEvent.localHeader.length);
-    const uint32_t* payloadWords =
-        reinterpret_cast<const uint32_t*>(ringEvent.payloadPtr);
+    const size_t payloadBytes = payloadWordCount * sizeof(uint32_t);
 
-    // try enqueue send cache
-    auto res = TryAppendToSendCache(ringEvent.localHeader.timestamp, payloadWords, payloadWordCount);
+    // Copy payload to local storage before CommitRead invalidates shared memory view
+    std::vector<uint32_t> payloadWords;
+    payloadWords.resize(payloadWordCount);
+    if (payloadBytes > 0) {
+        auto ret = memcpy_s(payloadWords.data(), payloadBytes, ringEvent.payloadPtr, payloadBytes);
+        CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
+    }
+    const uint64_t timestamp = ringEvent.localHeader.timestamp;
+
+    // CommitRead FIRST to advance ring position, preventing double-send on retry
+    if (!clientRing.CommitRead(ringEvent)) {
+        MIDI_WARNING_LOG("ConsumeRealtimeEvent: CommitRead failed, TOCTOU conflict");
+        return false;
+    }
+
+    // Send using local copy (safe after CommitRead)
+    auto res = TryAppendToSendCache(timestamp, payloadWords.data(), payloadWordCount);
     if (res) {
-        clientRing.CommitRead(ringEvent);
         return true;
     }
     // if unable to enqueue, flush the send cache, and try again
     FlushSendCacheToDriver();
-    if (!TryAppendToSendCache(ringEvent.localHeader.timestamp, payloadWords, payloadWordCount)) {
+    if (!TryAppendToSendCache(timestamp, payloadWords.data(), payloadWordCount)) {
         MidiEventInner directEvent {};
-        directEvent.timestamp = ringEvent.localHeader.timestamp;
+        directEvent.timestamp = timestamp;
         directEvent.length = payloadWordCount;
-        directEvent.data = payloadWords;
+        directEvent.data = payloadWords.data();
         SendToDriver(directEvent);
     }
 
-    clientRing.CommitRead(ringEvent);
     return true;
 }
 
@@ -468,13 +485,16 @@ bool DeviceConnectionForOutput::ConsumeNonRealtimeEvent(ClientConnectionInServer
         CHECK_AND_RETURN_RET_LOG(ret == 0, false, "memcpy_s failed: %{public}d", ret);
     }
 
+    if (!clientRing.CommitRead(ringEvent)) {
+        MIDI_WARNING_LOG("ConsumeNonRealtimeEvent: CommitRead failed, TOCTOU conflict");
+        return false;
+    }
+
     const bool enqueued = clientConnection.EnqueueNonRealtime(
         std::move(payloadWords), dueTime, ringEvent.localHeader.timestamp);
     if (!enqueued) {
         return false;
     }
-
-    clientRing.CommitRead(ringEvent);
     return true;
 }
 
@@ -627,15 +647,22 @@ void DeviceConnectionForOutput::UpdateNextTimer()
         }
     }
 
-    itimerspec newValue{};  // defaul all zero, hasDue == false to disarm
+    itimerspec newValue{};  // default all zero, hasDue == false to disarm
     if (hasDue) {
         auto now = std::chrono::steady_clock::now();
         if (earliestDueTime < now) {
-            earliestDueTime = now;
+            // Event is past due: wake worker directly + set minimal timer as fallback
+            newValue.it_value.tv_sec = 0;
+            newValue.it_value.tv_nsec = 1;
+            WakeWorkerByEventFd();
+        } else {
+            auto deltaNs = std::chrono::duration_cast<std::chrono::nanoseconds>(earliestDueTime - now).count();
+            if (deltaNs <= 0) {
+                deltaNs = 1; // Avoid {0,0} which disarms timerfd
+            }
+            newValue.it_value.tv_sec = static_cast<time_t>(deltaNs / MIDI_NS_PER_SECOND);
+            newValue.it_value.tv_nsec = static_cast<long>(deltaNs % MIDI_NS_PER_SECOND);
         }
-        const auto deltaNs = std::chrono::duration_cast<std::chrono::nanoseconds>(earliestDueTime - now).count();
-        newValue.it_value.tv_sec = static_cast<time_t>(deltaNs / MIDI_NS_PER_SECOND);
-        newValue.it_value.tv_nsec = static_cast<long>(deltaNs % MIDI_NS_PER_SECOND);
     } else {
         MIDI_DEBUG_LOG("UpdateNextTimer: no pending events, disarming timer");
     }
