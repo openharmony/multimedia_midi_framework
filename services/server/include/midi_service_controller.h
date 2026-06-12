@@ -183,6 +183,13 @@ private:
     int32_t CreateNewOutputPortConnection(uint32_t clientId, int64_t deviceId, uint32_t portIndex,
         std::shared_ptr<MidiSharedRing> &buffer, const std::shared_ptr<DeviceClientContext> &context);
 
+    // Helper functions for OpenInputPort
+    int32_t ConnectToExistingInputPort(uint32_t clientId, int64_t deviceId,
+        std::shared_ptr<MidiSharedRing> &buffer,
+        const std::shared_ptr<DeviceConnectionForInput> &portConn, ClientResourceInfo &resourceInfo);
+    int32_t CreateNewInputPortConnection(uint32_t clientId, int64_t deviceId, uint32_t portIndex,
+        std::shared_ptr<MidiSharedRing> &buffer, const std::shared_ptr<DeviceClientContext> &context);
+
     void ClosePortforDevice(
         uint32_t clientId, int64_t deviceId, std::shared_ptr<DeviceClientContext> deviceClientContext);
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
