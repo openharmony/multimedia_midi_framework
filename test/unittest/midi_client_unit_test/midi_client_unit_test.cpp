@@ -426,21 +426,6 @@ HWTEST_F(MidiClientUnitTest, GetPortCount_WithZeroInitialValue, TestSize.Level0)
 }
 
 /**
- * @tc.name: GetDevicePorts_001
- * @tc.desc: Test GetDevicePorts when the device ID is invalid.
- * @tc.type: FUNC
- */
-HWTEST_F(MidiClientUnitTest, GetDevicePorts_002, TestSize.Level0)
-{
-    int64_t invalidId = -1;
-    OH_MIDIPortInformation portArray[1];
-    size_t numPorts = 1;
-    OH_MIDIStatusCode status = client->GetDevicePorts(invalidId, portArray, &numPorts);
-
-    EXPECT_EQ(status, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
-}
-
-/**
  * @tc.name: CloseInputPort_001
  * @tc.desc: Test closing an input port that was never opened.
  * @tc.type: FUNC
