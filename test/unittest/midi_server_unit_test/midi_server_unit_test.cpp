@@ -24,7 +24,9 @@
 #include "native_midi_base.h"
 #include "parcel.h"
 #include "system_ability_definition.h"
+#include <algorithm>
 #include <map>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -46,6 +48,28 @@ class TestMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
     int32_t NotifyDeviceChange(int32_t, const MidiDeviceInfo &) override { return 0; }
     int32_t NotifyError(int32_t) override { return 0; }
+
+    bool AddDeathRecipient(const sptr<DeathRecipient> &recipient) override
+    {
+        if (recipient == nullptr) {
+            return false;
+        }
+        deathRecipients_.push_back(recipient);
+        return true;
+    }
+
+    bool RemoveDeathRecipient(const sptr<DeathRecipient> &recipient) override
+    {
+        auto it = std::find(deathRecipients_.begin(), deathRecipients_.end(), recipient);
+        if (it == deathRecipients_.end()) {
+            return false;
+        }
+        deathRecipients_.erase(it);
+        return true;
+    }
+
+private:
+    std::vector<sptr<DeathRecipient>> deathRecipients_;
 };
 
 class MockMidiServiceController : public MidiServiceController {
