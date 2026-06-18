@@ -733,6 +733,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_005, TestSize.Level0)
     hdr->timestamp = 1;
     hdr->flags = SHM_EVENT_FLAG_NONE;
     hdr->length = 1000; // needed way larger than cap-1 => SHM_BROKEN
+    hdr->sequence.store(2, std::memory_order_release); // published, but corrupted
 
     MidiSharedRing::PeekedEvent peek;
     EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.PeekNext(peek));

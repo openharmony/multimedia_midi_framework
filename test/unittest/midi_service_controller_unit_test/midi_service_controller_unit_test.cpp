@@ -32,7 +32,7 @@ public:
         controller_ = MidiServiceController::GetInstance();
         // Set unload delay to 0 for fast test execution
         controller_->SetUnloadDelay(0);
-        mockDriver_ = std::make_unique<MockMidiDeviceDriver>();
+        mockDriver_ = std::make_unique<NiceMock<MockMidiDeviceDriver>>();
         rawMockDriver_ = mockDriver_.get();
         // Use test helper to inject mock driver
         controller_->GetDeviceManagerForTest()->InjectDriverForTest(DeviceType::DEVICE_TYPE_USB,

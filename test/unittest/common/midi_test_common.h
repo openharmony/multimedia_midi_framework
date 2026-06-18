@@ -18,9 +18,11 @@
 #include "iremote_stub.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "imidi_callback.h"
+#include <vector>
 
 namespace OHOS {
 namespace MIDI {
@@ -48,9 +50,37 @@ public:
 
 class MockMidiCallbackStub : public IRemoteStub<IMidiCallback> {
 public:
-    MOCK_METHOD(ErrCode, NotifyDeviceChange, (int32_t change, (const MidiDeviceInfo &deviceInfo)),
-        (override));
-    MOCK_METHOD(ErrCode, NotifyError, (int32_t code), (override));
+    ErrCode NotifyDeviceChange(int32_t, const MidiDeviceInfo &) override
+    {
+        return 0;
+    }
+
+    ErrCode NotifyError(int32_t) override
+    {
+        return 0;
+    }
+
+    bool AddDeathRecipient(const sptr<DeathRecipient> &recipient) override
+    {
+        if (recipient == nullptr) {
+            return false;
+        }
+        deathRecipients_.push_back(recipient);
+        return true;
+    }
+
+    bool RemoveDeathRecipient(const sptr<DeathRecipient> &recipient) override
+    {
+        auto it = std::find(deathRecipients_.begin(), deathRecipients_.end(), recipient);
+        if (it == deathRecipients_.end()) {
+            return false;
+        }
+        deathRecipients_.erase(it);
+        return true;
+    }
+
+private:
+    std::vector<sptr<DeathRecipient>> deathRecipients_;
 };
 } // namespace MIDI
 } // namespace OHOS
