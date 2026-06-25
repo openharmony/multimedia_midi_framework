@@ -29,7 +29,7 @@ ohos_prebuilt_etc("midi_server_init") {
 }
 
 ohos_shared_library("midi_service") {
-  stack_protector_ret = true
+  branch_protector_ret = "pac_ret"
   sanitize = {
     cfi = true
     cfi_cross_dso = true
