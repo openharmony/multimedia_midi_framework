@@ -607,6 +607,12 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
     auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
+        CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId),
+            OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+            "client %{public}u doesn't open input port %{public}u on device %{public}" PRId64,
+            clientId,
+            portIndex,
+            deviceId);
         auto &resourceInfo = clientResourceInfo_[clientId];
         if (resourceInfo.openPortCount > 0) {
             resourceInfo.openPortCount--;
@@ -640,6 +646,12 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
+        CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId),
+            OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+            "client %{public}u doesn't open output port %{public}u on device %{public}" PRId64,
+            clientId,
+            portIndex,
+            deviceId);
         auto &resourceInfo = clientResourceInfo_[clientId];
         if (resourceInfo.openPortCount > 0) {
             resourceInfo.openPortCount--;

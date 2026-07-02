@@ -949,3 +949,159 @@ HWTEST_F(MidiServiceControllerUnitTest, ClosePort_MultiClientIntegration, TestSi
     // Cleanup
     controller_->DestroyMidiClient(clientId2);
 }
+
+/**
+ * @tc.name: CloseInputPort_PortNotOwnedByClient
+ * @tc.desc: Verify that closing an input port the client never opened is rejected and does NOT
+ *           corrupt the caller's openPortCount (previously the count was wrongly decremented)
+ * @tc.type: FUNC
+ * @tc.require: Bug fix - CloseInputPortInner() must verify the client owns the port
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort_PortNotOwnedByClient, TestSize.Level0)
+{
+    int64_t driverId = 803;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Mixed Owner Input Device");
+
+    // Create a second client (MAX_CLIENTS_PER_APP = 2)
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    // Both clients open device (driver OpenDevice fires only for the first opener)
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // client1 owns input port 0; client2 owns a different input port 1
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 0, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 1, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer1;
+    std::shared_ptr<MidiSharedRing> buffer2;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, buffer1, deviceId, 0), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenInputPort(clientId2, buffer2, deviceId, 1), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);
+
+    // BUG FIX VERIFICATION: client2 closes port 0 which it never opened. The call must be rejected
+    // and openPortCount must NOT be decremented. Pre-fix, the count was corrupted (1 -> 0) even
+    // though client2 still held port 1 open.
+    EXPECT_EQ(controller_->CloseInputPort(clientId2, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);  // unchanged - bug fix
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);  // client1 unaffected
+
+    // client2 closes the port it actually owns -> succeeds; driver closes port 1 (last owner)
+    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, 1)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->CloseInputPort(clientId2, deviceId, 1), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 0);
+
+    // client1 closes the port it owns -> succeeds; driver closes port 0 (last owner)
+    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, 0)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->CloseInputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 0);
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: CloseOutputPort_PortNotOwnedByClient
+ * @tc.desc: Verify that closing an output port the client never opened is rejected and does NOT
+ *           corrupt the caller's openPortCount
+ * @tc.type: FUNC
+ * @tc.require: Bug fix - CloseOutputPortInner() must verify the client owns the port
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CloseOutputPort_PortNotOwnedByClient, TestSize.Level0)
+{
+    int64_t driverId = 804;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "Mixed Owner Output Device");
+
+    // Create a second client (MAX_CLIENTS_PER_APP = 2)
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // client1 owns output port 0; client2 owns a different output port 1
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(driverId, 0)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(driverId, 1)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer1;
+    std::shared_ptr<MidiSharedRing> buffer2;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId_, buffer1, deviceId, 0), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenOutputPort(clientId2, buffer2, deviceId, 1), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);
+
+    // BUG FIX VERIFICATION: client2 closes port 0 which it never opened -> rejected, count unchanged
+    EXPECT_EQ(controller_->CloseOutputPort(clientId2, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);  // unchanged - bug fix
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);  // client1 unaffected
+
+    // client2 closes the port it actually owns -> succeeds
+    EXPECT_CALL(*rawMockDriver_, CloseOutputPort(driverId, 1)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->CloseOutputPort(clientId2, deviceId, 1), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 0);
+
+    // client1 closes the port it owns -> succeeds
+    EXPECT_CALL(*rawMockDriver_, CloseOutputPort(driverId, 0)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->CloseOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 0);
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: CloseDevice_PortNotOwnedByClient
+ * @tc.desc: Verify CloseDevice (which internally iterates all device ports via ClosePortforDevice)
+ *           succeeds and does not corrupt counts when the device has ports owned by another client.
+ *           The new guard early-returns for ports the closing client does not own; ClosePortforDevice
+ *           ignores that return value and continues, so only the caller's own ports are released.
+ * @tc.type: FUNC
+ * @tc.require: Bug fix - CloseInputPortInner() guard must not break the CloseDevice cleanup path
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CloseDevice_PortNotOwnedByClient, TestSize.Level0)
+{
+    int64_t driverId = 805;
+    int64_t deviceId = SimulateDeviceConnection(driverId, "CloseDevice Mixed Owner Device");
+
+    // Create a second client (MAX_CLIENTS_PER_APP = 2)
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> cb2 = new MockMidiCallbackStub();
+    controller_->CreateMidiInServer(cb2->AsObject(), clientObj, clientId2);
+
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    // client1 owns input port 0; client2 owns a different input port 1
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 0, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 1, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> buffer1;
+    std::shared_ptr<MidiSharedRing> buffer2;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, buffer1, deviceId, 0), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenInputPort(clientId2, buffer2, deviceId, 1), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);
+
+    // client1 closes the device. ClosePortforDevice iterates both ports {0, 1}; port 1 is NOT owned
+    // by client1 -> new guard early-returns and the loop ignores it. Only port 0 (client1's) is
+    // released at the driver level. client2's port 1 must remain untouched.
+    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, 0)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->CloseDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 0);   // client1's port cleaned
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);   // client2 unaffected
+
+    // client2 still owns port 1 -> normal close still works
+    EXPECT_CALL(*rawMockDriver_, CloseInputPort(driverId, 1)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->CloseInputPort(clientId2, deviceId, 1), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 0);
+
+    // Cleanup
+    controller_->DestroyMidiClient(clientId2);
+}
