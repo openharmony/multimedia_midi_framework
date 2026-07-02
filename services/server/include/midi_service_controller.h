@@ -74,6 +74,12 @@ private:
         std::unordered_set<int64_t> openDevices;  // List of opened device IDs
         uint32_t openPortCount = 0;               // Total opened port count (input + output)
     };
+    struct DeviceStatisticsTotals {
+        uint64_t inputEvents = 0;
+        uint64_t outputEvents = 0;
+        uint64_t inputBytes = 0;
+        uint64_t outputBytes = 0;
+    };
 
 public:
     MidiServiceController();
@@ -118,9 +124,7 @@ private:
     void DumpSinglePort(std::string &dumpString, int64_t portIndex, const std::string &portName,
         const std::shared_ptr<PortConnection> &conn);
     void DumpDeviceStatistics(std::string &dumpString, int64_t deviceId,
-        const std::shared_ptr<DeviceClientContext> &context,
-        uint64_t &totalInputEvents, uint64_t &totalOutputEvents,
-        uint64_t &totalInputBytes, uint64_t &totalOutputBytes);
+        const std::shared_ptr<DeviceClientContext> &context, DeviceStatisticsTotals &totals);
 
 public:
 
@@ -195,6 +199,8 @@ private:
     int32_t CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex);
     void HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
         const MidiDeviceInfo &deviceInfo);
+    bool RegisterBleDeviceForPendingClientsLocked(const std::string &address, int64_t deviceId,
+        const std::list<PendingBleConnection> &waitingClients);
 
     // Helper functions for OpenBleDevice
     bool TryAttachToActiveBleDevice(uint32_t clientId, const std::string &address, MidiDeviceInfo &outDeviceInfo);
