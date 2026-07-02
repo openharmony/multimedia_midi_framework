@@ -91,24 +91,24 @@ constexpr size_t WORDS_PER_64BIT_PACKET = 2;
 // -------------------------
 // UMP word count lookup table
 // -------------------------
-// Indexed by Message Type (MT) - 0 = invalid/reserved
+// Indexed by Message Type (MT) per MIDI 2.0 spec Table 4
 constexpr uint8_t UMP_WORD_COUNT[16] = {
-    1,  // 0x0: Utility
-    1,  // 0x1: System Real-Time
-    1,  // 0x2: MIDI 1.0 Channel Voice
-    2,  // 0x3: SysEx 7-bit
-    2,  // 0x4: MIDI 2.0 Channel Voice
-    4,  // 0x5: Data 128-bit
-    4,  // 0x6: Per-Note Controller
-    2,  // 0x7: Stream Configuration
-    4,  // 0x8: Mixed Data Set
-    0,  // 0x9: Reserved
-    0,  // 0xA: Reserved
-    0,  // 0xB: Reserved
-    0,  // 0xC: Reserved
-    4,  // 0xD: SysEx 8-bit
-    0,  // 0xE: Reserved (Future Use)
-    0,  // 0xF: Flex Data (special handling needed)
+    1,  // 0x0: Utility Messages (32 bits)
+    1,  // 0x1: System Real Time and System Common Messages (32 bits)
+    1,  // 0x2: MIDI 1.0 Channel Voice Messages (32 bits)
+    2,  // 0x3: Data Messages including SysEx (64 bits)
+    2,  // 0x4: MIDI 2.0 Channel Voice Messages (64 bits)
+    4,  // 0x5: Data Messages (128 bits)
+    1,  // 0x6: Reserved (32 bits)
+    1,  // 0x7: Reserved (32 bits)
+    2,  // 0x8: Reserved (64 bits)
+    2,  // 0x9: Reserved (64 bits)
+    2,  // 0xA: Reserved (64 bits)
+    3,  // 0xB: Reserved (96 bits)
+    3,  // 0xC: Reserved (96 bits)
+    4,  // 0xD: Flex Data Messages (128 bits, special handling)
+    4,  // 0xE: Reserved (128 bits)
+    4,  // 0xF: UMP Stream Messages (128 bits)
 };
 
 // Flex Data format bit shift and mask
@@ -425,8 +425,8 @@ bool UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(uint8_t statusNibble,
 size_t UmpConverter::GetUmpWordCount(uint32_t word0)
 {
     uint8_t mt = MessageType(word0);
-    if (mt == 0xF) {
-        // Flex Data: format bits [23:20] determine length
+    if (mt == 0xD) {
+        // Flex Data (MT=0xD): format bits [23:20] determine length
         // format 0-7 = 2 words, format 8-15 = 4 words
         uint8_t format = static_cast<uint8_t>((word0 >> SHIFT_FLEX_FORMAT) & MASK_FLEX_FORMAT);
         return (format < FLEX_FORMAT_THRESHOLD) ? FLEX_WORDS_SHORT : FLEX_WORDS_LONG;

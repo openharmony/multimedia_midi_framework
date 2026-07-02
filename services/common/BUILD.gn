@@ -16,7 +16,7 @@ import("//build/ohos.gni")
 midi_framework_root = "../.."
 
 ohos_shared_library("midi_common") {
-  stack_protector_ret = true
+  branch_protector_ret = "pac_ret"
   sanitize = {
     cfi = true
     cfi_cross_dso = true

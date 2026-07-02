@@ -450,37 +450,43 @@ HWTEST_F(UmpConverterUnitTest, TestGetUmpWordCount_AllTypes, TestSize.Level1)
     EXPECT_EQ(UmpConverter::GetUmpWordCount(0x30000000), 2u);
     // MT 0x4: MIDI 2.0 Channel Voice - 2 words
     EXPECT_EQ(UmpConverter::GetUmpWordCount(0x40000000), 2u);
-    // MT 0x5: Data 128-bit - 4 words
+    // MT 0x5: Data Messages - 4 words (128 bits)
     EXPECT_EQ(UmpConverter::GetUmpWordCount(0x50000000), 4u);
-    // MT 0x6: Per-Note Controller - 4 words
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x60000000), 4u);
-    // MT 0x7: Stream Configuration - 2 words
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x70000000), 2u);
-    // MT 0x8: Mixed Data Set - 4 words
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x80000000), 4u);
-    // MT 0xD: SysEx 8-bit - 4 words
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0000000), 4u);
-    // MT 0x9-0xC, 0xE: Reserved - 0 (invalid)
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x90000000), 0u);
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xA0000000), 0u);
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xB0000000), 0u);
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xC0000000), 0u);
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xE0000000), 0u);
+    // MT 0x6: Reserved - 1 word (32 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x60000000), 1u);
+    // MT 0x7: Reserved - 1 word (32 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x70000000), 1u);
+    // MT 0x8: Reserved - 2 words (64 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x80000000), 2u);
+    // MT 0x9: Reserved - 2 words (64 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0x90000000), 2u);
+    // MT 0xA: Reserved - 2 words (64 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xA0000000), 2u);
+    // MT 0xB: Reserved - 3 words (96 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xB0000000), 3u);
+    // MT 0xC: Reserved - 3 words (96 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xC0000000), 3u);
+    // MT 0xD: Flex Data - 4 words (128 bits, format=8)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0800000), 4u);
+    // MT 0xE: Reserved - 4 words (128 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xE0000000), 4u);
+    // MT 0xF: UMP Stream Messages - 4 words (128 bits)
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0000000), 4u);
 }
 
 /**
  * @tc.name: TestGetUmpWordCount_FlexData
- * @tc.desc: GetUmpWordCount handles Flex Data (MT=0xF) format bits correctly.
+ * @tc.desc: GetUmpWordCount handles Flex Data (MT=0xD) format bits correctly.
  * @tc.type: FUNC
  */
 HWTEST_F(UmpConverterUnitTest, TestGetUmpWordCount_FlexData, TestSize.Level1)
 {
-    // MT 0xF format 0-7: 2 words
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0000000), 2u);
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0700000), 2u);
-    // MT 0xF format 8-15: 4 words
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0800000), 4u);
-    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xF0F00000), 4u);
+    // MT 0xD (Flex Data) format 0-7: 2 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0000000), 2u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0700000), 2u);
+    // MT 0xD (Flex Data) format 8-15: 4 words
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0800000), 4u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0F00000), 4u);
 }
 
 // ====================================================================
@@ -551,26 +557,26 @@ HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_MixedTypes, TestSize.Level1)
 }
 
 /**
- * @tc.name: TestSplitUmpPackets_SkipInvalidMT
- * @tc.desc: SplitUmpPackets skips invalid/reserved MT types.
+ * @tc.name: TestSplitUmpPackets_ReservedMTTypes
+ * @tc.desc: SplitUmpPackets handles reserved MT types with their correct word counts.
  * @tc.type: FUNC
  */
-HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_SkipInvalidMT, TestSize.Level1)
+HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_ReservedMTTypes, TestSize.Level1)
 {
-    // Valid + invalid + valid
+    // MT 0x6: Reserved (32 bits, 1 word), MT 0x9: Reserved (64 bits, 2 words)
     std::vector<uint32_t> data = {
-        0x20903C64,  // Valid (1 word)
-        0x90000000,  // Invalid MT 0x9 - should be skipped
-        0x20903E65   // Valid (1 word)
+        0x60000000,                    // MT 0x6 Reserved (1 word)
+        0x90000000, 0x11111111,        // MT 0x9 Reserved (2 words)
+        0x20903C64                     // MT 0x2 Channel Voice (1 word)
     };
     std::vector<std::pair<const uint32_t*, size_t>> packets;
 
     UmpConverter::SplitUmpPackets(data.data(), data.size(), packets);
 
-    // Should get first packet, skip invalid, then second packet
-    EXPECT_EQ(packets.size(), 2u);
-    EXPECT_EQ(packets[0].first[0], 0x20903C64u);
-    EXPECT_EQ(packets[1].first[0], 0x20903E65u);
+    EXPECT_EQ(packets.size(), 3u);
+    EXPECT_EQ(packets[0].second, 1u);  // MT 0x6: 1 word
+    EXPECT_EQ(packets[1].second, 2u);  // MT 0x9: 2 words
+    EXPECT_EQ(packets[2].second, 1u);  // MT 0x2: 1 word
 }
 
 /**

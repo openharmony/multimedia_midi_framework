@@ -42,6 +42,7 @@ config("midi_service_sa_idl_config") {
 }
 
 ohos_shared_library("midi_framework_interface") {
+    branch_protector_ret = "pac_ret"
     public_configs = [ ":midi_service_sa_idl_config" ]
 
     output_values = get_target_outputs(":midi_service_idl_interface")
@@ -71,6 +72,7 @@ ohos_shared_library("midi_framework_interface") {
     sanitize = {
         cfi = true
         cfi_cross_dso = true
+        cfi_vcall_icall_only = true
         debug = false
     }
 }

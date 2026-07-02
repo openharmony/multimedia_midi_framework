@@ -16,7 +16,7 @@ import("//foundation/multimedia/midi_framework/config.gni")
 
 
 ohos_shared_library("midiutils") {
-  stack_protector_ret = true
+  branch_protector_ret = "pac_ret"
   sanitize = {
     cfi = true
     cfi_cross_dso = true

@@ -205,7 +205,9 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
         CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
         self->DestroyMidiClient(clientId);
     });
-    object->AddDeathRecipient(deathRecipient);
+    bool added = object->AddDeathRecipient(deathRecipient);
+    CHECK_AND_RETURN_RET_LOG(added, OH_MIDI_STATUS_SYSTEM_ERROR,
+        "AddDeathRecipient failed for clientId=%{public}u", clientId);
     clientCallbackObjects_.emplace(clientId, object);
     deathRecipients_.emplace(clientId, deathRecipient);
     clients_.emplace(clientId, std::move(midiClient));
@@ -236,6 +238,11 @@ MidiDeviceInfo MidiServiceController::GetDevice(int64_t deviceId)
 
 int32_t MidiServiceController::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos)
 {
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "GetDevicePorts: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
+    }
     return deviceManager_->GetDevicePorts(deviceId, portInfos);
 }
 
@@ -452,8 +459,13 @@ int32_t MidiServiceController::OpenInputPort(
         clientId,
         deviceId);
 
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "OpenInputPort: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
+    }
+
     auto &resourceInfo = clientResourceInfo_[clientId];
-    // Check port count limit for this client
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
         MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
@@ -463,26 +475,43 @@ int32_t MidiServiceController::OpenInputPort(
     auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
-        CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId) != true,
-            OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
-        inputPort->second->AddClientConnection(clientId, deviceId, buffer);
-        resourceInfo.openPortCount++;
-        MIDI_INFO_LOG("connect inputport success");
-        return OH_MIDI_STATUS_OK;
+        return ConnectToExistingInputPort(clientId, deviceId, buffer, inputPort->second, resourceInfo);
     }
+    return CreateNewInputPortConnection(clientId, deviceId, portIndex, buffer, it->second);
+}
 
-    std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
-    auto ret = deviceManager_->OpenInputPort(inputConnection, deviceId, portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open input port fail!");
-
-    inputConnection->AddClientConnection(clientId, deviceId, buffer);
+int32_t MidiServiceController::ConnectToExistingInputPort(uint32_t clientId, int64_t deviceId,
+    std::shared_ptr<MidiSharedRing> &buffer,
+    const std::shared_ptr<DeviceConnectionForInput> &portConn, ClientResourceInfo &resourceInfo)
+{
+    CHECK_AND_RETURN_RET_LOG(!portConn->HasClientConnection(clientId),
+        OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
+    int32_t addRet = portConn->AddClientConnection(clientId, deviceId, buffer);
+    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
     resourceInfo.openPortCount++;
-
-    inputPortConnections.emplace(portIndex, std::move(inputConnection));
-    MIDI_INFO_LOG("OpenInputPort Success");
+    MIDI_INFO_LOG("connect inputport success");
     return OH_MIDI_STATUS_OK;
 }
 
+int32_t MidiServiceController::CreateNewInputPortConnection(uint32_t clientId, int64_t deviceId,
+    uint32_t portIndex, std::shared_ptr<MidiSharedRing> &buffer,
+    const std::shared_ptr<DeviceClientContext> &context)
+{
+    std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
+    auto ret = deviceManager_->OpenInputPort(inputConnection, deviceId, portIndex);
+    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open input port fail!");
+    int32_t addRet = inputConnection->AddClientConnection(clientId, deviceId, buffer);
+    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
+    clientResourceInfo_[clientId].openPortCount++;
+    context->inputDeviceconnections_.emplace(portIndex, std::move(inputConnection));
+    MIDI_INFO_LOG("OpenInputPort Success");
+    return OH_MIDI_STATUS_OK;
+}
 int32_t MidiServiceController::OpenOutputPort(
     uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
 {
@@ -504,7 +533,12 @@ int32_t MidiServiceController::OpenOutputPort(
         clientId,
         deviceId);
 
-    // Check port count limit for this client
+    if (IsBluetoothDevice(deviceId)) {
+        CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
+            OH_MIDI_STATUS_PERMISSION_DENIED,
+            "OpenOutputPort: bluetooth permission denied for deviceId=%{public}" PRId64, deviceId);
+    }
+
     auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
         MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
@@ -515,28 +549,46 @@ int32_t MidiServiceController::OpenOutputPort(
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
-        CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId) != true,
-            OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
-        // Check port count limit for this client
-        if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-            MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
-                clientId, MAX_PORTS_PER_CLIENT);
-            return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
-        }
-        outputPort->second->AddClientConnection(clientId, deviceId, buffer);
-        resourceInfo.openPortCount++;
-        MIDI_INFO_LOG("connect outputport success");
-        return OH_MIDI_STATUS_OK;
+        return ConnectToExistingOutputPort(clientId, deviceId, buffer, outputPort->second, resourceInfo);
     }
+    return CreateNewOutputPortConnection(clientId, deviceId, portIndex, buffer, it->second);
+}
 
+int32_t MidiServiceController::ConnectToExistingOutputPort(uint32_t clientId, int64_t deviceId,
+    std::shared_ptr<MidiSharedRing> &buffer,
+    const std::shared_ptr<DeviceConnectionForOutput> &portConn, ClientResourceInfo &resourceInfo)
+{
+    CHECK_AND_RETURN_RET_LOG(!portConn->HasClientConnection(clientId),
+        OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
+    if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
+        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+            clientId, MAX_PORTS_PER_CLIENT);
+        return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
+    }
+    int32_t addRet = portConn->AddClientConnection(clientId, deviceId, buffer);
+    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
+    resourceInfo.openPortCount++;
+    MIDI_INFO_LOG("connect outputport success");
+    return OH_MIDI_STATUS_OK;
+}
+
+int32_t MidiServiceController::CreateNewOutputPortConnection(uint32_t clientId, int64_t deviceId,
+    uint32_t portIndex, std::shared_ptr<MidiSharedRing> &buffer,
+    const std::shared_ptr<DeviceClientContext> &context)
+{
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
-    // start events handle thread of output port
-    outputConnection->Start();
-    outputConnection->AddClientConnection(clientId, deviceId, buffer);
-    resourceInfo.openPortCount++;
-    outputPortConnections.emplace(portIndex, std::move(outputConnection));
+    int32_t startRet = outputConnection->Start();
+    CHECK_AND_RETURN_RET_LOG(startRet == OH_MIDI_STATUS_OK, startRet, "Start output connection fail");
+    int32_t addRet = outputConnection->AddClientConnection(clientId, deviceId, buffer);
+    if (addRet != OH_MIDI_STATUS_OK) {
+        MIDI_ERR_LOG("AddClientConnection fail, ret=%{public}d, stopping output connection", addRet);
+        outputConnection->Stop();
+        return addRet;
+    }
+    clientResourceInfo_[clientId].openPortCount++;
+    context->outputDeviceconnections_.emplace(portIndex, std::move(outputConnection));
     MIDI_INFO_LOG("OpenOutputPort Success");
     return OH_MIDI_STATUS_OK;
 }
