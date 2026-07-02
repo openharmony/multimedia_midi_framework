@@ -986,7 +986,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseInputPort_PortNotOwnedByClient, Tes
     // BUG FIX VERIFICATION: client2 closes port 0 which it never opened. The call must be rejected
     // and openPortCount must NOT be decremented. Pre-fix, the count was corrupted (1 -> 0) even
     // though client2 still held port 1 open.
-    EXPECT_EQ(controller_->CloseInputPort(clientId2, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(controller_->CloseInputPort(clientId2, deviceId, 0), OH_MIDI_STATUS_INVALID_PORT);
     EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);  // unchanged - bug fix
     EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);  // client1 unaffected
 
@@ -1037,7 +1037,7 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseOutputPort_PortNotOwnedByClient, Te
     EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);
 
     // BUG FIX VERIFICATION: client2 closes port 0 which it never opened -> rejected, count unchanged
-    EXPECT_EQ(controller_->CloseOutputPort(clientId2, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(controller_->CloseOutputPort(clientId2, deviceId, 0), OH_MIDI_STATUS_INVALID_PORT);
     EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId2), 1);  // unchanged - bug fix
     EXPECT_EQ(controller_->GetOpenPortCountForTest(clientId_), 1);  // client1 unaffected
 

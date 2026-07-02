@@ -660,7 +660,7 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId),
-            OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+            OH_MIDI_STATUS_INVALID_PORT,
             "client %{public}u doesn't open input port %{public}u on device %{public}" PRId64,
             clientId,
             portIndex,
@@ -679,8 +679,9 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
                 portIndex, deviceId);
             CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail!");
         }
+        return OH_MIDI_STATUS_OK;
     }
-    return OH_MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_INVALID_PORT;
 }
 
 int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
@@ -699,7 +700,7 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
         CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId),
-            OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+            OH_MIDI_STATUS_INVALID_PORT,
             "client %{public}u doesn't open output port %{public}u on device %{public}" PRId64,
             clientId,
             portIndex,
@@ -718,8 +719,9 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
                 portIndex, deviceId);
             CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail!");
         }
+        return OH_MIDI_STATUS_OK;
     }
-    return OH_MIDI_STATUS_OK;
+    return OH_MIDI_STATUS_INVALID_PORT;
 }
 
 int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
