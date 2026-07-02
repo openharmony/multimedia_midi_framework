@@ -40,5 +40,8 @@ group("midi_unit_test") {
 
 group("midi_fuzz_test") {
   testonly = true
-  deps = [ "fuzztest/midiservicecontroller_fuzzer:fuzztest" ]
+  deps = [
+    "fuzztest/midiservicecontroller_fuzzer:fuzztest",
+    "fuzztest/midiipcstub_fuzzer:fuzztest",
+  ]
 }

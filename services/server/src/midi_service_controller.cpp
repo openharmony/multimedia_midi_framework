@@ -406,28 +406,9 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
                 GetEncryptStr(address).c_str());
         }
 
-        if (success) {
-            // Register map for quick lookup
-            activeBleDevices_[address] = deviceId;
-
-            // Create Context ONLY now
-            std::unordered_set<int32_t> initialClients;
-            for (const auto &req : waitingClients) {
-                // Verify client still exists
-                if (clients_.find(req.clientId) != clients_.end()) {
-                    initialClients.insert(req.clientId);
-                    clientResourceInfo_[req.clientId].openDevices.insert(deviceId);
-                }
-            }
-
-            if (!initialClients.empty()) {
-                auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(initialClients));
-                deviceClientContexts_.emplace(deviceId, std::move(context));
-            } else {
-                MIDI_WARNING_LOG("All waiting clients died before BLE connected.");
-                lock.unlock();
-                deviceManager_->CloseDevice(deviceId);
-            }
+        if (success && !RegisterBleDeviceForPendingClientsLocked(address, deviceId, waitingClients)) {
+            lock.unlock();
+            deviceManager_->CloseDevice(deviceId);
         }
     }
     // Notify clients outside the lock
@@ -436,6 +417,28 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
             req.callback->NotifyDeviceOpened(success, deviceInfo);
         }
     }
+}
+
+bool MidiServiceController::RegisterBleDeviceForPendingClientsLocked(const std::string &address, int64_t deviceId,
+    const std::list<PendingBleConnection> &waitingClients)
+{
+    activeBleDevices_[address] = deviceId;
+    std::unordered_set<int32_t> initialClients;
+    for (const auto &req : waitingClients) {
+        if (clients_.find(req.clientId) == clients_.end()) {
+            continue;
+        }
+        initialClients.insert(req.clientId);
+        clientResourceInfo_[req.clientId].openDevices.insert(deviceId);
+    }
+
+    if (initialClients.empty()) {
+        MIDI_WARNING_LOG("All waiting clients died before BLE connected.");
+        return false;
+    }
+    auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(initialClients));
+    deviceClientContexts_.emplace(deviceId, std::move(context));
+    return true;
 }
 
 int32_t MidiServiceController::OpenInputPort(
@@ -1200,28 +1203,22 @@ void MidiServiceController::DumpStatistics(std::string &dumpString)
 
     dumpString += "[Traffic Statistics]\n\n";
 
-    uint64_t totalInputEvents = 0;
-    uint64_t totalOutputEvents = 0;
-    uint64_t totalInputBytes = 0;
-    uint64_t totalOutputBytes = 0;
+    DeviceStatisticsTotals totals;
 
     dumpString += "Per-Device Statistics:\n";
     for (const auto &[deviceId, context] : deviceClientContexts_) {
-        DumpDeviceStatistics(dumpString, deviceId, context,
-            totalInputEvents, totalOutputEvents, totalInputBytes, totalOutputBytes);
+        DumpDeviceStatistics(dumpString, deviceId, context, totals);
     }
 
     dumpString += "System Totals:\n";
-    dumpString += "  Total Input Events: " + std::to_string(totalInputEvents) + "\n";
-    dumpString += "  Total Output Events: " + std::to_string(totalOutputEvents) + "\n";
-    dumpString += "  Total Input Bytes: " + std::to_string(totalInputBytes) + "\n";
-    dumpString += "  Total Output Bytes: " + std::to_string(totalOutputBytes) + "\n";
+    dumpString += "  Total Input Events: " + std::to_string(totals.inputEvents) + "\n";
+    dumpString += "  Total Output Events: " + std::to_string(totals.outputEvents) + "\n";
+    dumpString += "  Total Input Bytes: " + std::to_string(totals.inputBytes) + "\n";
+    dumpString += "  Total Output Bytes: " + std::to_string(totals.outputBytes) + "\n";
 }
 
 void MidiServiceController::DumpDeviceStatistics(std::string &dumpString, int64_t deviceId,
-    const std::shared_ptr<DeviceClientContext> &context,
-    uint64_t &totalInputEvents, uint64_t &totalOutputEvents,
-    uint64_t &totalInputBytes, uint64_t &totalOutputBytes)
+    const std::shared_ptr<DeviceClientContext> &context, DeviceStatisticsTotals &totals)
 {
     auto deviceInfo = deviceManager_->GetDeviceForDeviceId(deviceId);
     dumpString += "  Device " + std::to_string(deviceId) + " (" +
@@ -1253,10 +1250,10 @@ void MidiServiceController::DumpDeviceStatistics(std::string &dumpString, int64_
     dumpString += "    Input Bytes: " + std::to_string(deviceInputBytes) + "\n";
     dumpString += "    Output Bytes: " + std::to_string(deviceOutputBytes) + "\n\n";
 
-    totalInputEvents += deviceInputEvents;
-    totalOutputEvents += deviceOutputEvents;
-    totalInputBytes += deviceInputBytes;
-    totalOutputBytes += deviceOutputBytes;
+    totals.inputEvents += deviceInputEvents;
+    totals.outputEvents += deviceOutputEvents;
+    totals.inputBytes += deviceInputBytes;
+    totals.outputBytes += deviceOutputBytes;
 }
 
 #ifdef UNIT_TEST_SUPPORT
@@ -1270,6 +1267,8 @@ void MidiServiceController::ClearStateForTest()
     activeBleDevices_.clear();
     pendingBleConnections_.clear();
     clients_.clear();
+    clientResourceInfo_.clear();
+    appClientMap_.clear();
     deathRecipients_.clear();
     clientCallbackObjects_.clear();
     if (deviceManager_) {
