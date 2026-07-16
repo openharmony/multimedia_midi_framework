@@ -59,7 +59,8 @@ ohos_shared_library("midi_framework_interface") {
     deps = [ ":midi_service_idl_interface" ]
 
     external_deps = [
-        "c_utils:utils",
+        "bounds_checking_function:libsec_shared",
+    "c_utils:utils",
         "hilog:libhilog",
         "ipc:ipc_core",
         "ipc:ipc_single",

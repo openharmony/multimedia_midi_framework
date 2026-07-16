@@ -57,6 +57,7 @@ ohos_unittest("midi_service_client_unittest") {
 
   external_deps = [
     "common_event_service:cesfwk_innerkits",
+    "bounds_checking_function:libsec_shared",
     "c_utils:utils",
     "googletest:gmock",
     "googletest:gtest",

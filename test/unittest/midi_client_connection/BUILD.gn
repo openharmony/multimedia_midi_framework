@@ -46,6 +46,7 @@ ohos_unittest("midi_client_connection_unittest") {
   ]
 
   external_deps = [
+    "bounds_checking_function:libsec_shared",
     "c_utils:utils",
     "googletest:gmock",
     "googletest:gtest",
