@@ -43,6 +43,18 @@ constexpr uint32_t WRAP_READ_POSITION = 64;
 constexpr size_t MAX_PAYLOAD_WORDS = 32;
 constexpr size_t WRAP_PAYLOAD_WORDS = 19;
 constexpr uint32_t INVALID_RING_CAPACITY = 0x2000;
+constexpr size_t ENCRYPT_INPUT_LENGTH = 32;
+constexpr size_t SHARED_MEMORY_SIZE = 128;
+constexpr size_t CORRUPTED_WRITE_POSITION_HEADER_COUNT = 2;
+constexpr uint32_t CORRUPTED_WRAP_SEQUENCE = 13;
+constexpr uint32_t CLIENT_ID = 1;
+constexpr int64_t CLIENT_DEVICE_HANDLE = 2;
+constexpr uint32_t CLIENT_PORT_INDEX = 3;
+constexpr uint32_t FIRST_CLIENT_ID = 11;
+constexpr uint32_t SECOND_CLIENT_ID = 12;
+constexpr uint32_t MISSING_CLIENT_ID = 99;
+constexpr int64_t FIRST_DEVICE_HANDLE = 21;
+constexpr int64_t SECOND_DEVICE_HANDLE = 22;
 
 std::vector<uint32_t> ConsumePayload(FuzzedDataProvider &fdp)
 {
@@ -69,7 +81,7 @@ void ExerciseMidiUtils(FuzzedDataProvider &fdp)
     uint64_t timestamp = fdp.ConsumeIntegral<uint64_t>();
     (void)ClockTime::GetCurNano();
     (void)GetEncryptStr("");
-    (void)GetEncryptStr(fdp.ConsumeRandomLengthString(32));
+    (void)GetEncryptStr(fdp.ConsumeRandomLengthString(ENCRYPT_INPUT_LENGTH));
     (void)GetEncryptStr("AA:BB:CC:DD:EE:FF");
     (void)BytesToString(fdp.ConsumeIntegral<uint32_t>());
     (void)DumpOneEvent(timestamp, 0, nullptr);
@@ -90,7 +102,7 @@ void ExerciseMidiUtils(FuzzedDataProvider &fdp)
 
     UniqueFd first(::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC));
     UniqueFd second(std::move(first));
-    UniqueFd third;
+    UniqueFd third(-1);
     third = std::move(second);
     third.Reset();
 }
@@ -98,12 +110,12 @@ void ExerciseMidiUtils(FuzzedDataProvider &fdp)
 void ExerciseSharedMemory()
 {
     (void)MidiSharedMemory::CreateFromLocal(0, "midi_fuzz_invalid");
-    (void)MidiSharedMemory::CreateFromRemote(STDERR_FILENO, 128, "invalid_remote");
+    (void)MidiSharedMemory::CreateFromRemote(STDERR_FILENO, SHARED_MEMORY_SIZE, "invalid_remote");
 
     MessageParcel emptyParcel;
     delete MidiSharedMemory::Unmarshalling(emptyParcel);
 
-    auto memory = MidiSharedMemory::CreateFromLocal(128, "midi_fuzz_memory");
+    auto memory = MidiSharedMemory::CreateFromLocal(SHARED_MEMORY_SIZE, "midi_fuzz_memory");
     if (!memory) {
         return;
     }
@@ -162,7 +174,7 @@ void ExerciseRingControlGuards(MidiSharedRing &ring, const MidiEventInner &event
     ring.Flush();
 
     MidiSharedRing::PeekedEvent peeked{};
-    control->writePosition.store(sizeof(ShmMidiEventHeader) * 2);
+    control->writePosition.store(sizeof(ShmMidiEventHeader) * CORRUPTED_WRITE_POSITION_HEADER_COUNT);
     (void)ring.PeekNext(peeked);
     ring.Flush();
 }
@@ -252,7 +264,7 @@ void ExerciseRingSequenceGuards()
     (void)ring.PeekNext(peeked);
     ring.Flush();
 
-    control->writePosition.store(sizeof(ShmMidiEventHeader) * 2);
+    control->writePosition.store(sizeof(ShmMidiEventHeader) * CORRUPTED_WRITE_POSITION_HEADER_COUNT);
     (void)ring.PeekNext(peeked);
     ring.Flush();
 }
@@ -278,7 +290,7 @@ void ExerciseRingWrap()
     }
 
     auto *wrapHeader = reinterpret_cast<ShmMidiEventHeader *>(base + wrapOffset);
-    wrapHeader->sequence.store(13, std::memory_order_relaxed);
+    wrapHeader->sequence.store(CORRUPTED_WRAP_SEQUENCE, std::memory_order_relaxed);
     control->readPosition.store(WRAP_READ_POSITION);
     std::vector<uint32_t> secondPayload{0x22, 0x33};
     MidiEventInner secondEvent = MakeEvent(20, secondPayload);
@@ -306,13 +318,16 @@ void FillRingWithoutNotification(const std::shared_ptr<MidiSharedRing> &ring, co
     if (!ring) {
         return;
     }
-    while (ring->TryWriteEvent(event, false) == MidiStatusCode::OK) {
+    for (uint32_t attempt = 0; attempt < ring->GetCapacity(); ++attempt) {
+        if (ring->TryWriteEvent(event, false) != MidiStatusCode::OK) {
+            break;
+        }
     }
 }
 
 void ExerciseClientConnection(FuzzedDataProvider &fdp)
 {
-    ClientConnectionInServer client(1, 2, 3);
+    ClientConnectionInServer client(CLIENT_ID, CLIENT_DEVICE_HANDLE, CLIENT_PORT_INDEX);
     (void)client.GetClientId();
     (void)client.GetDeviceHandle();
     (void)client.GetPortIndex();
@@ -348,10 +363,10 @@ void ExerciseInputConnection(FuzzedDataProvider &fdp)
 
     std::shared_ptr<MidiSharedRing> firstRing;
     std::shared_ptr<MidiSharedRing> secondRing;
-    (void)connection.AddClientConnection(11, 21, firstRing);
-    (void)connection.AddClientConnection(12, 22, secondRing);
-    (void)connection.HasClientConnection(11);
-    (void)connection.HasClientConnection(99);
+    (void)connection.AddClientConnection(FIRST_CLIENT_ID, FIRST_DEVICE_HANDLE, firstRing);
+    (void)connection.AddClientConnection(SECOND_CLIENT_ID, SECOND_DEVICE_HANDLE, secondRing);
+    (void)connection.HasClientConnection(FIRST_CLIENT_ID);
+    (void)connection.HasClientConnection(MISSING_CLIENT_ID);
     (void)connection.GetConnectedClientIds();
 
     auto firstPayload = ConsumePayload(fdp);
@@ -366,10 +381,10 @@ void ExerciseInputConnection(FuzzedDataProvider &fdp)
     connection.ResetStats();
     (void)connection.GetStats();
 
-    connection.RemoveClientConnection(11);
-    connection.RemoveClientConnection(99);
+    connection.RemoveClientConnection(FIRST_CLIENT_ID);
+    connection.RemoveClientConnection(MISSING_CLIENT_ID);
     (void)connection.IsEmptyClientConnections();
-    connection.RemoveClientConnection(12);
+    connection.RemoveClientConnection(SECOND_CLIENT_ID);
     (void)connection.IsEmptyClientConnections();
 }
 } // namespace
