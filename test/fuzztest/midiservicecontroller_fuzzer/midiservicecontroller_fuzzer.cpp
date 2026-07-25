@@ -30,6 +30,7 @@
 
 #include "accesstoken_kit.h"
 #include "iremote_object.h"
+#include "midi_core_coverage_scenarios.h"
 #include "midi_info.h"
 #include "midi_service_controller.h"
 #include "midi_device_driver.h"
@@ -258,9 +259,10 @@ private:
 void CreateMidiInServer(FuzzedDataProvider &fdp)
 {
     sptr<MidiServiceCallbackFuzzer> callback = new MidiServiceCallbackFuzzer();
+    sptr<IRemoteObject> callbackObject = fdp.ConsumeBool() ? nullptr : callback->AsObject();
     sptr<IRemoteObject> clientObj;
     uint32_t clientId = 0;
-    int32_t ret = midiServiceController_->CreateMidiInServer(callback->AsObject(), clientObj, clientId);
+    int32_t ret = midiServiceController_->CreateMidiInServer(callbackObject, clientObj, clientId);
     if (ret == OH_MIDI_STATUS_OK) {
         ClientContext ctx;
         ctx.clientId = clientId;
@@ -529,11 +531,6 @@ void ExerciseDeterministicCoverage(FuzzedDataProvider &fdp)
     ExerciseBleLifecycle();
 }
 
-void GetDevices(FuzzedDataProvider &fdp)
-{
-    midiServiceController_->GetDevices();
-}
-
 void GetDevicePorts(FuzzedDataProvider &fdp)
 {
     CHECK_AND_RETURN(!activeDevices_.empty());
@@ -720,6 +717,7 @@ void MidiServiceControllerInit()
 
 void MidiServiceControllerTest(const uint8_t *data, size_t size)
 {
+    RunMidiCoreCoverageScenarios(data, size);
     CHECK_AND_RETURN_LOG(midiServiceController_ != nullptr, "midiServiceController_ is nullptr");
     FuzzedDataProvider fdp(data, size);
     ExerciseDeterministicCoverage(fdp);
@@ -727,7 +725,6 @@ void MidiServiceControllerTest(const uint8_t *data, size_t size)
     while (fdp.remaining_bytes() > 0) {
         auto func = fdp.PickValueInArray({
             CreateMidiInServer,
-            GetDevices,
             GetDevicePorts,
             OpenDevice,
             OpenInputPort,

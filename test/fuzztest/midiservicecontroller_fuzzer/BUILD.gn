@@ -36,7 +36,10 @@ ohos_fuzztest("MidiServiceControllerFuzzTest") {
     "-fno-access-control",
   ]
 
-  sources = [ "midiservicecontroller_fuzzer.cpp" ]
+  sources = [
+    "midi_core_coverage_scenarios.cpp",
+    "midiservicecontroller_fuzzer.cpp",
+  ]
 
   deps = [
     "${midi_framework_root}/services/idl:midi_framework_interface",
