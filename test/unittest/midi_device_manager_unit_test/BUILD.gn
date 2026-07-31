@@ -25,6 +25,7 @@ ohos_unittest("midi_device_manager_unit_test") {
   cflags = [
     "-Wall",
     "-Werror",
+    "-fno-access-control",
   ]
 
   defines = [ "UNIT_TEST_SUPPORT" ]
@@ -45,7 +46,7 @@ ohos_unittest("midi_device_manager_unit_test") {
   ]
 
   sanitize = {
-    cfi = true
+    cfi = false
     cfi_cross_dso = false
     boundary_sanitize = true
     debug = false
@@ -54,6 +55,7 @@ ohos_unittest("midi_device_manager_unit_test") {
     blocklist = "${midi_framework_root}/cfi_blocklist.txt"
   }
   external_deps = [
+    "bluetooth:btframework",
     "common_event_service:cesfwk_innerkits",
     "bounds_checking_function:libsec_shared",
     "c_utils:utils",

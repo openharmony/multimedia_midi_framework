@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <vector>
 #include <cstdint>
 #include "ble_midi_encoder.h"
@@ -317,4 +318,36 @@ HWTEST_F(BleMidiEncoderUnitTest, NanosecondToMillisecondConversion, TestSize.Lev
     int64_t maxNs = 8191000000;
     uint16_t ts3 = static_cast<uint16_t>(static_cast<uint64_t>(maxNs / 1000000) & 0x1FFF);
     EXPECT_EQ(ts3, 8191u);
+}
+
+/**
+ * @tc.name: EncodeEventsBranchMatrix
+ * @tc.desc: Cover multi-event encoding, skipped empty events, first-header, and repeated status timestamps.
+ * @tc.type: FUNC
+ */
+HWTEST_F(BleMidiEncoderUnitTest, EncodeEventsBranchMatrix, TestSize.Level1)
+{
+    using Event = std::pair<std::vector<uint8_t>, uint16_t>;
+    EXPECT_TRUE(BleMidiPacketEncoder::EncodeEvents({}).empty());
+    EXPECT_TRUE(BleMidiPacketEncoder::EncodeEvents({
+        Event {{}, 1},
+        Event {{}, 2},
+    }).empty());
+
+    std::vector<Event> events {
+        Event {{}, 1},
+        Event {{0x90, 0x3C, 0x40, 0xF8}, 8191},
+        Event {{0x80, 0x3C, 0x00}, 8192},
+        Event {{}, 3},
+    };
+    auto encoded = BleMidiPacketEncoder::EncodeEvents(events);
+    ASSERT_FALSE(encoded.empty());
+    EXPECT_EQ(encoded.front(), 0xBF);
+    EXPECT_EQ(std::count(encoded.begin(), encoded.end(), 0xFF), 2);
+
+    uint8_t dataFirst[] = {0x01, 0x90, 0x02};
+    encoded = BleMidiPacketEncoder::EncodeEvent(dataFirst, sizeof(dataFirst), 0);
+    ASSERT_EQ(encoded.size(), 6u);
+    EXPECT_EQ(encoded[3], 0x80);
+    EXPECT_EQ(encoded[4], 0x90);
 }

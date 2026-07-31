@@ -25,6 +25,7 @@ ohos_unittest("midi_service_controller_unit_test") {
   cflags = [
     "-Wall",
     "-Werror",
+    "-fno-access-control",
   ]
 
   defines = [

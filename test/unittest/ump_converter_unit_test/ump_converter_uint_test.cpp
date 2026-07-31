@@ -618,3 +618,89 @@ HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_IncompletePacket, TestSize.Le
     EXPECT_EQ(packets.size(), 1u);
     EXPECT_EQ(packets[0].first[0], 0x20903C64u);
 }
+
+/**
+ * @tc.name: TestPrivateConversionHelperBranchMatrix
+ * @tc.desc: Cover conversion helper boundaries and invalid packet counts.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestPrivateConversionHelperBranchMatrix, TestSize.Level1)
+{
+    constexpr uint32_t BYTE_WORD = 0xFEDCBA98;
+    EXPECT_EQ(UmpConverter::Byte3(BYTE_WORD), 0xFE);
+    EXPECT_EQ(UmpConverter::Byte2(BYTE_WORD), 0xDC);
+    EXPECT_EQ(UmpConverter::Byte1(BYTE_WORD), 0xBA);
+    EXPECT_EQ(UmpConverter::Byte0(BYTE_WORD), 0x98);
+    EXPECT_EQ(UmpConverter::MessageType(BYTE_WORD), 0x0F);
+    EXPECT_EQ(UmpConverter::Group(BYTE_WORD), 0x0E);
+    EXPECT_EQ(UmpConverter::U7ToU32(0x7F), 0xFE000000u);
+    EXPECT_EQ(UmpConverter::U14ToU32(0x3FFF), 0xFFFC0000u);
+    EXPECT_EQ(UmpConverter::U32ToU7(0xFEFFFFFFu), 0x7F);
+    EXPECT_EQ(UmpConverter::U32ToU14(0xFFFDFFFFu), 0x3FFF);
+
+    std::vector<uint32_t> output;
+    uint32_t input[] = {0x10F80000, 0};
+    EXPECT_FALSE(UmpConverter::ConvertOne(
+        UmpConverter::Direction::Midi1ToMidi2, nullptr, 1, output));
+    EXPECT_FALSE(UmpConverter::ConvertOne(
+        UmpConverter::Direction::Midi1ToMidi2, input, 0, output));
+    EXPECT_FALSE(UmpConverter::ConvertOne(
+        UmpConverter::Direction::Midi1ToMidi2, input, 2, output));
+    EXPECT_TRUE(UmpConverter::ConvertOne(
+        UmpConverter::Direction::Midi1ToMidi2, input, 1, output));
+
+    uint32_t sysex[] = {0x30000000, 0};
+    EXPECT_FALSE(UmpConverter::ConvertOne(
+        UmpConverter::Direction::Midi1ToMidi2, sysex, 1, output));
+    EXPECT_TRUE(UmpConverter::ConvertOne(
+        UmpConverter::Direction::Midi1ToMidi2, sysex, 2, output));
+
+    UmpConverter::Midi2ChannelVoiceMsg midi2 {};
+    midi2.group = 0xFF;
+    midi2.statusNibble = 0xFF;
+    midi2.channel = 0xFF;
+    midi2.data1 = 0xFF;
+    midi2.data2 = 0xFF;
+    midi2.value32 = 0xFFFFFFFF;
+    UmpConverter::PushMidi2ChannelVoice(output, midi2);
+
+    UmpConverter::Midi1ChannelVoiceMsg midi1 {};
+    midi1.group = 0xFF;
+    midi1.statusByte = 0xFF;
+    midi1.data1 = 0xFF;
+    midi1.data2 = 0xFF;
+    UmpConverter::PushMidi1ChannelVoice(output, midi1);
+
+    EXPECT_FALSE(UmpConverter::ConvertMidi1ChannelVoiceToMidi2(input, 2, output));
+    EXPECT_FALSE(UmpConverter::ConvertMidi2ChannelVoiceToMidi1(input, 1, output));
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0000000), 2u);
+    EXPECT_EQ(UmpConverter::GetUmpWordCount(0xD0800000), 4u);
+    EXPECT_FALSE(output.empty());
+}
+
+/**
+ * @tc.name: TestPrivateChannelStatusBranchMatrix
+ * @tc.desc: Cover all supported and unsupported channel status variants.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpConverterUnitTest, TestPrivateChannelStatusBranchMatrix, TestSize.Level1)
+{
+    constexpr uint8_t MIN_CHANNEL_STATUS = 0x08;
+    constexpr uint8_t MAX_CHANNEL_STATUS = 0x0E;
+    std::vector<uint32_t> output;
+    UmpConverter::Midi2ChannelVoiceMsg midi2 {};
+    UmpConverter::Midi1ChannelVoiceMsg midi1 {};
+    for (uint8_t status = MIN_CHANNEL_STATUS; status <= MAX_CHANNEL_STATUS; ++status) {
+        midi2.statusNibble = status;
+        EXPECT_TRUE(UmpConverter::ConvertMidi1ChannelVoiceToMidi2Inner(
+            status, 0xFF, 0xFF, midi2, output));
+        midi1.statusByte = static_cast<uint8_t>(status << 4);
+        EXPECT_TRUE(UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(
+            status, 0xFF, 0xFEFFFFFF, midi1, output));
+    }
+    EXPECT_FALSE(UmpConverter::ConvertMidi1ChannelVoiceToMidi2Inner(
+        0x07, 0, 0, midi2, output));
+    EXPECT_FALSE(UmpConverter::ConvertMidi2ChannelVoiceToMidi1Inner(
+        0x07, 0, 0, midi1, output));
+    EXPECT_FALSE(output.empty());
+}

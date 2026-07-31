@@ -15,6 +15,8 @@
 #include "midi_device_driver.h"
 #include "midi_device_mananger.h"
 #include "midi_info.h"
+#include "midi_device_open_callback_stub.h"
+#include "midi_in_server.h"
 #include "midi_service_controller.h"
 #include "midi_test_common.h"
 #include <gmock/gmock.h>
@@ -25,13 +27,37 @@ using namespace MIDI;
 using namespace testing;
 using namespace testing::ext;
 
+class RecordingMidiDeviceOpenCallbackStub : public MidiDeviceOpenCallbackStub {
+public:
+    int32_t NotifyDeviceOpened(bool success, const MidiDeviceInfo &deviceInfo) override
+    {
+        callCount++;
+        lastSuccess = success;
+        lastDevice = deviceInfo;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int callCount = 0;
+    bool lastSuccess = false;
+    MidiDeviceInfo lastDevice;
+};
+
+class RejectDeathRecipientMidiCallbackStub : public MockMidiCallbackStub {
+public:
+    bool AddDeathRecipient(const sptr<DeathRecipient> &) override
+    {
+        return false;
+    }
+};
+
 class MidiServiceControllerUnitTest : public testing::Test {
 public:
     void SetUp() override
     {
         controller_ = MidiServiceController::GetInstance();
-        // Set unload delay to 0 for fast test execution
-        controller_->SetUnloadDelay(0);
+        // Keep the worker pending until TearDown cancels and joins it. A zero delay can
+        // finish before cancellation while leaving std::thread joinable.
+        controller_->SetUnloadDelay(10000);
         mockDriver_ = std::make_unique<NiceMock<MockMidiDeviceDriver>>();
         rawMockDriver_ = mockDriver_.get();
         // Use test helper to inject mock driver
@@ -69,6 +95,12 @@ public:
         port.name = "Test Port";
         info.portInfos.push_back(port);
 
+        MidiPortInfo outputPort;
+        outputPort.portId = 1;
+        outputPort.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+        outputPort.name = "Output Port";
+        info.portInfos.push_back(outputPort);
+
         std::vector<DeviceInformation> devices = {info};
 
         EXPECT_CALL(*rawMockDriver_, GetRegisteredDevices).WillOnce(Return(devices));
@@ -89,6 +121,104 @@ protected:
     sptr<MockMidiCallbackStub> mockCallback_;
     uint32_t clientId_ = 0;
 };
+
+/**
+ * @tc.name: CallbackSlotLifecycleBranches001
+ * @tc.desc: Verify callback-slot acquire, move, release, close, and empty branches.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CallbackSlotLifecycleBranches001, TestSize.Level0)
+{
+    auto callback = std::make_shared<NiceMock<MockMidiServiceCallback>>();
+    CallbackSlot slot(callback);
+
+    auto first = slot.Acquire();
+    ASSERT_TRUE(first);
+    CallbackSlot::Guard moved(std::move(first));
+    EXPECT_FALSE(first);
+    CallbackSlot::Guard assigned {};
+    assigned = std::move(moved);
+    CallbackSlot::Guard *sameGuard = &assigned;
+    assigned = std::move(*sameGuard);
+    EXPECT_TRUE(assigned);
+
+    slot.closing_ = true;
+    assigned = CallbackSlot::Guard();
+    EXPECT_EQ(slot.activeCallbacks_, 0);
+    slot.CloseAndDrain();
+    EXPECT_FALSE(slot.Acquire());
+
+    CallbackSlot emptySlot(nullptr);
+    EXPECT_FALSE(emptySlot.Acquire());
+    emptySlot.CloseAndDrain();
+    emptySlot.CloseAndDrain();
+
+    auto activeSlot = std::make_unique<CallbackSlot>(callback);
+    activeSlot->activeCallbacks_ = 1;
+    activeSlot.reset();
+
+    CallbackSlot destroyedSlot(callback);
+    auto destroyedGuard = destroyedSlot.Acquire();
+    destroyedSlot.destroyed_.store(true);
+    destroyedGuard = CallbackSlot::Guard();
+
+    CallbackSlot multiGuardSlot(callback);
+    auto guardOne = multiGuardSlot.Acquire();
+    auto guardTwo = multiGuardSlot.Acquire();
+    multiGuardSlot.closing_ = true;
+    guardOne = CallbackSlot::Guard();
+    EXPECT_EQ(multiGuardSlot.activeCallbacks_, 1);
+    guardTwo = CallbackSlot::Guard();
+    EXPECT_EQ(multiGuardSlot.activeCallbacks_, 0);
+}
+
+/**
+ * @tc.name: MidiInServerCallbackBranches001
+ * @tc.desc: Verify callback delivery, BLE classification, permission refresh, and closed-callback guards.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, MidiInServerCallbackBranches001, TestSize.Level0)
+{
+    auto callback = std::make_shared<NiceMock<MockMidiServiceCallback>>();
+    MidiInServer server(9101, callback);
+
+    MidiDeviceInfo usbDevice;
+    usbDevice.deviceType = DeviceType::DEVICE_TYPE_USB;
+    MidiDeviceInfo bleDevice;
+    bleDevice.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    EXPECT_FALSE(server.IsBluetoothDevice(usbDevice));
+    EXPECT_TRUE(server.IsBluetoothDevice(bleDevice));
+
+    EXPECT_CALL(*callback, NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR)).Times(1);
+    server.NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    server.callerTokenId_ = 0;
+    EXPECT_CALL(*callback, NotifyDeviceChange(DeviceChangeType::ADD, _)).Times(1);
+    server.NotifyDeviceChange(DeviceChangeType::ADD, usbDevice);
+    server.NotifyDeviceChange(DeviceChangeType::ADD, bleDevice);
+    server.UpdateBluetoothPermission(true);
+    server.UpdateBluetoothPermission(false);
+
+    DeviceInformation usbInfo;
+    usbInfo.midiDeviceInfo.deviceId = 9201;
+    usbInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+    DeviceInformation bleInfo;
+    bleInfo.midiDeviceInfo.deviceId = 9202;
+    bleInfo.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    auto manager = controller_->GetDeviceManagerForTest();
+    manager->devices_ = {usbInfo, bleInfo};
+    std::vector<MidiDeviceInfo> devices;
+    EXPECT_EQ(server.GetDevices(devices), OH_MIDI_STATUS_OK);
+    EXPECT_FALSE(devices.empty());
+
+    sptr<IRemoteObject> object;
+    EXPECT_NE(server.OpenBleDevice("invalid", object), OH_MIDI_STATUS_OK);
+
+    server.ClearCallback();
+    server.NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR);
+    server.NotifyDeviceChange(DeviceChangeType::ADD, usbDevice);
+    server.ClearCallback();
+}
 
 /**
  * @tc.name: CreateClient001
@@ -1104,4 +1234,576 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseDevice_PortNotOwnedByClient, TestSi
 
     // Cleanup
     controller_->DestroyMidiClient(clientId2);
+}
+
+/**
+ * @tc.name: CreateClientValidationAndLimits001
+ * @tc.desc: Verify invalid callback, death-recipient failure, ID rollover, and client limits
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CreateClientValidationAndLimits001, TestSize.Level0)
+{
+    sptr<IRemoteObject> clientObj;
+    uint32_t newClientId = 0;
+    sptr<IRemoteObject> nullObject;
+    EXPECT_EQ(controller_->CreateMidiInServer(nullObject, clientObj, newClientId), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    sptr<RecordingMidiDeviceOpenCallbackStub> wrongInterface =
+        sptr<RecordingMidiDeviceOpenCallbackStub>::MakeSptr();
+    ASSERT_NE(wrongInterface, nullptr);
+    EXPECT_EQ(controller_->CreateMidiInServer(wrongInterface->AsObject(), clientObj, newClientId),
+        OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    sptr<RejectDeathRecipientMidiCallbackStub> rejectingCallback =
+        sptr<RejectDeathRecipientMidiCallbackStub>::MakeSptr();
+    ASSERT_NE(rejectingCallback, nullptr);
+    EXPECT_EQ(controller_->CreateMidiInServer(rejectingCallback->AsObject(), clientObj, newClientId),
+        OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    MidiServiceController::currentClientId_.store(UINT32_MAX);
+    sptr<MockMidiCallbackStub> secondCallback = new MockMidiCallbackStub();
+    ASSERT_EQ(controller_->CreateMidiInServer(secondCallback->AsObject(), clientObj, newClientId), OH_MIDI_STATUS_OK);
+    EXPECT_NE(newClientId, clientId_);
+
+    sptr<MockMidiCallbackStub> thirdCallback = new MockMidiCallbackStub();
+    uint32_t rejectedClientId = 0;
+    EXPECT_EQ(controller_->CreateMidiInServer(thirdCallback->AsObject(), clientObj, rejectedClientId),
+        OH_MIDI_STATUS_TOO_MANY_CLIENTS);
+    ASSERT_EQ(controller_->DestroyMidiClient(newClientId), OH_MIDI_STATUS_OK);
+
+    for (uint32_t id = 100; controller_->clients_.size() < MidiServiceController::MAX_CLIENTS; ++id) {
+        controller_->clients_[id] = nullptr;
+    }
+    EXPECT_EQ(controller_->CreateMidiInServer(thirdCallback->AsObject(), clientObj, rejectedClientId),
+        OH_MIDI_STATUS_TOO_MANY_CLIENTS);
+}
+
+/**
+ * @tc.name: ResourceLimitBranches001
+ * @tc.desc: Verify device and port limits, including defensive existing-port helpers
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, ResourceLimitBranches001, TestSize.Level0)
+{
+    constexpr int64_t driverId = 1200;
+    const int64_t deviceId = SimulateDeviceConnection(driverId, "Limit Device");
+
+    auto &resource = controller_->clientResourceInfo_[clientId_];
+    for (uint32_t index = 0; index < MidiServiceController::MAX_DEVICES_PER_CLIENT; ++index) {
+        resource.openDevices.insert(10000 + index);
+    }
+    EXPECT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES);
+    resource.openDevices.clear();
+
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 0, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> inputBuffer;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, inputBuffer, deviceId, 0), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(driverId, 1)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> outputBuffer;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId_, outputBuffer, deviceId, 1), OH_MIDI_STATUS_OK);
+
+    resource.openPortCount = MidiServiceController::MAX_PORTS_PER_CLIENT;
+    EXPECT_EQ(controller_->OpenInputPort(clientId_, inputBuffer, deviceId, 2), OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS);
+    EXPECT_EQ(controller_->OpenOutputPort(clientId_, outputBuffer, deviceId, 2), OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS);
+
+    auto context = controller_->deviceClientContexts_.at(deviceId);
+    MidiServiceController::ClientResourceInfo defensiveResource {};
+    defensiveResource.openPortCount = MidiServiceController::MAX_PORTS_PER_CLIENT;
+    std::shared_ptr<MidiSharedRing> defensiveBuffer;
+    EXPECT_EQ(controller_->ConnectToExistingInputPort(
+        999, deviceId, defensiveBuffer, context->inputDeviceconnections_.at(0), defensiveResource),
+        OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS);
+    EXPECT_EQ(controller_->ConnectToExistingOutputPort(
+        999, deviceId, defensiveBuffer, context->outputDeviceconnections_.at(1), defensiveResource),
+        OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS);
+}
+
+/**
+ * @tc.name: DumpPopulatedState001
+ * @tc.desc: Verify dump branches for multiple clients, active/inactive ports, and traffic totals
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, DumpPopulatedState001, TestSize.Level0)
+{
+    constexpr int64_t driverId = 1300;
+    const int64_t deviceId = SimulateDeviceConnection(driverId, "Dump Device");
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> callback2 = new MockMidiCallbackStub();
+    ASSERT_EQ(controller_->CreateMidiInServer(callback2->AsObject(), clientObj, clientId2), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenDevice(clientId2, deviceId), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 0, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> inputBuffer1;
+    std::shared_ptr<MidiSharedRing> inputBuffer2;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, inputBuffer1, deviceId, 0), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenInputPort(clientId2, inputBuffer2, deviceId, 0), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenInputPort(driverId, 5, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> unnamedInputBuffer;
+    ASSERT_EQ(controller_->OpenInputPort(clientId_, unnamedInputBuffer, deviceId, 5), OH_MIDI_STATUS_OK);
+
+    EXPECT_CALL(*rawMockDriver_, OpenOutputPort(driverId, 1)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    std::shared_ptr<MidiSharedRing> outputBuffer1;
+    std::shared_ptr<MidiSharedRing> outputBuffer2;
+    ASSERT_EQ(controller_->OpenOutputPort(clientId_, outputBuffer1, deviceId, 1), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenOutputPort(clientId2, outputBuffer2, deviceId, 1), OH_MIDI_STATUS_OK);
+
+    auto context = controller_->deviceClientContexts_.at(deviceId);
+    context->inputDeviceconnections_[99] = nullptr;
+    context->outputDeviceconnections_[99] = nullptr;
+
+    std::string dump;
+    controller_->DumpClientInfo(dump);
+    controller_->DumpDeviceOpenStatus(dump, -1);
+    controller_->DumpDeviceOpenStatus(dump, deviceId);
+    controller_->DumpPortMapping(dump);
+    controller_->DumpStatistics(dump);
+    controller_->DumpSingleClientInfo(dump, 99999);
+
+    EXPECT_NE(dump.find("[Client Information]"), std::string::npos);
+    EXPECT_NE(dump.find("Opened by 2 client(s)"), std::string::npos);
+    EXPECT_NE(dump.find("inactive"), std::string::npos);
+    EXPECT_NE(dump.find("System Totals"), std::string::npos);
+
+    context->inputDeviceconnections_.erase(99);
+    context->outputDeviceconnections_.erase(99);
+    ASSERT_EQ(controller_->DestroyMidiClient(clientId2), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: BleQueueAndSuccessCompletion001
+ * @tc.desc: Verify BLE pending queues, successful attach, and active-device reuse
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, BleQueueAndSuccessCompletion001, TestSize.Level0)
+{
+    auto bleDriver = std::make_unique<NiceMock<MockMidiDeviceDriver>>();
+    auto *rawBleDriver = bleDriver.get();
+    controller_->GetDeviceManagerForTest()->InjectDriverForTest(
+        DeviceType::DEVICE_TYPE_BLE, std::move(bleDriver));
+
+    uint32_t clientId2 = 0;
+    sptr<IRemoteObject> clientObj;
+    sptr<MockMidiCallbackStub> callback2 = new MockMidiCallbackStub();
+    ASSERT_EQ(controller_->CreateMidiInServer(callback2->AsObject(), clientObj, clientId2), OH_MIDI_STATUS_OK);
+
+    sptr<RecordingMidiDeviceOpenCallbackStub> openCallback1 =
+        sptr<RecordingMidiDeviceOpenCallbackStub>::MakeSptr();
+    sptr<RecordingMidiDeviceOpenCallbackStub> openCallback2 =
+        sptr<RecordingMidiDeviceOpenCallbackStub>::MakeSptr();
+    ASSERT_NE(openCallback1, nullptr);
+    ASSERT_NE(openCallback2, nullptr);
+
+    BleDriverCallback successCallback;
+    EXPECT_CALL(*rawBleDriver, OpenDevice(_, _))
+        .WillOnce(DoAll(SaveArg<1>(&successCallback), Return(OH_MIDI_STATUS_OK)));
+    const std::string address = "11:22:33:44:55:66";
+    ASSERT_EQ(controller_->OpenBleDevice(clientId_, address, openCallback1->AsObject()), OH_MIDI_STATUS_OK);
+    ASSERT_EQ(controller_->OpenBleDevice(clientId2, address, openCallback2->AsObject()), OH_MIDI_STATUS_OK);
+
+    DeviceInformation bleDevice;
+    bleDevice.midiDeviceInfo.driverDeviceId = 1400;
+    bleDevice.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    bleDevice.midiDeviceInfo.deviceName = "BLE Dump Device";
+    ASSERT_TRUE(static_cast<bool>(successCallback));
+    successCallback(true, bleDevice);
+    EXPECT_EQ(openCallback1->callCount, 1);
+    EXPECT_EQ(openCallback2->callCount, 1);
+    EXPECT_TRUE(openCallback1->lastSuccess);
+
+    ASSERT_EQ(controller_->OpenBleDevice(clientId_, address, openCallback1->AsObject()), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(openCallback1->callCount, 2);
+    ASSERT_EQ(controller_->DestroyMidiClient(clientId2), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: BleFailureCompletionAndCleanup001
+ * @tc.desc: Verify BLE failure callback, immediate error, and stale pending-client cleanup
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, BleFailureCompletionAndCleanup001, TestSize.Level0)
+{
+    auto bleDriver = std::make_unique<NiceMock<MockMidiDeviceDriver>>();
+    auto *rawBleDriver = bleDriver.get();
+    controller_->GetDeviceManagerForTest()->InjectDriverForTest(
+        DeviceType::DEVICE_TYPE_BLE, std::move(bleDriver));
+    sptr<RecordingMidiDeviceOpenCallbackStub> openCallback =
+        sptr<RecordingMidiDeviceOpenCallbackStub>::MakeSptr();
+    ASSERT_NE(openCallback, nullptr);
+    BleDriverCallback failureCallback;
+    EXPECT_CALL(*rawBleDriver, OpenDevice(_, _))
+        .WillOnce(DoAll(SaveArg<1>(&failureCallback), Return(OH_MIDI_STATUS_OK)));
+    ASSERT_EQ(controller_->OpenBleDevice(clientId_, "failure-address", openCallback->AsObject()),
+        OH_MIDI_STATUS_OK);
+    ASSERT_TRUE(static_cast<bool>(failureCallback));
+    DeviceInformation failedBleDevice;
+    failedBleDevice.midiDeviceInfo.driverDeviceId = 2400;
+    failedBleDevice.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    failureCallback(false, failedBleDevice);
+    EXPECT_EQ(openCallback->callCount, 1);
+    EXPECT_FALSE(openCallback->lastSuccess);
+
+    EXPECT_CALL(*rawBleDriver, OpenDevice(_, _)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(controller_->OpenBleDevice(clientId_, "immediate-error", openCallback->AsObject()),
+        OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(controller_->pendingBleConnections_.count("immediate-error"), 0);
+
+    MidiDeviceInfo unused;
+    controller_->activeBleDevices_["orphan-active"] = 99999;
+    EXPECT_FALSE(controller_->TryAttachToActiveBleDevice(clientId_, "orphan-active", unused));
+    controller_->activeBleDevices_.erase("orphan-active");
+
+    std::list<PendingBleConnection> deadClients = {{99999, openCallback}};
+    EXPECT_FALSE(controller_->RegisterBleDeviceForPendingClientsLocked("dead", 99998, deadClients));
+    controller_->activeBleDevices_.erase("dead");
+
+    controller_->pendingBleConnections_["null-callback"].push_back({clientId_, nullptr});
+    controller_->HandleBleOpenComplete("null-callback", false, 0, unused);
+}
+
+/**
+ * @tc.name: PortValidationMatrix001
+ * @tc.desc: Verify invalid client, device ownership, and absent-port branches for port APIs
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, PortValidationMatrix001, TestSize.Level0)
+{
+    std::shared_ptr<MidiSharedRing> buffer;
+    constexpr uint32_t invalidClientId = 99999;
+    constexpr int64_t deviceId = 3100;
+
+    EXPECT_EQ(controller_->OpenInputPort(invalidClientId, buffer, deviceId, 0), OH_MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(controller_->OpenOutputPort(invalidClientId, buffer, deviceId, 0), OH_MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(controller_->FlushOutputPort(invalidClientId, deviceId, 0), OH_MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(controller_->CloseInputPort(invalidClientId, deviceId, 0), OH_MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(controller_->CloseOutputPort(invalidClientId, deviceId, 0), OH_MIDI_STATUS_INVALID_CLIENT);
+
+    EXPECT_EQ(controller_->FlushOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_INVALID_DEVICE_HANDLE);
+    EXPECT_EQ(controller_->CloseInputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_INVALID_DEVICE_HANDLE);
+    EXPECT_EQ(controller_->CloseOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_INVALID_DEVICE_HANDLE);
+
+    auto context = std::make_shared<DeviceClientContext>(deviceId, std::unordered_set<int32_t>{invalidClientId});
+    controller_->deviceClientContexts_[deviceId] = context;
+    EXPECT_EQ(controller_->FlushOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(controller_->CloseInputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(controller_->CloseOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+
+    context->clients.insert(clientId_);
+    EXPECT_EQ(controller_->FlushOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->CloseInputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(controller_->CloseOutputPort(clientId_, deviceId, 0), OH_MIDI_STATUS_INVALID_PORT);
+    context->clients.erase(invalidClientId);
+    EXPECT_EQ(controller_->CloseDevice(clientId_, deviceId), OH_MIDI_STATUS_SYSTEM_ERROR);
+}
+
+/**
+ * @tc.name: InternalResourceAndDeviceCleanupBranches001
+ * @tc.desc: Verify resource and device cleanup with missing, retained, erased, and underflow-safe state
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, InternalResourceAndDeviceCleanupBranches001, TestSize.Level0)
+{
+    constexpr uint32_t fakeClientId = 3200;
+    constexpr uint32_t fakeUid = 4200;
+    constexpr int64_t deviceId = 5200;
+
+    controller_->CleanupClientResourceForDevice(fakeClientId, deviceId, 1);
+    auto &resource = controller_->clientResourceInfo_[fakeClientId];
+    resource.uid = fakeUid;
+    resource.openDevices.insert(deviceId);
+    resource.openPortCount = 1;
+    controller_->CleanupClientResourceForDevice(fakeClientId, deviceId, 2);
+    EXPECT_EQ(resource.openPortCount, 0);
+    resource.openDevices.insert(deviceId);
+    resource.openPortCount = 3;
+    controller_->CleanupClientResourceForDevice(fakeClientId, deviceId, 1);
+    EXPECT_EQ(resource.openPortCount, 2);
+
+    controller_->CleanupDeviceForClient(fakeClientId, 99999);
+    controller_->CleanupDeviceContext(99999);
+    controller_->RemoveFromActiveBleDevices(99999);
+    controller_->activeBleDevices_["kept"] = 1;
+    controller_->activeBleDevices_["removed"] = deviceId;
+    controller_->RemoveFromActiveBleDevices(deviceId);
+    EXPECT_EQ(controller_->activeBleDevices_.count("removed"), 0);
+    EXPECT_EQ(controller_->activeBleDevices_.count("kept"), 1);
+    EXPECT_TRUE(controller_->IsBluetoothDevice(1));
+    EXPECT_FALSE(controller_->IsBluetoothDevice(2));
+}
+
+/**
+ * @tc.name: InternalPendingAndClientCleanupBranches001
+ * @tc.desc: Verify pending BLE, app-client, null callback, and test-helper cleanup branches
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, InternalPendingAndClientCleanupBranches001, TestSize.Level0)
+{
+    constexpr uint32_t fakeClientId = 3200;
+    constexpr uint32_t retainedClientId = 3201;
+    constexpr uint32_t fakeUid = 4200;
+    controller_->pendingBleConnections_["erase"] = {
+        {fakeClientId, nullptr},
+    };
+    controller_->pendingBleConnections_["retain"] = {
+        {fakeClientId, nullptr},
+        {retainedClientId, nullptr},
+    };
+    controller_->RemovePendingBleConnectionsForClient(fakeClientId);
+    EXPECT_EQ(controller_->pendingBleConnections_.count("erase"), 0);
+    ASSERT_EQ(controller_->pendingBleConnections_.count("retain"), 1);
+    EXPECT_EQ(controller_->pendingBleConnections_.at("retain").size(), 1);
+
+    controller_->appClientMap_[fakeUid] = {fakeClientId, retainedClientId};
+    controller_->CleanupClientResources(fakeClientId, fakeUid);
+    EXPECT_EQ(controller_->appClientMap_.at(fakeUid).count(fakeClientId), 0);
+    controller_->CleanupClientResources(retainedClientId, fakeUid);
+    EXPECT_EQ(controller_->appClientMap_.count(fakeUid), 0);
+    controller_->CleanupClientResources(99998, 99998);
+
+    controller_->clients_[fakeClientId] = nullptr;
+    auto clients = controller_->CollectClientsToNotify();
+    EXPECT_FALSE(clients.empty());
+    controller_->NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR);
+    controller_->clients_.erase(fakeClientId);
+
+    EXPECT_FALSE(controller_->HasDeviceContextForTest(99999));
+    EXPECT_FALSE(controller_->HasClientForDeviceForTest(99999, clientId_));
+    EXPECT_TRUE(controller_->GetOpenDevicesForTest(99999).empty());
+    EXPECT_EQ(controller_->GetOpenPortCountForTest(99999), 0);
+}
+
+/**
+ * @tc.name: DumpEmptyAndTrafficBranches001
+ * @tc.desc: Verify empty port lists, named multi-client ports, and non-zero traffic aggregation
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, DumpEmptyAndTrafficBranches001, TestSize.Level0)
+{
+    constexpr uint64_t INPUT_EVENT_COUNT = 2;
+    constexpr uint64_t INPUT_BYTE_COUNT = 8;
+    constexpr uint64_t OUTPUT_EVENT_COUNT = 3;
+    constexpr uint64_t OUTPUT_BYTE_COUNT = 12;
+    constexpr int64_t deviceId = 5300;
+    auto context = std::make_shared<DeviceClientContext>(
+        deviceId, std::unordered_set<int32_t>{static_cast<int32_t>(clientId_), 5301});
+    controller_->deviceClientContexts_[deviceId] = context;
+
+    std::string dump;
+    controller_->DumpPortMapping(dump);
+    EXPECT_NE(dump.find("(none)"), std::string::npos);
+
+    DeviceConnectionInfo inputInfo{};
+    inputInfo.deviceId = deviceId;
+    inputInfo.direction = MidiPortDirection::INPUT;
+    inputInfo.portIndex = 0;
+    auto input = std::make_shared<DeviceConnectionForInput>(inputInfo);
+    input->clients_.push_back(std::make_shared<ClientConnectionInServer>(clientId_, deviceId, 0));
+    input->clients_.push_back(std::make_shared<ClientConnectionInServer>(5301, deviceId, 0));
+    input->eventCount_.store(INPUT_EVENT_COUNT);
+    input->byteCount_.store(INPUT_BYTE_COUNT);
+
+    DeviceConnectionInfo outputInfo{};
+    outputInfo.deviceId = deviceId;
+    outputInfo.direction = MidiPortDirection::OUTPUT;
+    outputInfo.portIndex = 1;
+    auto output = std::make_shared<DeviceConnectionForOutput>(outputInfo);
+    output->clients_.push_back(std::make_shared<ClientConnectionInServer>(clientId_, deviceId, 1));
+    output->eventCount_.store(OUTPUT_EVENT_COUNT);
+    output->byteCount_.store(OUTPUT_BYTE_COUNT);
+    context->inputDeviceconnections_[0] = input;
+    context->outputDeviceconnections_[1] = output;
+
+    auto &resource = controller_->clientResourceInfo_[clientId_];
+    resource.openDevices = {deviceId, deviceId + 1};
+    controller_->DumpClientInfo(dump);
+    controller_->DumpDeviceOpenStatus(dump, deviceId);
+    controller_->DumpPortMapping(dump);
+    controller_->DumpStatistics(dump);
+    EXPECT_NE(dump.find("Total Input Events: 2"), std::string::npos);
+    EXPECT_NE(dump.find("Total Output Events: 3"), std::string::npos);
+    EXPECT_NE(dump.find(", "), std::string::npos);
+}
+
+/**
+ * @tc.name: BleValidationAndLateCompletion001
+ * @tc.desc: Verify callback casting, invalid clients, limits, and late BLE completion branches
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, BleValidationAndLateCompletion001, TestSize.Level0)
+{
+    sptr<MockMidiCallbackStub> wrongCallback = new MockMidiCallbackStub();
+    EXPECT_EQ(controller_->OpenBleDevice(clientId_, "wrong", wrongCallback->AsObject()),
+        OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    sptr<RecordingMidiDeviceOpenCallbackStub> callback =
+        sptr<RecordingMidiDeviceOpenCallbackStub>::MakeSptr();
+    ASSERT_NE(callback, nullptr);
+    EXPECT_EQ(controller_->OpenBleDevice(99999, "invalid-client", callback->AsObject()),
+        OH_MIDI_STATUS_INVALID_CLIENT);
+
+    auto &resource = controller_->clientResourceInfo_[clientId_];
+    for (uint32_t index = 0; index < MidiServiceController::MAX_DEVICES_PER_CLIENT; ++index) {
+        resource.openDevices.insert(6000 + index);
+    }
+    EXPECT_EQ(controller_->OpenBleDevice(clientId_, "limited", callback->AsObject()),
+        OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES);
+    resource.openDevices.clear();
+
+    MidiDeviceInfo info;
+    controller_->HandleBleOpenComplete("late-failure", false, 0, info);
+    controller_->HandleBleOpenComplete("late-success", true, 99998, info);
+    EXPECT_EQ(controller_->activeBleDevices_.count("late-success"), 1);
+    controller_->activeBleDevices_.erase("late-success");
+}
+
+/**
+ * @tc.name: ControllerDestructorBranches001
+ * @tc.desc: Verify destructor cancellation and death-recipient cleanup for null and live callback objects
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, ControllerDestructorBranches001, TestSize.Level0)
+{
+    auto local = std::make_shared<MidiServiceController>();
+    local->SetUnloadDelay(10000);
+    local->ScheduleUnloadTask();
+
+    sptr<MidiServiceDeathRecipient> recipient = new MidiServiceDeathRecipient(1);
+    sptr<IRemoteObject> object = mockCallback_->AsObject();
+    ASSERT_TRUE(object->AddDeathRecipient(recipient));
+    local->clientCallbackObjects_[1] = object;
+    local->deathRecipients_[1] = recipient;
+    local->clientCallbackObjects_[2] = nullptr;
+    local->deathRecipients_[2] = recipient;
+    local.reset();
+}
+
+/**
+ * @tc.name: UnloadTaskLifecycle001
+ * @tc.desc: Verify rescheduling and cancellation of the delayed unload worker
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, UnloadTaskLifecycle001, TestSize.Level0)
+{
+    controller_->SetUnloadDelay(10000);
+    controller_->ScheduleUnloadTask();
+    controller_->ScheduleUnloadTask();
+    controller_->CancelUnloadTask();
+    EXPECT_FALSE(controller_->isUnloadPending_.load());
+    controller_->SetUnloadDelay(0);
+}
+
+/**
+ * @tc.name: RemainingLifecycleAndCleanupBranches001
+ * @tc.desc: Verify expired death callbacks, sparse cleanup state, worker-less cancellation, and null manager cleanup.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, RemainingLifecycleAndCleanupBranches001, TestSize.Level0)
+{
+    sptr<MidiServiceDeathRecipient> retainedRecipient;
+    {
+        auto local = std::make_shared<MidiServiceController>();
+        sptr<MockMidiCallbackStub> callback = new MockMidiCallbackStub();
+        sptr<IRemoteObject> client;
+        uint32_t clientId = 0;
+        ASSERT_EQ(local->CreateMidiInServer(callback->AsObject(), client, clientId), OH_MIDI_STATUS_OK);
+        retainedRecipient = local->deathRecipients_.at(clientId);
+        local->clientCallbackObjects_[clientId + 1] = callback->AsObject();
+        local.reset();
+    }
+    ASSERT_NE(retainedRecipient, nullptr);
+    wptr<IRemoteObject> remote;
+    retainedRecipient->OnRemoteDied(remote);
+
+    {
+        auto local = std::make_shared<MidiServiceController>();
+        constexpr uint32_t sparseClientId = 8100;
+        local->clients_[sparseClientId] = nullptr;
+        EXPECT_EQ(local->DestroyMidiClient(sparseClientId), OH_MIDI_STATUS_OK);
+    }
+
+    {
+        auto local = std::make_shared<MidiServiceController>();
+        constexpr uint32_t sparseClientId = 8200;
+        local->clients_[sparseClientId] = nullptr;
+        local->deathRecipients_[sparseClientId] = new MidiServiceDeathRecipient(sparseClientId);
+        EXPECT_EQ(local->DestroyMidiClient(sparseClientId), OH_MIDI_STATUS_OK);
+    }
+
+    {
+        auto local = std::make_shared<MidiServiceController>();
+        local->isUnloadPending_.store(true);
+        local->CancelUnloadTask();
+        EXPECT_FALSE(local->isUnloadPending_.load());
+        local->isUnloadPending_.store(true);
+        local->SetUnloadDelay(10000);
+        local->ScheduleUnloadTask();
+        local->CancelUnloadTask();
+    }
+
+    {
+        auto local = std::make_shared<MidiServiceController>();
+        local->deviceManager_ = nullptr;
+        local->ClearStateForTest();
+    }
+}
+
+/**
+ * @tc.name: RemainingConnectionCleanupBranches001
+ * @tc.desc: Verify null, unmatched, and owned input/output connections during client cleanup.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, RemainingConnectionCleanupBranches001, TestSize.Level0)
+{
+    constexpr uint32_t targetClientId = 8300;
+    constexpr uint32_t otherClientId = 8301;
+    auto context = std::make_shared<DeviceClientContext>(
+        8400, std::unordered_set<int32_t>{static_cast<int32_t>(targetClientId)});
+
+    DeviceConnectionInfo inputInfo {};
+    inputInfo.direction = MidiPortDirection::INPUT;
+    auto ownedInput = std::make_shared<DeviceConnectionForInput>(inputInfo);
+    ownedInput->clients_.push_back(std::make_shared<ClientConnectionInServer>(targetClientId, 1, 0));
+    auto otherInput = std::make_shared<DeviceConnectionForInput>(inputInfo);
+    otherInput->clients_.push_back(std::make_shared<ClientConnectionInServer>(otherClientId, 1, 0));
+    context->inputDeviceconnections_[0] = nullptr;
+    context->inputDeviceconnections_[1] = ownedInput;
+    context->inputDeviceconnections_[2] = otherInput;
+
+    DeviceConnectionInfo outputInfo {};
+    outputInfo.direction = MidiPortDirection::OUTPUT;
+    auto ownedOutput = std::make_shared<DeviceConnectionForOutput>(outputInfo);
+    ownedOutput->clients_.push_back(std::make_shared<ClientConnectionInServer>(targetClientId, 1, 0));
+    auto otherOutput = std::make_shared<DeviceConnectionForOutput>(outputInfo);
+    otherOutput->clients_.push_back(std::make_shared<ClientConnectionInServer>(otherClientId, 1, 0));
+    context->outputDeviceconnections_[0] = nullptr;
+    context->outputDeviceconnections_[1] = ownedOutput;
+    context->outputDeviceconnections_[2] = otherOutput;
+
+    EXPECT_EQ(controller_->CalculateClientPortCountAndStopWorkers(targetClientId, context), 2);
+}
+
+/**
+ * @tc.name: CloseDeviceActiveBleAlias001
+ * @tc.desc: Verify closing the last client removes the matching active BLE address entry.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CloseDeviceActiveBleAlias001, TestSize.Level0)
+{
+    constexpr int64_t driverId = 8500;
+    const int64_t deviceId = SimulateDeviceConnection(driverId, "Aliased Device");
+    EXPECT_CALL(*rawMockDriver_, OpenDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    controller_->activeBleDevices_["alias"] = deviceId;
+
+    EXPECT_CALL(*rawMockDriver_, CloseDevice(driverId)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_EQ(controller_->CloseDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->activeBleDevices_.count("alias"), 0);
 }

@@ -36,8 +36,78 @@ using namespace testing::ext;
 namespace OHOS {
 namespace MIDI {
 
+void DrainCounterFd(int fd);
+
 class MidiDeviceConnectionUnitTest : public testing::Test {
 public:
+};
+
+class RecordingMidiDeviceDriver final : public MidiDeviceDriver {
+public:
+    std::vector<DeviceInformation> GetRegisteredDevices() override
+    {
+        return {};
+    }
+
+    int32_t OpenDevice(int64_t deviceId) override
+    {
+        (void)deviceId;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t OpenDevice(std::string deviceAddr, BleDriverCallback deviceCallback) override
+    {
+        (void)deviceAddr;
+        (void)deviceCallback;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t CloseDevice(int64_t deviceId) override
+    {
+        (void)deviceId;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback callback) override
+    {
+        (void)deviceId;
+        (void)portIndex;
+        (void)callback;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t OpenOutputPort(int64_t deviceId, uint32_t portIndex) override
+    {
+        (void)deviceId;
+        (void)portIndex;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t CloseInputPort(int64_t deviceId, uint32_t portIndex) override
+    {
+        (void)deviceId;
+        (void)portIndex;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t CloseOutputPort(int64_t deviceId, uint32_t portIndex) override
+    {
+        (void)deviceId;
+        (void)portIndex;
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int32_t HandleUmpInput(int64_t deviceId, uint32_t portIndex, std::vector<MidiEventInner> &list) override
+    {
+        lastDeviceId = deviceId;
+        lastPortIndex = portIndex;
+        eventCount += list.size();
+        return OH_MIDI_STATUS_OK;
+    }
+
+    int64_t lastDeviceId = -1;
+    uint32_t lastPortIndex = 0;
+    size_t eventCount = 0;
 };
 
 static MidiEventInner MakeMidiEventInner(uint64_t timestamp, const std::vector<uint32_t> &payloadWords)
@@ -562,6 +632,387 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_007, TestSize.L
 
     // Event should have been consumed successfully via the CommitRead path
     EXPECT_TRUE(clientRingBuffer->IsEmpty());
+}
+
+/**
+ * @tc.name   : Test counter fd drain branches
+ * @tc.number : DeviceConnectionForOutput_008
+ * @tc.desc   : Cover invalid, empty, readable, EOF, and bounded-loop counter fd paths.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_008, TestSize.Level1)
+{
+    DrainCounterFd(-1);
+
+    int emptyEventFd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    ASSERT_GE(emptyEventFd, 0);
+    DrainCounterFd(emptyEventFd);
+    uint64_t counter = 3;
+    ASSERT_EQ(sizeof(counter), static_cast<size_t>(::write(emptyEventFd, &counter, sizeof(counter))));
+    DrainCounterFd(emptyEventFd);
+    close(emptyEventFd);
+
+    int endOfFilePipe[2] = {-1, -1};
+    ASSERT_EQ(0, pipe(endOfFilePipe));
+    close(endOfFilePipe[1]);
+    DrainCounterFd(endOfFilePipe[0]);
+    close(endOfFilePipe[0]);
+
+    int busyPipe[2] = {-1, -1};
+    ASSERT_EQ(0, pipe(busyPipe));
+    std::vector<uint64_t> counters(17, 1);
+    ASSERT_EQ(counters.size() * sizeof(uint64_t),
+        static_cast<size_t>(::write(busyPipe[1], counters.data(), counters.size() * sizeof(uint64_t))));
+    DrainCounterFd(busyPipe[0]);
+    close(busyPipe[0]);
+    close(busyPipe[1]);
+}
+
+/**
+ * @tc.name   : Test base null-client and statistics branches
+ * @tc.number : DeviceConnectionBaseBranches_001
+ * @tc.desc   : Cover null client filtering and all reachable statistics overflow paths.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseBranches_001, TestSize.Level1)
+{
+    constexpr uint32_t MISSING_CLIENT_ID = 66;
+    constexpr uint32_t CONNECTED_CLIENT_ID = 77;
+    constexpr uint32_t INITIAL_BYTE_COUNT = 10;
+    DeviceConnectionInfo info{};
+    info.direction = MidiPortDirection::INPUT;
+    DeviceConnectionBase connection(info);
+
+    EXPECT_EQ(0, connection.GetStats().statsDurationMs);
+    connection.clients_.push_back(nullptr);
+    auto client = std::make_shared<ClientConnectionInServer>(CONNECTED_CLIENT_ID, 88, 0);
+    connection.clients_.push_back(client);
+    EXPECT_FALSE(connection.HasClientConnection(MISSING_CLIENT_ID));
+    EXPECT_TRUE(connection.HasClientConnection(CONNECTED_CLIENT_ID));
+    EXPECT_EQ(std::vector<uint32_t>({CONNECTED_CLIENT_ID}), connection.GetConnectedClientIds());
+    EXPECT_EQ(2, connection.SnapshotClients().size());
+
+    connection.RemoveClientConnection(MISSING_CLIENT_ID);
+    EXPECT_EQ(2, connection.clients_.size());
+    connection.RemoveClientConnection(CONNECTED_CLIENT_ID);
+    ASSERT_EQ(1, connection.clients_.size());
+    EXPECT_EQ(nullptr, connection.clients_.front());
+
+    connection.IncrementEventCount();
+    EXPECT_EQ(1, connection.GetStats().eventCount);
+    connection.eventCount_.store(MAX_EVENT_COUNT);
+    connection.byteCount_.store(INITIAL_BYTE_COUNT);
+    connection.IncrementEventCount();
+    EXPECT_EQ(1, connection.GetStats().eventCount);
+    EXPECT_EQ(0, connection.GetStats().byteCount);
+
+    connection.IncrementEventCount(8);
+    EXPECT_EQ(8, connection.GetStats().byteCount);
+    connection.byteCount_.store(MAX_BYTE_COUNT);
+    connection.IncrementEventCount(8);
+    EXPECT_EQ(8, connection.GetStats().byteCount);
+    connection.byteCount_.store(MAX_BYTE_COUNT - 2);
+    connection.IncrementEventCount(8);
+    EXPECT_EQ(8, connection.GetStats().byteCount);
+
+    connection.IncrementErrorCount();
+    connection.errorCount_.store(MAX_EVENT_COUNT);
+    connection.IncrementErrorCount();
+    EXPECT_EQ(1, connection.GetStats().errorCount);
+
+    connection.ResetStats();
+    auto resetStats = connection.GetStats();
+    EXPECT_EQ(0, resetStats.eventCount);
+    EXPECT_EQ(0, resetStats.byteCount);
+    EXPECT_EQ(0, resetStats.errorCount);
+    EXPECT_GT(resetStats.statsStartTimeMs, 0);
+    EXPECT_GE(resetStats.statsDurationMs, 0);
+}
+
+/**
+ * @tc.name   : Test input null-client branch
+ * @tc.number : DeviceConnectionForInput_002
+ * @tc.desc   : A null client is ignored while a valid client receives the event.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_002, TestSize.Level1)
+{
+    DeviceConnectionInfo info{};
+    info.direction = MidiPortDirection::INPUT;
+    DeviceConnectionForInput connection(info);
+    connection.clients_.push_back(nullptr);
+
+    auto client = std::make_shared<ClientConnectionInServer>(1, 2, 0);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, client->CreateRingBuffer());
+    connection.clients_.push_back(client);
+
+    std::vector<uint32_t> payload{0x12345678};
+    MidiEventInner event = MakeMidiEventInner(1, payload);
+    connection.BroadcastToClients(event);
+
+    MidiSharedRing::PeekedEvent peekedEvent{};
+    ASSERT_EQ(MidiStatusCode::OK, client->GetRingBuffer()->PeekNext(peekedEvent));
+    EXPECT_EQ(1, peekedEvent.localHeader.length);
+}
+
+/**
+ * @tc.name   : Test output send-cache branches
+ * @tc.number : DeviceConnectionForOutput_009
+ * @tc.desc   : Cover invalid wake, add-before-start, cache limits, null driver, and driver flush.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_009, TestSize.Level1)
+{
+    constexpr uint32_t DEVICE_HANDLE = 2;
+    RecordingMidiDeviceDriver driver;
+    DeviceConnectionInfo info{};
+    info.driver = nullptr;
+    info.deviceId = 91;
+    info.direction = MidiPortDirection::OUTPUT;
+    info.portIndex = 3;
+    DeviceConnectionForOutput connection(info);
+
+    connection.WakeWorkerByEventFd();
+    connection.DrainEventFd();
+    connection.DrainTimerFd();
+    std::shared_ptr<MidiSharedRing> ring;
+    EXPECT_EQ(OH_MIDI_STATUS_SYSTEM_ERROR, connection.AddClientConnection(1, DEVICE_HANDLE, ring));
+
+    uint32_t payload[] = {0x11111111, 0x22222222, 0x33333333};
+    connection.SetMaxSendCacheBytes(8);
+    EXPECT_TRUE(connection.TryAppendToSendCache(1, nullptr, 0));
+    EXPECT_FALSE(connection.TryAppendToSendCache(1, nullptr, 1));
+    EXPECT_FALSE(connection.TryAppendToSendCache(1, payload, 3));
+    EXPECT_TRUE(connection.TryAppendToSendCache(2, payload, 1));
+    EXPECT_FALSE(connection.TryAppendToSendCache(3, payload, 2));
+
+    connection.FlushSendCacheToDriver();
+    EXPECT_EQ(1, connection.sendCache_.size());
+    connection.info_.driver = &driver;
+    connection.FlushSendCacheToDriver();
+    EXPECT_TRUE(connection.sendCache_.empty());
+    EXPECT_TRUE(connection.sendCachePayloadBuffers_.empty());
+    EXPECT_EQ(0, connection.currentSendCacheBytes_);
+    EXPECT_EQ(1, driver.eventCount);
+    EXPECT_EQ(91, driver.lastDeviceId);
+    EXPECT_EQ(3, driver.lastPortIndex);
+    EXPECT_EQ(1, connection.GetStats().eventCount);
+    EXPECT_EQ(sizeof(uint32_t), connection.GetStats().byteCount);
+    connection.FlushSendCacheToDriver();
+}
+
+/**
+ * @tc.name   : Test direct realtime and non-realtime consumers
+ * @tc.number : DeviceConnectionForOutput_010
+ * @tc.desc   : Cover successful, full-pending, null-ring, and stale-peek consumption paths.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_010, TestSize.Level1)
+{
+    constexpr uint32_t CLIENT_ID = 2;
+    constexpr uint32_t DEVICE_HANDLE = 2;
+    DeviceConnectionInfo info{};
+    info.direction = MidiPortDirection::OUTPUT;
+    DeviceConnectionForOutput connection(info);
+    connection.SetMaxSendCacheBytes(16);
+
+    ClientConnectionInServer nullRingClient(1, DEVICE_HANDLE, 0);
+    connection.DrainSingleClientRing(nullRingClient);
+    connection.clients_.push_back(nullptr);
+    connection.DrainAllClientsRings();
+
+    ClientConnectionInServer client(CLIENT_ID, 3, 0);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, client.CreateRingBuffer());
+    auto ring = client.GetRingBuffer();
+    ASSERT_NE(nullptr, ring);
+
+    std::vector<uint32_t> payload{0xAABBCCDD};
+    MidiEventInner realtimeEvent = MakeMidiEventInner(0, payload);
+    ASSERT_EQ(MidiStatusCode::OK, ring->TryWriteEvent(realtimeEvent, false));
+    MidiSharedRing::PeekedEvent realtimePeek{};
+    ASSERT_EQ(MidiStatusCode::OK, ring->PeekNext(realtimePeek));
+    EXPECT_TRUE(connection.ConsumeRealtimeEvent(*ring, realtimePeek));
+
+    ASSERT_EQ(MidiStatusCode::OK, ring->TryWriteEvent(realtimeEvent, false));
+    ASSERT_EQ(MidiStatusCode::OK, ring->PeekNext(realtimePeek));
+    auto *header = reinterpret_cast<ShmMidiEventHeader *>(ring->GetDataBase() + realtimePeek.beginOffset);
+    ASSERT_NE(nullptr, header);
+    header->sequence.store(realtimePeek.sequence + 100, std::memory_order_relaxed);
+    EXPECT_FALSE(connection.ConsumeRealtimeEvent(*ring, realtimePeek));
+    ring->Flush();
+
+    MidiEventInner scheduledEvent = MakeMidiEventInner(
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count(), payload);
+    ASSERT_EQ(MidiStatusCode::OK, ring->TryWriteEvent(scheduledEvent, false));
+    MidiSharedRing::PeekedEvent scheduledPeek{};
+    ASSERT_EQ(MidiStatusCode::OK, ring->PeekNext(scheduledPeek));
+    client.SetMaxPending(0);
+    EXPECT_FALSE(connection.ConsumeNonRealtimeEvent(client, *ring, scheduledPeek));
+
+    client.SetMaxPending(1);
+    EXPECT_TRUE(connection.ConsumeNonRealtimeEvent(client, *ring, scheduledPeek));
+    ASSERT_EQ(MidiStatusCode::OK, ring->TryWriteEvent(scheduledEvent, false));
+    ASSERT_EQ(MidiStatusCode::OK, ring->PeekNext(scheduledPeek));
+    EXPECT_FALSE(connection.ConsumeNonRealtimeEvent(client, *ring, scheduledPeek));
+}
+
+/**
+ * @tc.name   : Test pending-heap selection and timer branches
+ * @tc.number : DeviceConnectionForOutput_011
+ * @tc.desc   : Cover empty/full heaps, earliest selection, future break, past due, and timer choices.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_011, TestSize.Level1)
+{
+    DeviceConnectionInfo info{};
+    info.direction = MidiPortDirection::OUTPUT;
+    DeviceConnectionForOutput connection(info);
+
+    auto emptyClient = std::make_shared<ClientConnectionInServer>(1, 1, 0);
+    ClientConnectionInServer::PendingEvent popped{};
+    EXPECT_EQ(nullptr, emptyClient->PeekPendingTop());
+    EXPECT_FALSE(emptyClient->PopPendingTop(popped));
+    emptyClient->SetMaxPending(0);
+    EXPECT_FALSE(emptyClient->EnqueueNonRealtime({}, steady_clock::now(), 1));
+
+    auto laterClient = std::make_shared<ClientConnectionInServer>(2, 2, 0);
+    auto earlierClient = std::make_shared<ClientConnectionInServer>(3, 3, 0);
+    auto latestClient = std::make_shared<ClientConnectionInServer>(4, 4, 0);
+    auto now = steady_clock::now();
+    ASSERT_TRUE(laterClient->EnqueueNonRealtime({1}, now + seconds(2), 2));
+    ASSERT_TRUE(earlierClient->EnqueueNonRealtime({2}, now + seconds(1), 3));
+    ASSERT_TRUE(latestClient->EnqueueNonRealtime({3}, now + seconds(3), 4));
+
+    std::vector<std::shared_ptr<ClientConnectionInServer>> clients{
+        nullptr, emptyClient, laterClient, earlierClient, latestClient};
+    steady_clock::time_point earliestDue{};
+    EXPECT_EQ(earlierClient, connection.FindClientWithEarliestDue(clients, earliestDue));
+    EXPECT_EQ(now + seconds(1), earliestDue);
+
+    connection.clients_ = {nullptr, laterClient};
+    connection.CollectDueEventsFromClientHeaps();
+    EXPECT_TRUE(laterClient->HasPending());
+    connection.UpdateNextTimer();
+
+    auto pastClient = std::make_shared<ClientConnectionInServer>(5, 5, 0);
+    ASSERT_TRUE(pastClient->EnqueueNonRealtime({5}, now - seconds(1), 5));
+    connection.clients_.push_back(pastClient);
+    connection.SetMaxSendCacheBytes(0);
+    connection.CollectDueEventsFromClientHeaps();
+    EXPECT_FALSE(pastClient->HasPending());
+    EXPECT_TRUE(laterClient->HasPending());
+
+    ASSERT_TRUE(pastClient->EnqueueNonRealtime({6}, now - seconds(1), 6));
+    connection.UpdateNextTimer();
+    connection.clients_.clear();
+    connection.UpdateNextTimer();
+}
+
+/**
+ * @tc.name   : Test client pending priority and flush
+ * @tc.number : ClientConnectionInServerBranches_001
+ * @tc.desc   : Cover pending priority ordering, successful pop, and client flush selection.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, ClientConnectionInServerBranches_001, TestSize.Level1)
+{
+    DeviceConnectionInfo info{};
+    info.direction = MidiPortDirection::OUTPUT;
+    DeviceConnectionForOutput connection(info);
+
+    auto first = std::make_shared<ClientConnectionInServer>(10, 10, 0);
+    auto second = std::make_shared<ClientConnectionInServer>(20, 20, 0);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, first->CreateRingBuffer());
+    ASSERT_EQ(OH_MIDI_STATUS_OK, second->CreateRingBuffer());
+    auto now = steady_clock::now();
+    ASSERT_TRUE(first->EnqueueNonRealtime({2}, now + seconds(2), 2));
+    ASSERT_TRUE(first->EnqueueNonRealtime({1}, now + seconds(1), 1));
+
+    const auto *top = first->PeekPendingTop();
+    ASSERT_NE(nullptr, top);
+    EXPECT_EQ(1, top->timestamp);
+    ClientConnectionInServer::PendingEvent popped{};
+    ASSERT_TRUE(first->PopPendingTop(popped));
+    EXPECT_EQ(1, popped.timestamp);
+
+    std::vector<uint32_t> payload{1};
+    MidiEventInner event = MakeMidiEventInner(0, payload);
+    ASSERT_EQ(MidiStatusCode::OK, first->GetRingBuffer()->TryWriteEvent(event, false));
+    connection.clients_ = {second, first};
+    connection.FlushClientCache(10);
+    EXPECT_TRUE(first->GetRingBuffer()->IsEmpty());
+    EXPECT_FALSE(first->HasPending());
+}
+
+/**
+ * @tc.name   : Test remaining realtime output connection branches
+ * @tc.number : DeviceConnectionForOutput_012
+ * @tc.desc   : Cover stop without worker and drain-time failures.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_012, TestSize.Level1)
+{
+    DeviceConnectionInfo info {};
+    info.direction = MidiPortDirection::OUTPUT;
+    DeviceConnectionForOutput connection(info);
+
+    connection.running_.store(true);
+    EXPECT_EQ(OH_MIDI_STATUS_OK, connection.Stop());
+
+    ClientConnectionInServer realtimeClient(1, 1, 0);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, realtimeClient.CreateRingBuffer());
+    auto realtimeRing = realtimeClient.GetRingBuffer();
+    ASSERT_NE(nullptr, realtimeRing);
+    std::vector<uint32_t> payload {0x12345678};
+    MidiEventInner realtimeEvent = MakeMidiEventInner(0, payload);
+    ASSERT_EQ(MidiStatusCode::OK, realtimeRing->TryWriteEvent(realtimeEvent, false));
+    MidiSharedRing::PeekedEvent realtimePeek {};
+    ASSERT_EQ(MidiStatusCode::OK, realtimeRing->PeekNext(realtimePeek));
+    auto *realtimeHeader = reinterpret_cast<ShmMidiEventHeader *>(
+        realtimeRing->GetDataBase() + realtimePeek.beginOffset);
+    constexpr uint32_t STALE_SEQUENCE_INCREMENT = 2;
+    realtimeHeader->sequence.store(
+        realtimePeek.sequence + STALE_SEQUENCE_INCREMENT, std::memory_order_relaxed);
+    connection.DrainSingleClientRing(realtimeClient);
+}
+
+/**
+ * @tc.name   : Test remaining scheduled output connection branches
+ * @tc.number : DeviceConnectionForOutput_013
+ * @tc.desc   : Cover empty scheduled payload, stale sequence, and successful due caching.
+ */
+HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_013, TestSize.Level1)
+{
+    constexpr uint32_t STALE_SEQUENCE_INCREMENT = 2;
+    DeviceConnectionInfo info {};
+    info.direction = MidiPortDirection::OUTPUT;
+    DeviceConnectionForOutput connection(info);
+    ClientConnectionInServer scheduledClient(2, 2, 0);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, scheduledClient.CreateRingBuffer());
+    auto scheduledRing = scheduledClient.GetRingBuffer();
+    ASSERT_NE(nullptr, scheduledRing);
+    uint32_t dummy = 0;
+    MidiEventInner emptyScheduled {
+        .timestamp = static_cast<uint64_t>(
+            duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count()),
+        .length = 0,
+        .data = &dummy,
+    };
+    ASSERT_EQ(MidiStatusCode::OK, scheduledRing->TryWriteEvent(emptyScheduled, false));
+    MidiSharedRing::PeekedEvent scheduledPeek {};
+    ASSERT_EQ(MidiStatusCode::OK, scheduledRing->PeekNext(scheduledPeek));
+    EXPECT_TRUE(connection.ConsumeNonRealtimeEvent(scheduledClient, *scheduledRing, scheduledPeek));
+
+    ASSERT_EQ(MidiStatusCode::OK, scheduledRing->TryWriteEvent(emptyScheduled, false));
+    ASSERT_EQ(MidiStatusCode::OK, scheduledRing->PeekNext(scheduledPeek));
+    auto *scheduledHeader = reinterpret_cast<ShmMidiEventHeader *>(
+        scheduledRing->GetDataBase() + scheduledPeek.beginOffset);
+    scheduledHeader->sequence.store(
+        scheduledPeek.sequence + STALE_SEQUENCE_INCREMENT, std::memory_order_relaxed);
+    scheduledClient.SetMaxPending(STALE_SEQUENCE_INCREMENT);
+    EXPECT_FALSE(connection.ConsumeNonRealtimeEvent(scheduledClient, *scheduledRing, scheduledPeek));
+    scheduledRing->Flush();
+
+    auto dueClient = std::make_shared<ClientConnectionInServer>(3, 3, 0);
+    ASSERT_TRUE(dueClient->EnqueueNonRealtime(
+        {0x01020304}, steady_clock::now() - seconds(1), 3));
+    connection.clients_ = {dueClient};
+    connection.SetMaxSendCacheBytes(sizeof(uint32_t));
+    connection.CollectDueEventsFromClientHeaps();
+    EXPECT_FALSE(dueClient->HasPending());
+    EXPECT_EQ(connection.sendCache_.size(), 1);
 }
 } // namespace MIDI
 } // namespace OHOS

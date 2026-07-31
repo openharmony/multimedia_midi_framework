@@ -93,6 +93,47 @@ static void MidiReceivedTrampoline(void *userData, const OH_MIDIEvent *events, s
     }
 }
 
+struct ApiCallbackCapture {
+    uint32_t deviceChangeCount = 0;
+    uint32_t errorCount = 0;
+    uint32_t deviceOpenCount = 0;
+    bool lastOpened = false;
+    OH_MIDIDevice *lastDevice = nullptr;
+    OH_MIDIDeviceInformation lastDeviceInfo {};
+    OH_MIDIStatusCode lastError = OH_MIDI_STATUS_OK;
+};
+
+static void DeviceChangeTrampoline(
+    void *userData, OH_MIDIDeviceChangeAction, OH_MIDIDeviceInformation deviceInfo)
+{
+    auto *capture = static_cast<ApiCallbackCapture *>(userData);
+    if (capture != nullptr) {
+        capture->deviceChangeCount++;
+        capture->lastDeviceInfo = deviceInfo;
+    }
+}
+
+static void ErrorTrampoline(void *userData, OH_MIDIStatusCode code)
+{
+    auto *capture = static_cast<ApiCallbackCapture *>(userData);
+    if (capture != nullptr) {
+        capture->errorCount++;
+        capture->lastError = code;
+    }
+}
+
+static void DeviceOpenedTrampoline(
+    void *userData, bool opened, OH_MIDIDevice *device, OH_MIDIDeviceInformation deviceInfo)
+{
+    auto *capture = static_cast<ApiCallbackCapture *>(userData);
+    if (capture != nullptr) {
+        capture->deviceOpenCount++;
+        capture->lastOpened = opened;
+        capture->lastDevice = device;
+        capture->lastDeviceInfo = deviceInfo;
+    }
+}
+
 }  // namespace
 
 class MidiServiceMock : public MidiServiceInterface {
@@ -132,6 +173,49 @@ public:
     std::shared_ptr<MidiServiceMock> mockService;
     std::unique_ptr<MidiClientPrivate> client;
 };
+
+/**
+ * @tc.name: CreateMidiClient_AllOutcomes001
+ * @tc.desc: Verify the null output guard and ownership for either real-service initialization outcome.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, CreateMidiClient_AllOutcomes001, TestSize.Level0)
+{
+    OH_MIDICallbacks callbacks {DeviceChangeTrampoline, ErrorTrampoline};
+    ApiCallbackCapture capture;
+    EXPECT_EQ(MidiClient::CreateMidiClient(nullptr, callbacks, &capture), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    MidiClient *createdClient = nullptr;
+    OH_MIDIStatusCode ret = MidiClient::CreateMidiClient(&createdClient, callbacks, &capture);
+    if (ret == OH_MIDI_STATUS_OK) {
+        ASSERT_NE(createdClient, nullptr);
+        EXPECT_EQ(createdClient->DestroyMidiClient(), OH_MIDI_STATUS_OK);
+        delete createdClient;
+    } else {
+        EXPECT_EQ(createdClient, nullptr);
+    }
+}
+
+/**
+ * @tc.name: InitAndQueryFailures001
+ * @tc.desc: Verify service errors propagate through initialization and collection queries.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, InitAndQueryFailures001, TestSize.Level0)
+{
+    OH_MIDICallbacks callbacks {DeviceChangeTrampoline, ErrorTrampoline};
+    ApiCallbackCapture capture;
+    EXPECT_CALL(*mockService, Init(_, _)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(client->Init(callbacks, &capture), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    EXPECT_CALL(*mockService, GetDevices(_)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    size_t deviceCount = 0;
+    EXPECT_EQ(client->GetDevices(nullptr, &deviceCount), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    EXPECT_CALL(*mockService, GetDevicePorts(1, _)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    size_t portCount = 0;
+    EXPECT_EQ(client->GetDevicePorts(1, nullptr, &portCount), OH_MIDI_STATUS_SYSTEM_ERROR);
+}
 
 /**
  * @tc.name: OpenDevice_001
@@ -1135,4 +1219,516 @@ HWTEST_F(MidiClientUnitTest, DestructorCleanup_001, TestSize.Level0)
     // Reset client -> destructor should set destroyed flag, CloseAllPorts, then
     // release shared_ptrs to both devices. No crash, no hang, no leak.
     client.reset();
+}
+
+/**
+ * @tc.name: CallbackBranches001
+ * @tc.desc: Verify client callbacks and disconnect handling.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, CallbackBranches001, TestSize.Level0)
+{
+    ApiCallbackCapture capture;
+    OH_MIDICallbacks callbacks {DeviceChangeTrampoline, ErrorTrampoline};
+    sptr<MidiCallbackStub> serviceCallback;
+    EXPECT_CALL(*mockService, Init(_, _))
+        .WillOnce(DoAll(SaveArg<0>(&serviceCallback), SetArgReferee<1>(77), Return(OH_MIDI_STATUS_OK)));
+    ASSERT_EQ(client->Init(callbacks, &capture), OH_MIDI_STATUS_OK);
+    ASSERT_NE(serviceCallback, nullptr);
+
+    EXPECT_CALL(*mockService, OpenDevice(7001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 7001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        info.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+        info.deviceName = "Callback Device";
+        return OH_MIDI_STATUS_OK;
+    }));
+    MidiDevice *rawDevice = nullptr;
+    ASSERT_EQ(client->OpenDevice(7001, &rawDevice), OH_MIDI_STATUS_OK);
+    ASSERT_NE(rawDevice, nullptr);
+
+    MidiDeviceInfo changedInfo;
+    changedInfo.deviceId = 7001;
+    changedInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+    changedInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+    changedInfo.address.assign(sizeof(OH_MIDIDeviceInformation::deviceAddress) + 8, 'a');
+    changedInfo.deviceName.assign(sizeof(OH_MIDIDeviceInformation::deviceName) + 8, 'n');
+    EXPECT_EQ(serviceCallback->NotifyDeviceChange(
+        OH_MIDI_DEVICE_CHANGE_ACTION_CONNECTED, changedInfo), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceChangeCount, 1);
+    EXPECT_STREQ(capture.lastDeviceInfo.deviceAddress, "");
+    EXPECT_STREQ(capture.lastDeviceInfo.deviceName, "");
+
+    EXPECT_EQ(serviceCallback->NotifyDeviceChange(
+        OH_MIDI_DEVICE_CHANGE_ACTION_DISCONNECTED, changedInfo), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceChangeCount, 2);
+    EXPECT_EQ(static_cast<MidiDevicePrivate *>(rawDevice)->CloseDevice(), OH_MIDI_STATUS_OK);
+
+    EXPECT_EQ(serviceCallback->NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.errorCount, 1);
+    EXPECT_EQ(capture.lastError, OH_MIDI_STATUS_SYSTEM_ERROR);
+}
+
+/**
+ * @tc.name: BleOpenAndDestroyedClientBranches001
+ * @tc.desc: Verify BLE failure/success and destroyed-client callback guards.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, BleOpenAndDestroyedClientBranches001, TestSize.Level0)
+{
+    ApiCallbackCapture capture;
+    OH_MIDICallbacks callbacks {DeviceChangeTrampoline, ErrorTrampoline};
+    sptr<MidiCallbackStub> serviceCallback;
+    EXPECT_CALL(*mockService, Init(_, _))
+        .WillOnce(DoAll(SaveArg<0>(&serviceCallback), SetArgReferee<1>(77), Return(OH_MIDI_STATUS_OK)));
+    ASSERT_EQ(client->Init(callbacks, &capture), OH_MIDI_STATUS_OK);
+    ASSERT_NE(serviceCallback, nullptr);
+
+    EXPECT_CALL(*mockService, OpenDevice(7001, _)).WillOnce(Invoke([](int64_t, MidiDeviceInfo &info) {
+        info.deviceId = 7001;
+        info.deviceType = DeviceType::DEVICE_TYPE_USB;
+        return OH_MIDI_STATUS_OK;
+    }));
+    MidiDevice *rawDevice = nullptr;
+    ASSERT_EQ(client->OpenDevice(7001, &rawDevice), OH_MIDI_STATUS_OK);
+
+    sptr<MidiDeviceOpenCallbackStub> bleCallback;
+    EXPECT_CALL(*mockService, OpenBleDevice(_, _))
+        .WillOnce(DoAll(SaveArg<1>(&bleCallback), Return(OH_MIDI_STATUS_OK)));
+    ASSERT_EQ(client->OpenBleDevice("11:22:33:44:55:66", DeviceOpenedTrampoline, &capture), OH_MIDI_STATUS_OK);
+    ASSERT_NE(bleCallback, nullptr);
+
+    MidiDeviceInfo bleInfo;
+    bleInfo.deviceId = 7002;
+    bleInfo.deviceType = DeviceType::DEVICE_TYPE_BLE;
+    bleInfo.transportProtocol = TransportProtocol::PROTOCOL_2_0;
+    bleInfo.deviceName = "BLE Device";
+    EXPECT_EQ(bleCallback->NotifyDeviceOpened(false, bleInfo), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceOpenCount, 1);
+    EXPECT_FALSE(capture.lastOpened);
+    EXPECT_EQ(capture.lastDevice, nullptr);
+
+    EXPECT_EQ(bleCallback->NotifyDeviceOpened(true, bleInfo), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceOpenCount, 2);
+    EXPECT_TRUE(capture.lastOpened);
+    EXPECT_NE(capture.lastDevice, nullptr);
+
+    MidiDeviceInfo changedInfo;
+    changedInfo.deviceId = 7001;
+    EXPECT_CALL(*mockService, DestroyMidiClient()).WillOnce(Return(OH_MIDI_STATUS_OK));
+    ASSERT_EQ(client->DestroyMidiClient(), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(serviceCallback->NotifyDeviceChange(
+        OH_MIDI_DEVICE_CHANGE_ACTION_CONNECTED, changedInfo), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(serviceCallback->NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(bleCallback->NotifyDeviceOpened(true, bleInfo), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceChangeCount, 2);
+    EXPECT_EQ(capture.errorCount, 1);
+    EXPECT_EQ(capture.deviceOpenCount, 2);
+
+    EXPECT_EQ(client->CloseAndRemoveDevice(rawDevice), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: CallbackValidation001
+ * @tc.desc: Verify missing callbacks and expired IPC weak references return safe errors.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, CallbackValidation001, TestSize.Level0)
+{
+    OH_MIDICallbacks callbacks {};
+    sptr<MidiCallbackStub> serviceCallback;
+    EXPECT_CALL(*mockService, Init(_, _))
+        .WillOnce(DoAll(SaveArg<0>(&serviceCallback), Return(OH_MIDI_STATUS_OK)));
+    ASSERT_EQ(client->Init(callbacks, nullptr), OH_MIDI_STATUS_OK);
+    ASSERT_NE(serviceCallback, nullptr);
+
+    MidiDeviceInfo info;
+    info.deviceId = 7100;
+    EXPECT_EQ(serviceCallback->NotifyDeviceChange(
+        OH_MIDI_DEVICE_CHANGE_ACTION_CONNECTED, info), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(serviceCallback->NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    auto localService = std::make_shared<MidiServiceMock>();
+    auto localClient = std::make_shared<MidiClientPrivate>();
+    localClient->ipc_ = localService;
+    localClient->selfRef_ = localClient;
+    MidiClientDeviceOpenCallback nullCallback(localService, nullptr, nullptr, localClient);
+    EXPECT_EQ(nullCallback.NotifyDeviceOpened(true, info), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    ApiCallbackCapture capture;
+    MidiClientDeviceOpenCallback expiredIpcCallback(
+        localService, DeviceOpenedTrampoline, &capture, localClient);
+    localClient->ipc_.reset();
+    localService.reset();
+    EXPECT_EQ(expiredIpcCallback.NotifyDeviceOpened(true, info), OH_MIDI_STATUS_SYSTEM_ERROR);
+    localClient->selfRef_.reset();
+}
+
+/**
+ * @tc.name: OutputPortOperations001
+ * @tc.desc: Verify output open/send/flush/close success, duplicate, and failure branches.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, OutputPortOperations001, TestSize.Level0)
+{
+    OH_MIDIDeviceInformation info {};
+    info.midiDeviceId = 7200;
+    info.nativeProtocol = OH_MIDI_PROTOCOL_1_0;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
+    OH_MIDIPortDescriptor descriptor {};
+    descriptor.portIndex = 3;
+    descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
+
+    EXPECT_CALL(*mockService, OpenOutputPort(_, info.midiDeviceId, descriptor.portIndex))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(512);
+            return OH_MIDI_STATUS_OK;
+        }));
+    ASSERT_EQ(device->OpenOutputPort(descriptor), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(device->OpenOutputPort(descriptor), OH_MIDI_STATUS_PORT_ALREADY_OPEN);
+
+    uint32_t word = 0x20903C40;
+    OH_MIDIEvent event {1, 1, &word};
+    uint32_t written = 0;
+    EXPECT_EQ(device->Send(descriptor.portIndex, &event, 1, &written), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(written, 1);
+    EXPECT_EQ(device->Send(descriptor.portIndex + 1, &event, 1, &written), OH_MIDI_STATUS_INVALID_PORT);
+    EXPECT_EQ(device->Send(descriptor.portIndex, nullptr, 1, &written),
+        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+
+    uint8_t sysex[] = {0xF0, 0x01, 0xF7};
+    EXPECT_EQ(device->SendSysEx(descriptor.portIndex, sysex, sizeof(sysex)), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(device->SendSysEx(descriptor.portIndex + 1, sysex, sizeof(sysex)), OH_MIDI_STATUS_INVALID_PORT);
+
+    EXPECT_CALL(*mockService, FlushOutputPort(info.midiDeviceId, descriptor.portIndex))
+        .WillOnce(Return(OH_MIDI_STATUS_OK))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(device->FlushOutputPort(descriptor.portIndex), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(device->FlushOutputPort(descriptor.portIndex), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(device->FlushOutputPort(descriptor.portIndex + 1), OH_MIDI_STATUS_INVALID_PORT);
+
+    EXPECT_CALL(*mockService, CloseOutputPort(info.midiDeviceId, descriptor.portIndex))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(device->CloseOutputPort(descriptor.portIndex), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(device->CloseOutputPort(descriptor.portIndex), OH_MIDI_STATUS_INVALID_PORT);
+
+    EXPECT_CALL(*mockService, OpenOutputPort(_, info.midiDeviceId, 4))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    descriptor.portIndex = 4;
+    EXPECT_EQ(device->OpenOutputPort(descriptor), OH_MIDI_STATUS_SYSTEM_ERROR);
+}
+
+/**
+ * @tc.name: ExpiredIpcAndInvalidClientOperations001
+ * @tc.desc: Verify null IPC, bad handles, empty fills, and close failure branches.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, ExpiredIpcAndInvalidClientOperations001, TestSize.Level0)
+{
+    client->ipc_.reset();
+    OH_MIDICallbacks callbacks {};
+    size_t count = 0;
+    MidiDevice *device = nullptr;
+    EXPECT_EQ(client->Init(callbacks, nullptr), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->GetDevices(nullptr, &count), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->OpenDevice(1, &device), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->OpenDevice(1, nullptr), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->OpenBleDevice("x", DeviceOpenedTrampoline, nullptr), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->GetDevicePorts(1, nullptr, &count), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->DestroyMidiClient(), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(client->CloseAndRemoveDevice(nullptr), OH_MIDI_STATUS_INVALID_DEVICE_HANDLE);
+
+    auto localService = std::make_shared<MidiServiceMock>();
+    auto localClient = std::make_unique<MidiClientPrivate>();
+    localClient->ipc_ = localService;
+    EXPECT_CALL(*localService, GetDevices(_))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR))
+        .WillOnce(Return(OH_MIDI_STATUS_OK));
+    OH_MIDIDeviceInformation deviceInfo {};
+    count = 1;
+    EXPECT_EQ(localClient->GetDevices(&deviceInfo, &count), OH_MIDI_STATUS_SYSTEM_ERROR);
+    count = 1;
+    EXPECT_EQ(localClient->GetDevices(&deviceInfo, &count), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(count, 0);
+
+    EXPECT_CALL(*localService, GetDevicePorts(_, _))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR))
+        .WillOnce(Return(OH_MIDI_STATUS_OK));
+    OH_MIDIPortInformation portInfo {};
+    count = 1;
+    EXPECT_EQ(localClient->GetDevicePorts(1, &portInfo, &count), OH_MIDI_STATUS_SYSTEM_ERROR);
+    count = 1;
+    EXPECT_EQ(localClient->GetDevicePorts(1, &portInfo, &count), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(count, 0);
+
+    EXPECT_CALL(*localService, OpenDevice(_, _)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(localClient->OpenDevice(1, &device), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    OH_MIDIDeviceInformation rawInfo {};
+    rawInfo.midiDeviceId = 7300;
+    auto orphan = std::make_unique<MidiDevicePrivate>(localService, rawInfo);
+    EXPECT_EQ(localClient->CloseAndRemoveDevice(orphan.get()), OH_MIDI_STATUS_INVALID_DEVICE_HANDLE);
+}
+
+/**
+ * @tc.name: DevicePortCloseAndExpiredIpc001
+ * @tc.desc: Verify close IPC errors and weak-reference expiry for all device operations.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, DevicePortCloseAndExpiredIpc001, TestSize.Level0)
+{
+    OH_MIDIDeviceInformation info {};
+    info.midiDeviceId = 7400;
+    info.nativeProtocol = OH_MIDI_PROTOCOL_1_0;
+    auto device = std::make_unique<MidiDevicePrivate>(mockService, info);
+    OH_MIDIPortDescriptor descriptor {};
+    descriptor.portIndex = 0;
+    descriptor.protocol = OH_MIDI_PROTOCOL_1_0;
+    CallbackCapture capture;
+
+    EXPECT_CALL(*mockService, OpenInputPort(_, info.midiDeviceId, descriptor.portIndex))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &buffer, int64_t, uint32_t) {
+            buffer = MidiSharedRing::CreateFromLocal(256);
+            return OH_MIDI_STATUS_OK;
+        }));
+    ASSERT_EQ(device->OpenInputPort(descriptor, MidiReceivedTrampoline, &capture), OH_MIDI_STATUS_OK);
+    EXPECT_CALL(*mockService, CloseInputPort(info.midiDeviceId, descriptor.portIndex))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(device->CloseInputPort(descriptor.portIndex), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    auto expiringService = std::make_shared<MidiServiceMock>();
+    auto expiredDevice = std::make_unique<MidiDevicePrivate>(expiringService, info);
+    expiredDevice->inputPortsMap_[1] = std::make_shared<MidiInputPort>(
+        MidiReceivedTrampoline, &capture, MIDI_NONE);
+    expiredDevice->outputPortsMap_[1] = std::make_shared<MidiOutputPort>(MIDI_NONE);
+    expiringService.reset();
+
+    std::shared_ptr<MidiSharedRing> unused;
+    descriptor.portIndex = 2;
+    EXPECT_EQ(expiredDevice->CloseDevice(), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(expiredDevice->OpenInputPort(descriptor, MidiReceivedTrampoline, &capture),
+        OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(expiredDevice->OpenOutputPort(descriptor), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(expiredDevice->CloseInputPort(1), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(expiredDevice->CloseOutputPort(1), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(expiredDevice->FlushOutputPort(1), OH_MIDI_STATUS_SYSTEM_ERROR);
+}
+
+/**
+ * @tc.name: InputAndOutputInternalBranches001
+ * @tc.desc: Verify input wake guards, receiver early exits, and output validation/status mapping.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, InputAndOutputInternalBranches001, TestSize.Level0)
+{
+    CallbackCapture capture;
+    MidiInputPort inputPort(MidiReceivedTrampoline, &capture, MIDI_NONE);
+    EXPECT_TRUE(inputPort.ShouldWakeForReadOrExit());
+    inputPort.running_.store(true);
+    EXPECT_TRUE(inputPort.ShouldWakeForReadOrExit());
+    inputPort.ReceiverThreadLoop();
+    EXPECT_FALSE(inputPort.running_.load());
+
+    inputPort.ringBuffer_ = std::make_shared<MidiSharedRing>(0);
+    inputPort.running_.store(true);
+    inputPort.ReceiverThreadLoop();
+    EXPECT_FALSE(inputPort.running_.load());
+    inputPort.DrainRingAndDispatch();
+
+    MidiOutputPort outputPort(MIDI_NONE);
+    uint32_t word = 0x20903C40;
+    OH_MIDIEvent event {1, 1, &word};
+    uint32_t written = 0;
+    EXPECT_EQ(outputPort.Send(nullptr, 1, &written), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(outputPort.Send(&event, 1, nullptr), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    outputPort.ringBuffer_ = MidiSharedRing::CreateFromLocal(256);
+    ASSERT_NE(outputPort.ringBuffer_, nullptr);
+    EXPECT_EQ(outputPort.Send(&event, 0, &written), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(outputPort.Send(&event, 1001, &written), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+
+    uint8_t data[] = {0xF0};
+    MidiOutputPort noRing(MIDI_NONE);
+    EXPECT_EQ(noRing.SendSysEx(0, nullptr, 1), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(noRing.SendSysEx(0, data, 0), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(noRing.SendSysEx(0, data, 1), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    noRing.ringBuffer_ = MidiSharedRing::CreateFromLocal(256);
+    EXPECT_EQ(noRing.SendSysEx(16, data, 1), OH_MIDI_STATUS_INVALID_PORT);
+
+    MidiOutputPort brokenRing(MIDI_NONE);
+    brokenRing.ringBuffer_ = std::make_shared<MidiSharedRing>(0);
+    EXPECT_EQ(brokenRing.SendSysEx(0, data, 1), OH_MIDI_STATUS_SYSTEM_ERROR);
+}
+
+/**
+ * @tc.name: ExpiredClientCallbackBranches001
+ * @tc.desc: Verify both callback adapters ignore notifications after their client weak reference expires.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, ExpiredClientCallbackBranches001, TestSize.Level0)
+{
+    ApiCallbackCapture capture;
+    MidiDeviceInfo info;
+    info.deviceId = 7600;
+
+    auto callbackService = std::make_shared<MidiServiceMock>();
+    auto callbackClient = std::make_shared<MidiClientPrivate>();
+    MidiClientDeviceOpenCallback openCallback(
+        callbackService, DeviceOpenedTrampoline, &capture, callbackClient);
+    callbackClient.reset();
+    EXPECT_EQ(openCallback.NotifyDeviceOpened(true, info), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceOpenCount, 0);
+
+    auto listenerService = std::make_shared<MidiServiceMock>();
+    auto listenerClient = std::make_unique<MidiClientPrivate>();
+    listenerClient->ipc_ = listenerService;
+    sptr<MidiCallbackStub> listener;
+    EXPECT_CALL(*listenerService, Init(_, _))
+        .WillOnce(DoAll(SaveArg<0>(&listener), Return(OH_MIDI_STATUS_OK)));
+    OH_MIDICallbacks callbacks {DeviceChangeTrampoline, ErrorTrampoline};
+    ASSERT_EQ(listenerClient->Init(callbacks, &capture), OH_MIDI_STATUS_OK);
+    ASSERT_NE(listener, nullptr);
+    listenerClient.reset();
+    EXPECT_EQ(listener->NotifyDeviceChange(OH_MIDI_DEVICE_CHANGE_ACTION_CONNECTED, info), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(listener->NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(capture.deviceChangeCount, 0);
+    EXPECT_EQ(capture.errorCount, 0);
+}
+
+/**
+ * @tc.name: InputConversionMatrix001
+ * @tc.desc: Verify both conversion directions, conversion fallback, and unsupported direction dispatch.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, InputConversionMatrix001, TestSize.Level0)
+{
+    CallbackCapture capture;
+    const std::vector<std::pair<ProtocolDirection, std::vector<uint32_t>>> cases = {
+        {MIDI_1_0_TO_MIDI_2_0, {0x20903C64}},
+        {MIDI_2_0_TO_MIDI_1_0, {0x40903C00, 0xC8000000}},
+        {MIDI_1_0_TO_MIDI_2_0, {0x50000000, 0, 0, 0}},
+        {static_cast<ProtocolDirection>(99), {0x20903C64}},
+    };
+
+    uint64_t timestamp = 1;
+    for (const auto &[direction, words] : cases) {
+        MidiInputPort inputPort(MidiReceivedTrampoline, &capture, direction);
+        inputPort.ringBuffer_ = MidiSharedRing::CreateFromLocal(512);
+        ASSERT_NE(inputPort.ringBuffer_, nullptr);
+        MidiEventInner event = MakeMidiEventInner(timestamp++, words);
+        ASSERT_EQ(inputPort.ringBuffer_->TryWriteEvent(event, false), MidiStatusCode::OK);
+        inputPort.DrainRingAndDispatch();
+    }
+    EXPECT_EQ(capture.GetReceivedCount(), cases.size());
+
+    MidiInputPort emptyPackets(MidiReceivedTrampoline, &capture, MIDI_NONE);
+    emptyPackets.ringBuffer_ = MidiSharedRing::CreateFromLocal(256);
+    std::vector<uint32_t> incomplete{0x40000000};
+    MidiEventInner incompleteEvent = MakeMidiEventInner(timestamp, incomplete);
+    ASSERT_EQ(emptyPackets.ringBuffer_->TryWriteEvent(incompleteEvent, false), MidiStatusCode::OK);
+    emptyPackets.DrainRingAndDispatch();
+    EXPECT_EQ(capture.GetReceivedCount(), cases.size());
+}
+
+/**
+ * @tc.name: OutputEdgeBranches001
+ * @tc.desc: Verify output conversion, full-ring status, timeout, and packet preparation.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, OutputEdgeBranches001, TestSize.Level0)
+{
+    MidiOutputPort convertingOutput(MIDI_2_0_TO_MIDI_1_0);
+    convertingOutput.ringBuffer_ = MidiSharedRing::CreateFromLocal(256);
+    ASSERT_NE(convertingOutput.ringBuffer_, nullptr);
+    uint32_t midi2Words[] = {0x40903C00, 0xC8000000};
+    OH_MIDIEvent midi2Event {1, 2, midi2Words};
+    uint32_t written = 0;
+    EXPECT_EQ(convertingOutput.Send(&midi2Event, 1, &written), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(written, 1);
+
+    uint32_t unsupportedWords[] = {0x50000000, 0, 0, 0};
+    OH_MIDIEvent unsupportedEvent {2, 4, unsupportedWords};
+    EXPECT_EQ(convertingOutput.Send(&unsupportedEvent, 1, &written), OH_MIDI_STATUS_OK);
+
+    std::vector<uint32_t> largePayload(40, 0x20903C40);
+    OH_MIDIEvent largeEvent {3, largePayload.size(), largePayload.data()};
+    int32_t sendResult = OH_MIDI_STATUS_OK;
+    do {
+        sendResult = convertingOutput.Send(&largeEvent, 1, &written);
+    } while (sendResult == OH_MIDI_STATUS_OK);
+    EXPECT_EQ(sendResult, OH_MIDI_STATUS_WOULD_BLOCK);
+
+    std::vector<MidiEventInner> packets(1);
+    EXPECT_EQ(convertingOutput.SendSysExPackets(
+        packets, 1, std::chrono::steady_clock::now() - std::chrono::seconds(2)), OH_MIDI_STATUS_TIMEOUT);
+    SysExPacketData packetData;
+    uint8_t sysex[7] = {0xF0, 1, 2, 3, 4, 5, 0xF7};
+    convertingOutput.PrepareSysExPackets(0, sysex, sizeof(sysex), 2, packetData);
+    EXPECT_EQ(packetData.innerEvents.size(), 2);
+    convertingOutput.PrepareSysExPackets(0, sysex, 0, 0, packetData);
+    EXPECT_TRUE(packetData.innerEvents.empty());
+}
+
+/**
+ * @tc.name: DeviceEdgeBranches001
+ * @tc.desc: Verify invalid-device sends, null port maps, and device lookup loops.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, DeviceEdgeBranches001, TestSize.Level0)
+{
+    OH_MIDIDeviceInformation info {};
+    info.midiDeviceId = 7700;
+    auto device = std::make_shared<MidiDevicePrivate>(mockService, info);
+    device->outputPortsMap_[1] = std::make_shared<MidiOutputPort>(MIDI_NONE);
+    device->outputPortsMap_[1]->ringBuffer_ = MidiSharedRing::CreateFromLocal(256);
+    device->inputPortsMap_[1] = nullptr;
+    device->inputPortsMap_[2] = std::make_shared<MidiInputPort>(MidiReceivedTrampoline, nullptr, MIDI_NONE);
+    device->outputPortsMap_[2] = nullptr;
+    device->SetInValid();
+    uint32_t word = 0x20903C40;
+    OH_MIDIEvent event {1, 1, &word};
+    uint32_t written = 0;
+    EXPECT_EQ(device->Send(1, &event, 1, &written), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    uint8_t data = 0xF0;
+    EXPECT_EQ(device->SendSysEx(1, &data, 1), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    device->CloseAllPorts();
+
+    device->inputPortsMap_[1] = nullptr;
+    device->inputPortsMap_[2] = std::make_shared<MidiInputPort>(MidiReceivedTrampoline, nullptr, MIDI_NONE);
+    device->outputPortsMap_[1] = nullptr;
+    device->outputPortsMap_[2] = std::make_shared<MidiOutputPort>(MIDI_NONE);
+    device->TombstoneAllPorts();
+
+    client->deviceHandlers_.push_back(nullptr);
+    client->deviceHandlers_.push_back(device);
+    EXPECT_TRUE(client->IsDeviceOpened(info.midiDeviceId));
+    EXPECT_FALSE(client->IsDeviceOpened(info.midiDeviceId + 1));
+    client->MarkDeviceInValid();
+}
+
+/**
+ * @tc.name: LongPortNameAndCloseFailure001
+ * @tc.desc: Verify port-name copy fallback and CloseDevice IPC error propagation.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiClientUnitTest, LongPortNameAndCloseFailure001, TestSize.Level0)
+{
+    constexpr int64_t deviceId = 7800;
+    EXPECT_CALL(*mockService, GetDevicePorts(deviceId, _))
+        .WillOnce(Invoke([](int64_t, std::vector<MidiPortInfo> &ports) {
+            MidiPortInfo port;
+            port.portId = 1;
+            port.name.assign(sizeof(OH_MIDIPortInformation::name) + 8, 'x');
+            ports.push_back(port);
+            return OH_MIDI_STATUS_OK;
+        }));
+    OH_MIDIPortInformation info {};
+    size_t count = 1;
+    EXPECT_EQ(client->GetDevicePorts(deviceId, &info, &count), OH_MIDI_STATUS_OK);
+    EXPECT_STREQ(info.name, "");
+
+    OH_MIDIDeviceInformation deviceInfo {};
+    deviceInfo.midiDeviceId = deviceId;
+    MidiDevicePrivate device(mockService, deviceInfo);
+    EXPECT_CALL(*mockService, CloseDevice(deviceId)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(device.CloseDevice(), OH_MIDI_STATUS_SYSTEM_ERROR);
 }

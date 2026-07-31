@@ -16,16 +16,22 @@
 #include "iremote_stub.h"
 #include "iservice_registry.h"
 #include "message_parcel.h"
+#include "midi_device_mananger.h"
 #include "midi_in_server.h"
 #include "midi_info.h"
 #include "midi_listener_callback.h"
 #include "midi_server.h"
+#include "midi_server_dump.h"
+#include "midi_service_death_recipent.h"
 #include "midi_test_common.h"
 #include "native_midi_base.h"
 #include "parcel.h"
 #include "system_ability_definition.h"
 #include <algorithm>
 #include <map>
+#include <queue>
+#include <string>
+#include <unistd.h>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -80,6 +86,33 @@ class MockMidiServiceController : public MidiServiceController {
 class MidiServerUnitTest : public testing::Test {
 public:
 };
+
+static DeviceInformation CreateDumpDevice()
+{
+    DeviceInformation info;
+    info.midiDeviceInfo.driverDeviceId = 101;
+    info.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
+    info.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+    info.midiDeviceInfo.deviceName = "Dump Device";
+    info.midiDeviceInfo.address = "00:11:22:33:44:55";
+    info.midiDeviceInfo.productId = 0x1234;
+    info.midiDeviceInfo.vendorId = 0x5678;
+
+    MidiPortInfo inputPort;
+    inputPort.portId = 0;
+    inputPort.direction = PortDirection::PORT_DIRECTION_INPUT;
+    inputPort.transportProtocol = TransportProtocol::PROTOCOL_1_0;
+    inputPort.name = "Input";
+    info.portInfos.push_back(inputPort);
+
+    MidiPortInfo outputPort;
+    outputPort.portId = 1;
+    outputPort.direction = PortDirection::PORT_DIRECTION_OUTPUT;
+    outputPort.transportProtocol = TransportProtocol::PROTOCOL_2_0;
+    outputPort.name = "Output";
+    info.portInfos.push_back(outputPort);
+    return info;
+}
 
 /**
  * @tc.name: MidiInServer_GetDevices001
@@ -233,6 +266,48 @@ HWTEST_F(MidiServerUnitTest, MidiListenerCallback_NotifyError001, TestSize.Level
 }
 
 /**
+ * @tc.name: MidiListenerCallback_AllBranches001
+ * @tc.desc: Verify both listener callbacks with and without a remote callback.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiListenerCallback_AllBranches001, TestSize.Level0)
+{
+    MidiDeviceInfo deviceInfo;
+    sptr<IMidiCallback> nullCallback;
+    MidiListenerCallback nullListener(nullCallback);
+    nullListener.NotifyDeviceChange(DeviceChangeType::ADD, deviceInfo);
+    nullListener.NotifyError(-1);
+
+    sptr<MockIMidiCallback> mockCallback = sptr<MockIMidiCallback>::MakeSptr();
+    EXPECT_CALL(*mockCallback, NotifyDeviceChange(_, _)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockCallback, NotifyError(-2)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    MidiListenerCallback listener(mockCallback);
+    listener.NotifyDeviceChange(DeviceChangeType::REMOVED, deviceInfo);
+    listener.NotifyError(-2);
+}
+
+/**
+ * @tc.name: MidiServiceDeathRecipient_AllBranches001
+ * @tc.desc: Verify remote death is ignored before registration and forwarded afterwards.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServiceDeathRecipient_AllBranches001, TestSize.Level0)
+{
+    constexpr uint32_t clientId = 321;
+    sptr<MidiServiceDeathRecipient> recipient = sptr<MidiServiceDeathRecipient>::MakeSptr(clientId);
+    ASSERT_NE(recipient, nullptr);
+    wptr<IRemoteObject> remote;
+    recipient->OnRemoteDied(remote);
+
+    uint32_t notifiedClientId = 0;
+    recipient->SetNotifyCb([&notifiedClientId](uint32_t id) {
+        notifiedClientId = id;
+    });
+    recipient->OnRemoteDied(remote);
+    EXPECT_EQ(notifiedClientId, clientId);
+}
+
+/**
  * @tc.name: MidiServer_OnStart001
  * @tc.desc: call callback's OnStart
  * @tc.type: FUNC
@@ -268,4 +343,157 @@ HWTEST_F(MidiServerUnitTest, MidiServer_CreateMidiInServer001, TestSize.Level0)
 
     EXPECT_NE(nullptr, server->controller_);
     EXPECT_EQ(OH_MIDI_STATUS_OK, server->CreateMidiInServer(object, client, clientId));
+}
+
+/**
+ * @tc.name: MidiServer_RemainingBranches001
+ * @tc.desc: Verify the null-controller guard, initialized dump helper, and stop path.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServer_RemainingBranches001, TestSize.Level0)
+{
+    sptr<MidiServer> server = sptr<MidiServer>::MakeSptr(123, true);
+    ASSERT_NE(server, nullptr);
+    sptr<IRemoteObject> object;
+    sptr<IRemoteObject> client;
+    uint32_t clientId = 0;
+    server->controller_ = nullptr;
+    EXPECT_EQ(server->CreateMidiInServer(object, client, clientId), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    int pipeFds[2] = {-1, -1};
+    ASSERT_EQ(pipe(pipeFds), 0);
+    ASSERT_NE(server->dumpHelper_, nullptr);
+    EXPECT_GT(server->Dump(pipeFds[1], {u"-h"}), 0);
+    close(pipeFds[1]);
+    std::string output(1024, '\0');
+    ssize_t bytesRead = read(pipeFds[0], output.data(), output.size());
+    close(pipeFds[0]);
+    ASSERT_GT(bytesRead, 0);
+    output.resize(static_cast<size_t>(bytesRead));
+    EXPECT_THAT(output, HasSubstr("MIDI Service Dump Commands"));
+
+    server->OnStop();
+    EXPECT_EQ(server->controller_, nullptr);
+}
+
+/**
+ * @tc.name: MidiServer_Dump001
+ * @tc.desc: Verify invalid and valid dump file descriptors.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServer_Dump001, TestSize.Level0)
+{
+    sptr<MidiServer> server = sptr<MidiServer>::MakeSptr(123, true);
+    ASSERT_NE(server, nullptr);
+    EXPECT_EQ(server->Dump(-1, {}), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+
+    int pipeFds[2] = {-1, -1};
+    ASSERT_EQ(pipe(pipeFds), 0);
+    server->dumpHelper_ = nullptr;
+    EXPECT_GT(server->Dump(pipeFds[1], {}), 0);
+    close(pipeFds[1]);
+
+    std::string output(128, '\0');
+    ssize_t bytesRead = read(pipeFds[0], output.data(), output.size());
+    close(pipeFds[0]);
+    ASSERT_GT(bytesRead, 0);
+    output.resize(static_cast<size_t>(bytesRead));
+    EXPECT_THAT(output, HasSubstr("helper not initialized"));
+}
+
+/**
+ * @tc.name: MidiServerDump_HandleArguments001
+ * @tc.desc: Verify help, multiple known commands, and unknown command handling.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServerDump_HandleArguments001, TestSize.Level0)
+{
+    MidiServerDump dump;
+    std::queue<std::u16string> args;
+    args.push(u"-h");
+    args.push(u"-d");
+    args.push(u"-c");
+    args.push(u"-p");
+    args.push(u"-s");
+    std::string output;
+    dump.HandleDump(output, args);
+    EXPECT_THAT(output, HasSubstr("MIDI Service Dump Commands"));
+    EXPECT_THAT(output, HasSubstr("[Device List]"));
+    EXPECT_THAT(output, HasSubstr("[Client Information]"));
+    EXPECT_THAT(output, HasSubstr("[Port Mapping]"));
+    EXPECT_THAT(output, HasSubstr("[Traffic Statistics]"));
+
+    args.push(u"--unknown");
+    output.clear();
+    dump.HandleDump(output, args);
+    EXPECT_THAT(output, HasSubstr("Unknown parameter: --unknown"));
+    EXPECT_THAT(output, HasSubstr("MIDI Service Dump Commands"));
+}
+
+/**
+ * @tc.name: MidiServerDump_AllInfo001
+ * @tc.desc: Verify an empty argument list dumps all sections.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServerDump_AllInfo001, TestSize.Level0)
+{
+    MidiServerDump dump;
+    std::queue<std::u16string> args;
+    std::string output;
+    dump.HandleDump(output, args);
+    EXPECT_THAT(output, HasSubstr("MIDI Service Dump"));
+    EXPECT_THAT(output, HasSubstr("[Service Status]"));
+    EXPECT_THAT(output, HasSubstr("[Device List]"));
+    EXPECT_THAT(output, HasSubstr("[Traffic Statistics]"));
+}
+
+/**
+ * @tc.name: MidiServerDump_StringMappings001
+ * @tc.desc: Verify every enum-to-string mapping and its default branch.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServerDump_StringMappings001, TestSize.Level0)
+{
+    MidiServerDump dump;
+    EXPECT_EQ(dump.DeviceTypeToString(static_cast<int>(DEVICE_TYPE_USB)), "USB");
+    EXPECT_EQ(dump.DeviceTypeToString(static_cast<int>(DEVICE_TYPE_BLE)), "BLE");
+    EXPECT_EQ(dump.DeviceTypeToString(-1), "Unknown");
+    EXPECT_EQ(dump.ProtocolToString(static_cast<int>(PROTOCOL_1_0)), "MIDI 1.0");
+    EXPECT_EQ(dump.ProtocolToString(static_cast<int>(PROTOCOL_2_0)), "MIDI 2.0");
+    EXPECT_EQ(dump.ProtocolToString(-1), "Unknown");
+    EXPECT_EQ(dump.PortDirectionToString(static_cast<int>(PORT_DIRECTION_INPUT)), "INPUT");
+    EXPECT_EQ(dump.PortDirectionToString(static_cast<int>(PORT_DIRECTION_OUTPUT)), "OUTPUT");
+    EXPECT_EQ(dump.PortDirectionToString(-1), "Unknown");
+}
+
+/**
+ * @tc.name: MidiServerDump_DeviceAndPorts001
+ * @tc.desc: Verify device and port iteration in the dump output.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServerUnitTest, MidiServerDump_DeviceAndPorts001, TestSize.Level0)
+{
+    auto controller = MidiServiceController::GetInstance();
+    ASSERT_NE(controller, nullptr);
+    controller->ClearStateForTest();
+
+    auto mockDriver = std::make_unique<NiceMock<MockMidiDeviceDriver>>();
+    MockMidiDeviceDriver *rawDriver = mockDriver.get();
+    controller->GetDeviceManagerForTest()->InjectDriverForTest(
+        DeviceType::DEVICE_TYPE_USB, std::move(mockDriver));
+    EXPECT_CALL(*rawDriver, GetRegisteredDevices())
+        .WillOnce(Return(std::vector<DeviceInformation>{CreateDumpDevice()}));
+    controller->GetDeviceManagerForTest()->UpdateDevices();
+
+    MidiServerDump dump;
+    std::queue<std::u16string> args;
+    args.push(u"-d");
+    std::string output;
+    dump.HandleDump(output, args);
+    EXPECT_THAT(output, HasSubstr("1 Device(s) available"));
+    EXPECT_THAT(output, HasSubstr("Port 0: INPUT"));
+    EXPECT_THAT(output, HasSubstr("Port 1: OUTPUT"));
+    controller->GetDeviceManagerForTest()->InjectDriverForTest(
+        DeviceType::DEVICE_TYPE_USB, std::unique_ptr<MidiDeviceDriver>());
+    controller->ClearStateForTest();
 }
