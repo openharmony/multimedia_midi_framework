@@ -365,6 +365,52 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingUnmarshalling_MissingEventFd_001,
     close(validDataFd);
 }
 
+/**
+ * @tc.name   : Test MidiSharedRing Unmarshalling rejects overflow ringSize
+ * @tc.number : MidiSharedRingUnmarshalling_OverflowSize_001
+ * @tc.desc   : Unmarshalling must return nullptr when ringSize is crafted near UINT32_MAX. Without
+ *              the bounds check, sizeof(ControlHeader) + ringSize wraps the uint32_t totalMemorySize_
+ *              to a tiny value, bypasses the MAX_MMAP_BUFFER_SIZE guard, and produces a huge capacity_
+ *              over a tiny mmap (OOB). A valid dataFd is supplied so the code would otherwise proceed
+ *              past the fd check; the guard must reject first (no fd leak, no crash).
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingUnmarshalling_OverflowSize_001, TestSize.Level0)
+{
+    MessageParcel parcel;
+    // 0xFFFFFFFF -> totalMemorySize_ would wrap to (64 - 1) = 63 without the guard.
+    constexpr uint32_t OVERFLOW_RING_SIZE = 0xFFFFFFFFu;
+    parcel.WriteUint32(OVERFLOW_RING_SIZE);
+
+    int validDataFd = AshmemCreate("midi_ut_overflow_size", sizeof(ControlHeader) + 256);
+    ASSERT_GT(validDataFd, MINFD);
+    parcel.WriteFileDescriptor(validDataFd);
+    parcel.WriteBool(false); // hasNotifyFd = false
+
+    auto *out = MidiSharedRing::Unmarshalling(parcel);
+    EXPECT_EQ(nullptr, out);
+    close(validDataFd);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing Init rejects overflow capacity
+ * @tc.number : MidiSharedRingInit_OverflowCapacity_001
+ * @tc.desc   : Init must fail when capacity_ is near UINT32_MAX. totalMemorySize_ (uint32_t) wraps to
+ *              a small value, so the capacity_ upper-bound guard is the reliable witness that prevents
+ *              a huge capacity_ over a tiny mmap. Defense-in-depth at the internal invariant.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingInit_OverflowCapacity_001, TestSize.Level0)
+{
+    // sizeof(ControlHeader) + 0xFFFFFFFFu wraps totalMemorySize_ to 63.
+    constexpr uint32_t OVERFLOW_RING_CAPACITY = 0xFFFFFFFFu;
+
+    MidiSharedRing ring(OVERFLOW_RING_CAPACITY);
+    int32_t ret = ring.Init(INVALID_FD);
+
+    EXPECT_NE(OH_MIDI_STATUS_OK, ret);
+    EXPECT_EQ(nullptr, ring.GetControlHeader());
+    EXPECT_EQ(nullptr, ring.GetDataBase());
+}
+
 static MidiEventInner MakeEvent(uint64_t ts, const std::vector<uint32_t> &payload)
 {
     MidiEventInner ev{};

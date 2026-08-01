@@ -154,7 +154,6 @@ void MidiServiceController::ScheduleUnloadTask()
         } else {
             MIDI_INFO_LOG("Unload timer cancelled.");
         }
-        isUnloadPending_.store(false, std::memory_order_release);
     });
 }
 
@@ -436,6 +435,16 @@ bool MidiServiceController::RegisterBleDeviceForPendingClientsLocked(const std::
         MIDI_WARNING_LOG("All waiting clients died before BLE connected.");
         return false;
     }
+    auto ctxIt = deviceClientContexts_.find(deviceId);
+    if (ctxIt != deviceClientContexts_.end()) {
+        // deviceId already has a context (unexpected for a freshly connected BLE device).
+        // Keep the existing context and merge the pending clients in so the device context
+        // stays consistent with clientResourceInfo_; otherwise emplace would silently drop
+        // this context and leave the new clients untracked by the device they opened.
+        MIDI_WARNING_LOG("deviceId %{public}" PRId64 " already registered; merging pending clients", deviceId);
+        ctxIt->second->clients.insert(initialClients.begin(), initialClients.end());
+        return true;
+    }
     auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(initialClients));
     deviceClientContexts_.emplace(deviceId, std::move(context));
     return true;
@@ -509,7 +518,14 @@ int32_t MidiServiceController::CreateNewInputPortConnection(uint32_t clientId, i
     auto ret = deviceManager_->OpenInputPort(inputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open input port fail!");
     int32_t addRet = inputConnection->AddClientConnection(clientId, deviceId, buffer);
-    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
+    if (addRet != OH_MIDI_STATUS_OK) {
+        // OpenInputPort just opened the underlying device/HDI port, but on failure the connection is
+        // NOT emplaced into context->inputDeviceconnections_, so its destructor will not close it.
+        // Close the device port explicitly to avoid leaking input-port resources.
+        MIDI_ERR_LOG("AddClientConnection fail, ret=%{public}d, closing input port", addRet);
+        deviceManager_->CloseInputPort(deviceId, portIndex);
+        return addRet;
+    }
     clientResourceInfo_[clientId].openPortCount++;
     context->inputDeviceconnections_.emplace(portIndex, std::move(inputConnection));
     MIDI_INFO_LOG("OpenInputPort Success");
@@ -583,11 +599,17 @@ int32_t MidiServiceController::CreateNewOutputPortConnection(uint32_t clientId, 
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
     int32_t startRet = outputConnection->Start();
-    CHECK_AND_RETURN_RET_LOG(startRet == OH_MIDI_STATUS_OK, startRet, "Start output connection fail");
+    
+    if (startRet != OH_MIDI_STATUS_OK) {
+        MIDI_ERR_LOG("Start output connection fail");
+        deviceManager_->CloseOutputPort(deviceId, portIndex);
+        return startRet;
+    }
     int32_t addRet = outputConnection->AddClientConnection(clientId, deviceId, buffer);
     if (addRet != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("AddClientConnection fail, ret=%{public}d, stopping output connection", addRet);
         outputConnection->Stop();
+        deviceManager_->CloseOutputPort(deviceId, portIndex);
         return addRet;
     }
     clientResourceInfo_[clientId].openPortCount++;

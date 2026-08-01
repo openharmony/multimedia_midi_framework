@@ -160,7 +160,8 @@ private:
     uint32_t clientId_;
     uint32_t callerTokenId_;
     CallbackSlot callbackSlot_;
-    bool hasBluetoothPermission_;
+    // Atomic: written by UpdateBluetoothPermission(), read concurrently from IPC handler threads.
+    std::atomic<bool> hasBluetoothPermission_;
 };
 } // namespace MIDI
 } // namespace OHOS

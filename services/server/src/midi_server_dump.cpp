@@ -58,8 +58,7 @@ void MidiServerDump::HandleDump(std::string &dumpString, std::queue<std::u16stri
         if (dumpFuncMap_.find(para) != dumpFuncMap_.end()) {
             (this->*dumpFuncMap_[para])(dumpString);
         } else {
-            dumpString += "Unknown parameter: ";
-            dumpString += std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(para);
+            dumpString += "Unknown parameter";
             dumpString += "\n\n";
             HelpInfoDump(dumpString);
             return;

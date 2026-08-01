@@ -14,6 +14,7 @@
  */
 
 #include "ump_processor.h"
+#include "ump_converter.h"
 #include <vector>
 namespace {
     // --- MIDI 1.0 Constants ---
@@ -337,10 +338,19 @@ void UmpProcessor::ProcessUmp(const uint32_t* packets, size_t wordCount, Midi1Ca
                     i += 1;
                 }
                 break;
-            default:
-                // Unknown message type, skip one word
-                i += 1;
+            default: {
+                // Unhandled message type (e.g. MT=0x4 MIDI 2.0 CV, MT=0x5/0xD Flex Data,
+                // MT=0xF UMP Stream). A UMP packet's length is fully determined by MT, so
+                // advance past the whole packet using the spec word count. Skipping only one
+                // word would misread the continuation words of a multi-word packet as new
+                // packet headers and desynchronize the rest of the stream.
+                size_t words = UmpConverter::GetUmpWordCount(word0);
+                if (words == 0) {
+                    words = 1; // Defensive: a corrupt/unknown MT must never stall the loop.
+                }
+                i += words;
                 break;
+            }
         }
     }
 }
