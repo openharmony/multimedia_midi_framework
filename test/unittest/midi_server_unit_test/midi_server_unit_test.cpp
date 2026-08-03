@@ -89,8 +89,9 @@ public:
 
 static DeviceInformation CreateDumpDevice()
 {
+    constexpr int64_t driverDeviceId = 101;
     DeviceInformation info;
-    info.midiDeviceInfo.driverDeviceId = 101;
+    info.midiDeviceInfo.driverDeviceId = driverDeviceId;
     info.midiDeviceInfo.deviceType = DeviceType::DEVICE_TYPE_USB;
     info.midiDeviceInfo.transportProtocol = TransportProtocol::PROTOCOL_1_0;
     info.midiDeviceInfo.deviceName = "Dump Device";

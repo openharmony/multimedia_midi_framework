@@ -1452,9 +1452,9 @@ HWTEST_F(UmpProcessorUnitTest, TestPrivateForwardBranchMatrix, TestSize.Level1)
     processor_.sysex_has_started_ = true;
     processor_.ProcessSysExData(0x7F, callback);
 
-    constexpr uint8_t SYSEX_STATUS_VARIANTS = 4;
+    constexpr uint8_t sysexStatusVariants = 4;
     for (uint8_t count = 0; count <= UmpProcessor::SYSEX_BUFFER_SIZE; ++count) {
-        processor_.DispatchSysExPacket(callback, count % SYSEX_STATUS_VARIANTS, count);
+        processor_.DispatchSysExPacket(callback, count % sysexStatusVariants, count);
     }
 
     uint8_t adjacentStatuses[] = {0x90, 0xF8, 0x90, 0x3C, 0x40};

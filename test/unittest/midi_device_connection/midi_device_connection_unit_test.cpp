@@ -674,32 +674,32 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_008, TestSize.L
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionBaseBranches_001, TestSize.Level1)
 {
-    constexpr uint32_t MISSING_CLIENT_ID = 66;
-    constexpr uint32_t CONNECTED_CLIENT_ID = 77;
-    constexpr uint32_t INITIAL_BYTE_COUNT = 10;
+    constexpr uint32_t missingClientId = 66;
+    constexpr uint32_t connectedClientId = 77;
+    constexpr uint32_t initialByteCount = 10;
     DeviceConnectionInfo info{};
     info.direction = MidiPortDirection::INPUT;
     DeviceConnectionBase connection(info);
 
     EXPECT_EQ(0, connection.GetStats().statsDurationMs);
     connection.clients_.push_back(nullptr);
-    auto client = std::make_shared<ClientConnectionInServer>(CONNECTED_CLIENT_ID, 88, 0);
+    auto client = std::make_shared<ClientConnectionInServer>(connectedClientId, 88, 0);
     connection.clients_.push_back(client);
-    EXPECT_FALSE(connection.HasClientConnection(MISSING_CLIENT_ID));
-    EXPECT_TRUE(connection.HasClientConnection(CONNECTED_CLIENT_ID));
-    EXPECT_EQ(std::vector<uint32_t>({CONNECTED_CLIENT_ID}), connection.GetConnectedClientIds());
+    EXPECT_FALSE(connection.HasClientConnection(missingClientId));
+    EXPECT_TRUE(connection.HasClientConnection(connectedClientId));
+    EXPECT_EQ(std::vector<uint32_t>({connectedClientId}), connection.GetConnectedClientIds());
     EXPECT_EQ(2, connection.SnapshotClients().size());
 
-    connection.RemoveClientConnection(MISSING_CLIENT_ID);
+    connection.RemoveClientConnection(missingClientId);
     EXPECT_EQ(2, connection.clients_.size());
-    connection.RemoveClientConnection(CONNECTED_CLIENT_ID);
+    connection.RemoveClientConnection(connectedClientId);
     ASSERT_EQ(1, connection.clients_.size());
     EXPECT_EQ(nullptr, connection.clients_.front());
 
     connection.IncrementEventCount();
     EXPECT_EQ(1, connection.GetStats().eventCount);
     connection.eventCount_.store(MAX_EVENT_COUNT);
-    connection.byteCount_.store(INITIAL_BYTE_COUNT);
+    connection.byteCount_.store(initialByteCount);
     connection.IncrementEventCount();
     EXPECT_EQ(1, connection.GetStats().eventCount);
     EXPECT_EQ(0, connection.GetStats().byteCount);
@@ -759,7 +759,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForInput_002, TestSize.Le
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_009, TestSize.Level1)
 {
-    constexpr uint32_t DEVICE_HANDLE = 2;
+    constexpr uint32_t deviceHandle = 2;
     RecordingMidiDeviceDriver driver;
     DeviceConnectionInfo info{};
     info.driver = nullptr;
@@ -772,7 +772,7 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_009, TestSize.L
     connection.DrainEventFd();
     connection.DrainTimerFd();
     std::shared_ptr<MidiSharedRing> ring;
-    EXPECT_EQ(OH_MIDI_STATUS_SYSTEM_ERROR, connection.AddClientConnection(1, DEVICE_HANDLE, ring));
+    EXPECT_EQ(OH_MIDI_STATUS_SYSTEM_ERROR, connection.AddClientConnection(1, deviceHandle, ring));
 
     uint32_t payload[] = {0x11111111, 0x22222222, 0x33333333};
     connection.SetMaxSendCacheBytes(8);
@@ -804,19 +804,20 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_009, TestSize.L
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_010, TestSize.Level1)
 {
-    constexpr uint32_t CLIENT_ID = 2;
-    constexpr uint32_t DEVICE_HANDLE = 2;
+    constexpr uint32_t clientId = 2;
+    constexpr uint32_t deviceHandle = 2;
+    constexpr uint32_t serverDeviceId = 3;
     DeviceConnectionInfo info{};
     info.direction = MidiPortDirection::OUTPUT;
     DeviceConnectionForOutput connection(info);
     connection.SetMaxSendCacheBytes(16);
 
-    ClientConnectionInServer nullRingClient(1, DEVICE_HANDLE, 0);
+    ClientConnectionInServer nullRingClient(1, deviceHandle, 0);
     connection.DrainSingleClientRing(nullRingClient);
     connection.clients_.push_back(nullptr);
     connection.DrainAllClientsRings();
 
-    ClientConnectionInServer client(CLIENT_ID, 3, 0);
+    ClientConnectionInServer client(clientId, serverDeviceId, 0);
     ASSERT_EQ(OH_MIDI_STATUS_OK, client.CreateRingBuffer());
     auto ring = client.GetRingBuffer();
     ASSERT_NE(nullptr, ring);
@@ -962,9 +963,9 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_012, TestSize.L
     ASSERT_EQ(MidiStatusCode::OK, realtimeRing->PeekNext(realtimePeek));
     auto *realtimeHeader = reinterpret_cast<ShmMidiEventHeader *>(
         realtimeRing->GetDataBase() + realtimePeek.beginOffset);
-    constexpr uint32_t STALE_SEQUENCE_INCREMENT = 2;
+    constexpr uint32_t staleSequenceIncrement = 2;
     realtimeHeader->sequence.store(
-        realtimePeek.sequence + STALE_SEQUENCE_INCREMENT, std::memory_order_relaxed);
+        realtimePeek.sequence + staleSequenceIncrement, std::memory_order_relaxed);
     connection.DrainSingleClientRing(realtimeClient);
 }
 
@@ -975,11 +976,13 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_012, TestSize.L
  */
 HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_013, TestSize.Level1)
 {
-    constexpr uint32_t STALE_SEQUENCE_INCREMENT = 2;
+    constexpr uint32_t staleSequenceIncrement = 2;
+    constexpr uint32_t scheduledClientId = 2;
+    constexpr uint32_t deviceHandle = 2;
     DeviceConnectionInfo info {};
     info.direction = MidiPortDirection::OUTPUT;
     DeviceConnectionForOutput connection(info);
-    ClientConnectionInServer scheduledClient(2, 2, 0);
+    ClientConnectionInServer scheduledClient(scheduledClientId, deviceHandle, 0);
     ASSERT_EQ(OH_MIDI_STATUS_OK, scheduledClient.CreateRingBuffer());
     auto scheduledRing = scheduledClient.GetRingBuffer();
     ASSERT_NE(nullptr, scheduledRing);
@@ -1000,8 +1003,8 @@ HWTEST_F(MidiDeviceConnectionUnitTest, DeviceConnectionForOutput_013, TestSize.L
     auto *scheduledHeader = reinterpret_cast<ShmMidiEventHeader *>(
         scheduledRing->GetDataBase() + scheduledPeek.beginOffset);
     scheduledHeader->sequence.store(
-        scheduledPeek.sequence + STALE_SEQUENCE_INCREMENT, std::memory_order_relaxed);
-    scheduledClient.SetMaxPending(STALE_SEQUENCE_INCREMENT);
+        scheduledPeek.sequence + staleSequenceIncrement, std::memory_order_relaxed);
+    scheduledClient.SetMaxPending(staleSequenceIncrement);
     EXPECT_FALSE(connection.ConsumeNonRealtimeEvent(scheduledClient, *scheduledRing, scheduledPeek));
     scheduledRing->Flush();
 

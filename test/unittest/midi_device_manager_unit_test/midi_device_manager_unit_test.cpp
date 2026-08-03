@@ -436,7 +436,8 @@ HWTEST_F(MidiDeviceManagerUnitTest, BleLifecycle001, TestSize.Level0)
     int successCount = 0;
     int failureCount = 0;
     int64_t callbackDeviceId = 0;
-    auto callback = [&](bool success, int64_t deviceId, const MidiDeviceInfo &) {
+    auto callback = [&successCount, &failureCount, &callbackDeviceId](
+        bool success, int64_t deviceId, const MidiDeviceInfo &) {
         success ? ++successCount : ++failureCount;
         callbackDeviceId = deviceId;
     };

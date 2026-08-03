@@ -626,13 +626,13 @@ HWTEST_F(UmpConverterUnitTest, TestSplitUmpPackets_IncompletePacket, TestSize.Le
  */
 HWTEST_F(UmpConverterUnitTest, TestPrivateConversionHelperBranchMatrix, TestSize.Level1)
 {
-    constexpr uint32_t BYTE_WORD = 0xFEDCBA98;
-    EXPECT_EQ(UmpConverter::Byte3(BYTE_WORD), 0xFE);
-    EXPECT_EQ(UmpConverter::Byte2(BYTE_WORD), 0xDC);
-    EXPECT_EQ(UmpConverter::Byte1(BYTE_WORD), 0xBA);
-    EXPECT_EQ(UmpConverter::Byte0(BYTE_WORD), 0x98);
-    EXPECT_EQ(UmpConverter::MessageType(BYTE_WORD), 0x0F);
-    EXPECT_EQ(UmpConverter::Group(BYTE_WORD), 0x0E);
+    constexpr uint32_t byteWord = 0xFEDCBA98;
+    EXPECT_EQ(UmpConverter::Byte3(byteWord), 0xFE);
+    EXPECT_EQ(UmpConverter::Byte2(byteWord), 0xDC);
+    EXPECT_EQ(UmpConverter::Byte1(byteWord), 0xBA);
+    EXPECT_EQ(UmpConverter::Byte0(byteWord), 0x98);
+    EXPECT_EQ(UmpConverter::MessageType(byteWord), 0x0F);
+    EXPECT_EQ(UmpConverter::Group(byteWord), 0x0E);
     EXPECT_EQ(UmpConverter::U7ToU32(0x7F), 0xFE000000u);
     EXPECT_EQ(UmpConverter::U14ToU32(0x3FFF), 0xFFFC0000u);
     EXPECT_EQ(UmpConverter::U32ToU7(0xFEFFFFFFu), 0x7F);
@@ -685,12 +685,12 @@ HWTEST_F(UmpConverterUnitTest, TestPrivateConversionHelperBranchMatrix, TestSize
  */
 HWTEST_F(UmpConverterUnitTest, TestPrivateChannelStatusBranchMatrix, TestSize.Level1)
 {
-    constexpr uint8_t MIN_CHANNEL_STATUS = 0x08;
-    constexpr uint8_t MAX_CHANNEL_STATUS = 0x0E;
+    constexpr uint8_t minChannelStatus = 0x08;
+    constexpr uint8_t maxChannelStatus = 0x0E;
     std::vector<uint32_t> output;
     UmpConverter::Midi2ChannelVoiceMsg midi2 {};
     UmpConverter::Midi1ChannelVoiceMsg midi1 {};
-    for (uint8_t status = MIN_CHANNEL_STATUS; status <= MAX_CHANNEL_STATUS; ++status) {
+    for (uint8_t status = minChannelStatus; status <= maxChannelStatus; ++status) {
         midi2.statusNibble = status;
         EXPECT_TRUE(UmpConverter::ConvertMidi1ChannelVoiceToMidi2Inner(
             status, 0xFF, 0xFF, midi2, output));

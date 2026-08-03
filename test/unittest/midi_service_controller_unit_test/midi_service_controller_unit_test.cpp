@@ -54,10 +54,11 @@ class MidiServiceControllerUnitTest : public testing::Test {
 public:
     void SetUp() override
     {
+        constexpr int64_t unloadDelayMs = 10000;
         controller_ = MidiServiceController::GetInstance();
         // Keep the worker pending until TearDown cancels and joins it. A zero delay can
         // finish before cancellation while leaving std::thread joinable.
-        controller_->SetUnloadDelay(10000);
+        controller_->SetUnloadDelay(unloadDelayMs);
         mockDriver_ = std::make_unique<NiceMock<MockMidiDeviceDriver>>();
         rawMockDriver_ = mockDriver_.get();
         // Use test helper to inject mock driver
@@ -1286,11 +1287,12 @@ HWTEST_F(MidiServiceControllerUnitTest, CreateClientValidationAndLimits001, Test
 HWTEST_F(MidiServiceControllerUnitTest, ResourceLimitBranches001, TestSize.Level0)
 {
     constexpr int64_t driverId = 1200;
+    constexpr int64_t firstSyntheticDeviceId = 10000;
     const int64_t deviceId = SimulateDeviceConnection(driverId, "Limit Device");
 
     auto &resource = controller_->clientResourceInfo_[clientId_];
     for (uint32_t index = 0; index < MidiServiceController::MAX_DEVICES_PER_CLIENT; ++index) {
-        resource.openDevices.insert(10000 + index);
+        resource.openDevices.insert(firstSyntheticDeviceId + index);
     }
     EXPECT_EQ(controller_->OpenDevice(clientId_, deviceId), OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES);
     resource.openDevices.clear();
@@ -1587,10 +1589,10 @@ HWTEST_F(MidiServiceControllerUnitTest, InternalPendingAndClientCleanupBranches0
  */
 HWTEST_F(MidiServiceControllerUnitTest, DumpEmptyAndTrafficBranches001, TestSize.Level0)
 {
-    constexpr uint64_t INPUT_EVENT_COUNT = 2;
-    constexpr uint64_t INPUT_BYTE_COUNT = 8;
-    constexpr uint64_t OUTPUT_EVENT_COUNT = 3;
-    constexpr uint64_t OUTPUT_BYTE_COUNT = 12;
+    constexpr uint64_t inputEventCount = 2;
+    constexpr uint64_t inputByteCount = 8;
+    constexpr uint64_t outputEventCount = 3;
+    constexpr uint64_t outputByteCount = 12;
     constexpr int64_t deviceId = 5300;
     auto context = std::make_shared<DeviceClientContext>(
         deviceId, std::unordered_set<int32_t>{static_cast<int32_t>(clientId_), 5301});
@@ -1607,8 +1609,8 @@ HWTEST_F(MidiServiceControllerUnitTest, DumpEmptyAndTrafficBranches001, TestSize
     auto input = std::make_shared<DeviceConnectionForInput>(inputInfo);
     input->clients_.push_back(std::make_shared<ClientConnectionInServer>(clientId_, deviceId, 0));
     input->clients_.push_back(std::make_shared<ClientConnectionInServer>(5301, deviceId, 0));
-    input->eventCount_.store(INPUT_EVENT_COUNT);
-    input->byteCount_.store(INPUT_BYTE_COUNT);
+    input->eventCount_.store(inputEventCount);
+    input->byteCount_.store(inputByteCount);
 
     DeviceConnectionInfo outputInfo{};
     outputInfo.deviceId = deviceId;
@@ -1616,8 +1618,8 @@ HWTEST_F(MidiServiceControllerUnitTest, DumpEmptyAndTrafficBranches001, TestSize
     outputInfo.portIndex = 1;
     auto output = std::make_shared<DeviceConnectionForOutput>(outputInfo);
     output->clients_.push_back(std::make_shared<ClientConnectionInServer>(clientId_, deviceId, 1));
-    output->eventCount_.store(OUTPUT_EVENT_COUNT);
-    output->byteCount_.store(OUTPUT_BYTE_COUNT);
+    output->eventCount_.store(outputEventCount);
+    output->byteCount_.store(outputByteCount);
     context->inputDeviceconnections_[0] = input;
     context->outputDeviceconnections_[1] = output;
 
@@ -1671,8 +1673,9 @@ HWTEST_F(MidiServiceControllerUnitTest, BleValidationAndLateCompletion001, TestS
  */
 HWTEST_F(MidiServiceControllerUnitTest, ControllerDestructorBranches001, TestSize.Level0)
 {
+    constexpr int64_t unloadDelayMs = 10000;
     auto local = std::make_shared<MidiServiceController>();
-    local->SetUnloadDelay(10000);
+    local->SetUnloadDelay(unloadDelayMs);
     local->ScheduleUnloadTask();
 
     sptr<MidiServiceDeathRecipient> recipient = new MidiServiceDeathRecipient(1);
@@ -1692,7 +1695,8 @@ HWTEST_F(MidiServiceControllerUnitTest, ControllerDestructorBranches001, TestSiz
  */
 HWTEST_F(MidiServiceControllerUnitTest, UnloadTaskLifecycle001, TestSize.Level0)
 {
-    controller_->SetUnloadDelay(10000);
+    constexpr int64_t unloadDelayMs = 10000;
+    controller_->SetUnloadDelay(unloadDelayMs);
     controller_->ScheduleUnloadTask();
     controller_->ScheduleUnloadTask();
     controller_->CancelUnloadTask();
@@ -1709,6 +1713,7 @@ HWTEST_F(MidiServiceControllerUnitTest, RemainingLifecycleAndCleanupBranches001,
 {
     sptr<MidiServiceDeathRecipient> retainedRecipient;
     {
+        constexpr int64_t unloadDelayMs = 10000;
         auto local = std::make_shared<MidiServiceController>();
         sptr<MockMidiCallbackStub> callback = new MockMidiCallbackStub();
         sptr<IRemoteObject> client;
@@ -1743,7 +1748,7 @@ HWTEST_F(MidiServiceControllerUnitTest, RemainingLifecycleAndCleanupBranches001,
         local->CancelUnloadTask();
         EXPECT_FALSE(local->isUnloadPending_.load());
         local->isUnloadPending_.store(true);
-        local->SetUnloadDelay(10000);
+        local->SetUnloadDelay(unloadDelayMs);
         local->ScheduleUnloadTask();
         local->CancelUnloadTask();
     }
