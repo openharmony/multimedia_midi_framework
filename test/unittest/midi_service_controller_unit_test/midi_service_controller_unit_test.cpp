@@ -1713,7 +1713,6 @@ HWTEST_F(MidiServiceControllerUnitTest, RemainingLifecycleAndCleanupBranches001,
 {
     sptr<MidiServiceDeathRecipient> retainedRecipient;
     {
-        constexpr int64_t unloadDelayMs = 10000;
         auto local = std::make_shared<MidiServiceController>();
         sptr<MockMidiCallbackStub> callback = new MockMidiCallbackStub();
         sptr<IRemoteObject> client;
@@ -1743,6 +1742,7 @@ HWTEST_F(MidiServiceControllerUnitTest, RemainingLifecycleAndCleanupBranches001,
     }
 
     {
+        constexpr int64_t unloadDelayMs = 10000;
         auto local = std::make_shared<MidiServiceController>();
         local->isUnloadPending_.store(true);
         local->CancelUnloadTask();

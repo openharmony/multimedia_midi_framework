@@ -28,6 +28,8 @@ ohos_unittest("midi_server_unittest") {
     "-fno-access-control",
   ]
 
+  defines = [ "UNIT_TEST_SUPPORT" ]
+
   include_dirs = [
     "${midi_framework_root}/frameworks/native/midiutils/include",
     "${midi_framework_root}/interfaces/",
