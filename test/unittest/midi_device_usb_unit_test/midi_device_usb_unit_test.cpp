@@ -250,3 +250,137 @@ HWTEST_F(MidiDeviceUsbUnitTest, CloseInputPort001, TestSize.Level0)
 
     EXPECT_EQ(OH_MIDI_STATUS_OK, driver.CloseInputPort(deviceId, portIndex));
 }
+
+/**
+ * @tc.name: NullHdiBranches001
+ * @tc.desc: Every HDI-backed operation returns a safe error when the interface is unavailable.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiDeviceUsbUnitTest, NullHdiBranches001, TestSize.Level0)
+{
+    UsbMidiTransportDeviceDriver driver;
+    driver.midiHdi_ = nullptr;
+    std::vector<MidiEventInner> events;
+    EXPECT_TRUE(driver.GetRegisteredDevices().empty());
+    EXPECT_EQ(driver.OpenDevice(1), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.CloseDevice(1), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.OpenInputPort(1, 2, nullptr), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.CloseInputPort(1, 2), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.OpenOutputPort(1, 2), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.CloseOutputPort(1, 2), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.HandleUmpInput(1, 2, events), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(driver.OpenDevice("not-ble", nullptr), -1);
+}
+
+/**
+ * @tc.name: RegisteredDeviceValidation001
+ * @tc.desc: Verify HDI failure, invalid protocol filtering, and invalid port-direction filtering.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiDeviceUsbUnitTest, RegisteredDeviceValidation001, TestSize.Level0)
+{
+    sptr<MockIMidiInterface> mockMidiHdi = sptr<MockIMidiInterface>::MakeSptr();
+    ASSERT_NE(mockMidiHdi, nullptr);
+    UsbMidiTransportDeviceDriver driver;
+    driver.midiHdi_ = mockMidiHdi;
+
+    EXPECT_CALL(*mockMidiHdi, GetDeviceList(_)).WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_TRUE(driver.GetRegisteredDevices().empty());
+
+    EXPECT_CALL(*mockMidiHdi, GetDeviceList(_))
+        .WillOnce(Invoke([](std::vector<HDI::Midi::V1_0::MidiDeviceInfo> &devices) {
+            HDI::Midi::V1_0::MidiDeviceInfo invalidProtocol {};
+    invalidProtocol.protocol = static_cast<HDI::Midi::V1_0::MidiProtocol>(99);
+            devices.push_back(invalidProtocol);
+
+            HDI::Midi::V1_0::MidiDeviceInfo valid {};
+            valid.deviceId = 2;
+            valid.protocol = HDI::Midi::V1_0::MIDI_PROTOCOL_2_0;
+            valid.productId = "invalid";
+            valid.vendorId = "0X10";
+            HDI::Midi::V1_0::MidiPortInfo invalidPort {};
+    invalidPort.direction = static_cast<HDI::Midi::V1_0::MidiPortDirection>(99);
+            valid.ports.push_back(invalidPort);
+            HDI::Midi::V1_0::MidiPortInfo outputPort {};
+            outputPort.portId = 3;
+            outputPort.direction = HDI::Midi::V1_0::PORT_DIRECTION_OUTPUT;
+            valid.ports.push_back(outputPort);
+            devices.push_back(valid);
+            return OH_MIDI_STATUS_OK;
+        }));
+    auto devices = driver.GetRegisteredDevices();
+    ASSERT_EQ(devices.size(), 1);
+    EXPECT_EQ(devices[0].midiDeviceInfo.transportProtocol, PROTOCOL_2_0);
+    EXPECT_EQ(devices[0].midiDeviceInfo.productId, 0);
+    EXPECT_EQ(devices[0].midiDeviceInfo.vendorId, 0x10);
+    ASSERT_EQ(devices[0].portInfos.size(), 1);
+    EXPECT_EQ(devices[0].portInfos[0].direction, PORT_DIRECTION_OUTPUT);
+}
+
+/**
+ * @tc.name: OutputAndSendBranches001
+ * @tc.desc: Verify output-port forwarding and empty/non-empty UMP batch conversion.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiDeviceUsbUnitTest, OutputAndSendBranches001, TestSize.Level0)
+{
+    constexpr int64_t deviceId = 3;
+    constexpr uint32_t portIndex = 4;
+    sptr<MockIMidiInterface> mockMidiHdi = sptr<MockIMidiInterface>::MakeSptr();
+    ASSERT_NE(mockMidiHdi, nullptr);
+    UsbMidiTransportDeviceDriver driver;
+    driver.midiHdi_ = mockMidiHdi;
+
+    EXPECT_CALL(*mockMidiHdi, OpenOutputPort(deviceId, portIndex))
+        .WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockMidiHdi, CloseOutputPort(deviceId, portIndex))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR));
+    EXPECT_EQ(driver.OpenOutputPort(deviceId, portIndex), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(driver.CloseOutputPort(deviceId, portIndex), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    EXPECT_CALL(*mockMidiHdi, SendMidiMessages(deviceId, portIndex, _))
+        .WillOnce(Invoke([](int64_t, uint32_t,
+            const std::vector<HDI::Midi::V1_0::MidiMessage> &messages) {
+            EXPECT_TRUE(messages.empty());
+            return OH_MIDI_STATUS_OK;
+        }))
+        .WillOnce(Invoke([](int64_t, uint32_t,
+            const std::vector<HDI::Midi::V1_0::MidiMessage> &messages) {
+            EXPECT_EQ(messages.size(), 2);
+            if (messages.size() == 2) {
+                EXPECT_TRUE(messages[0].data.empty());
+                EXPECT_EQ(messages[1].data.size(), 2);
+            }
+            return OH_MIDI_STATUS_SYSTEM_ERROR;
+        }));
+    std::vector<MidiEventInner> events;
+    EXPECT_EQ(driver.HandleUmpInput(deviceId, portIndex, events), OH_MIDI_STATUS_OK);
+    uint32_t words[] = {0x11223344, 0x55667788};
+    events.push_back({1, 0, nullptr});
+    events.push_back({2, 2, words});
+    EXPECT_EQ(driver.HandleUmpInput(deviceId, portIndex, events), OH_MIDI_STATUS_SYSTEM_ERROR);
+}
+
+/**
+ * @tc.name: DriverCallbackFiltering001
+ * @tc.desc: Verify first/second callback QoS paths, empty-message filtering, and empty-batch return.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiDeviceUsbUnitTest, DriverCallbackFiltering001, TestSize.Level0)
+{
+    size_t callbackCount = 0;
+    UsbDriverCallback callback([&callbackCount](std::vector<MidiEventInner> &events) {
+        callbackCount += events.size();
+    });
+    std::vector<HDI::Midi::V1_0::MidiMessage> messages;
+    EXPECT_EQ(callback.OnMidiDataReceived(messages), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(callbackCount, 0);
+
+    HDI::Midi::V1_0::MidiMessage emptyMessage {};
+    HDI::Midi::V1_0::MidiMessage validMessage {};
+    validMessage.timestamp = 1;
+    validMessage.data = {0x20903C40};
+    messages = {emptyMessage, validMessage};
+    EXPECT_EQ(callback.OnMidiDataReceived(messages), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(callbackCount, 1);
+}

@@ -32,6 +32,14 @@ public:
     MOCK_METHOD(int32_t, NotifyError, (int32_t code), (override));
 };
 
+class TestMidiDeviceOpenCallbackStub : public MidiDeviceOpenCallbackStub {
+public:
+    int32_t NotifyDeviceOpened(bool, const MidiDeviceInfo &) override
+    {
+        return OH_MIDI_STATUS_OK;
+    }
+};
+
 class MockIpcMidiInServer : public IIpcMidiInServer {
 public:
     MOCK_METHOD(int32_t, GetDevices, ((std::vector<MidiDeviceInfo> & devices)), (override));
@@ -297,4 +305,144 @@ HWTEST_F(MidiServiceClientUnitTest, CloseInputPort_002, TestSize.Level0)
 
     EXPECT_CALL(*mockIpc, CloseInputPort(deviceId, portIndex)).Times(1).WillOnce(Return(OH_MIDI_STATUS_OK));
     EXPECT_EQ(client.CloseInputPort(deviceId, portIndex), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: RemainingOperations_NullIpc001
+ * @tc.desc: Verify uncovered service operations reject a null IPC proxy.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceClientUnitTest, RemainingOperations_NullIpc001, TestSize.Level0)
+{
+    MidiServiceClient client;
+    sptr<MidiDeviceOpenCallbackStub> callback;
+    std::shared_ptr<MidiSharedRing> buffer;
+    EXPECT_EQ(client.OpenBleDevice("00:11:22:33:44:55", callback), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.OpenOutputPort(buffer, 1, 0), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.FlushOutputPort(1, 0), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.CloseOutputPort(1, 0), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.DestroyMidiClient(), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+}
+
+/**
+ * @tc.name: OpenBleDevice_001
+ * @tc.desc: Verify OpenBleDevice forwards to the IPC proxy.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceClientUnitTest, OpenBleDevice_001, TestSize.Level0)
+{
+    MidiServiceClient client;
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
+    ASSERT_NE(mockIpc, nullptr);
+    InjectIpcForTest(client, mockIpc);
+
+    const std::string address = "00:11:22:33:44:55";
+    sptr<MidiDeviceOpenCallbackStub> callback = sptr<TestMidiDeviceOpenCallbackStub>::MakeSptr();
+    ASSERT_NE(callback, nullptr);
+    EXPECT_CALL(*mockIpc, OpenBleDevice(_, _))
+        .WillOnce(Invoke([&address](const std::string &actualAddress, const sptr<IRemoteObject> &object) {
+            EXPECT_EQ(actualAddress, address);
+            EXPECT_NE(object, nullptr);
+            return OH_MIDI_STATUS_OK;
+        }));
+    EXPECT_EQ(client.OpenBleDevice(address, callback), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: OpenOutputPort_001
+ * @tc.desc: Verify OpenOutputPort forwards the returned shared ring.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceClientUnitTest, OpenOutputPort_001, TestSize.Level0)
+{
+    MidiServiceClient client;
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
+    ASSERT_NE(mockIpc, nullptr);
+    InjectIpcForTest(client, mockIpc);
+
+    std::shared_ptr<MidiSharedRing> buffer;
+    EXPECT_CALL(*mockIpc, OpenOutputPort(_, 2, 1))
+        .WillOnce(Invoke([](std::shared_ptr<MidiSharedRing> &outBuffer, int64_t, uint32_t) {
+            outBuffer = MidiSharedRing::CreateFromLocal(256);
+            return outBuffer == nullptr ? OH_MIDI_STATUS_SYSTEM_ERROR : OH_MIDI_STATUS_OK;
+        }));
+    EXPECT_EQ(client.OpenOutputPort(buffer, 2, 1), OH_MIDI_STATUS_OK);
+    EXPECT_NE(buffer, nullptr);
+}
+
+/**
+ * @tc.name: FlushAndCloseOutputPort_001
+ * @tc.desc: Verify output flush and close operations forward to the IPC proxy.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceClientUnitTest, FlushAndCloseOutputPort_001, TestSize.Level0)
+{
+    MidiServiceClient client;
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
+    ASSERT_NE(mockIpc, nullptr);
+    InjectIpcForTest(client, mockIpc);
+
+    EXPECT_CALL(*mockIpc, FlushOutputPort(3, 2)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_CALL(*mockIpc, CloseOutputPort(3, 2)).WillOnce(Return(OH_MIDI_STATUS_OK));
+    EXPECT_EQ(client.FlushOutputPort(3, 2), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(client.CloseOutputPort(3, 2), OH_MIDI_STATUS_OK);
+}
+
+/**
+ * @tc.name: StatusMapping_001
+ * @tc.desc: Verify public MIDI errors are preserved and foreign errors become IPC failure.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceClientUnitTest, StatusMapping_001, TestSize.Level0)
+{
+    MidiServiceClient client;
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
+    ASSERT_NE(mockIpc, nullptr);
+    InjectIpcForTest(client, mockIpc);
+
+    EXPECT_CALL(*mockIpc, GetDevices(_))
+        .WillOnce(Return(OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT))
+        .WillOnce(Return(OH_MIDI_STATUS_SERVICE_DIED))
+        .WillOnce(Return(OH_MIDI_STATUS_SYSTEM_ERROR))
+        .WillOnce(Return(-1));
+    std::vector<MidiDeviceInfo> devices;
+    EXPECT_EQ(client.GetDevices(devices), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
+    EXPECT_EQ(client.GetDevices(devices), OH_MIDI_STATUS_SERVICE_DIED);
+    EXPECT_EQ(client.GetDevices(devices), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.GetDevices(devices), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+}
+
+/**
+ * @tc.name: ForwardedFailures_001
+ * @tc.desc: Verify every forwarded operation maps a foreign IPC error.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceClientUnitTest, ForwardedFailures_001, TestSize.Level0)
+{
+    MidiServiceClient client;
+    sptr<MockIpcMidiInServer> mockIpc = sptr<MockIpcMidiInServer>::MakeSptr();
+    ASSERT_NE(mockIpc, nullptr);
+    InjectIpcForTest(client, mockIpc);
+
+    MidiDeviceInfo deviceInfo;
+    std::vector<MidiPortInfo> portInfos;
+    std::shared_ptr<MidiSharedRing> buffer;
+
+    EXPECT_CALL(*mockIpc, OpenDevice(1, _)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, CloseDevice(1)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, GetDevicePorts(1, _)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, OpenInputPort(_, 1, 2)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, OpenOutputPort(_, 1, 2)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, FlushOutputPort(1, 2)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, CloseInputPort(1, 2)).WillOnce(Return(-1));
+    EXPECT_CALL(*mockIpc, CloseOutputPort(1, 2)).WillOnce(Return(-1));
+
+    EXPECT_EQ(client.OpenDevice(1, deviceInfo), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.CloseDevice(1), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.GetDevicePorts(1, portInfos), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.OpenInputPort(buffer, 1, 2), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.OpenOutputPort(buffer, 1, 2), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.FlushOutputPort(1, 2), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.CloseInputPort(1, 2), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
+    EXPECT_EQ(client.CloseOutputPort(1, 2), OH_MIDI_STATUS_GENERIC_IPC_FAILURE);
 }

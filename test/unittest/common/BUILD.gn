@@ -38,6 +38,8 @@ ohos_unittest("midi_common_unittest") {
   sources = [
     "./src/futex_tool_unit_test.cpp",
     "./src/midi_shared_ring_unit_test.cpp",
+    "./src/midi_utils_unit_test.cpp",
+    "${midi_framework_root}/frameworks/native/midiutils/src/midi_utils.cpp",
   ]
 
   deps = [

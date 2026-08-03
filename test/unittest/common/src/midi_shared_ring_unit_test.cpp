@@ -22,6 +22,8 @@
 #include <unistd.h>
 #include <cstdint>
 #include <cstddef>
+#include <fcntl.h>
+#include <limits>
 #include <sys/eventfd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -1132,7 +1134,7 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingWrapSequence_001, TestSize.Level0
     uint32_t written = 0;
     ASSERT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&ev1, 1, &written, false));
     ASSERT_EQ(1u, written);
- 
+
     const uint32_t eventSize =
         AlignUpToHeader(static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + PAYLOAD_WORDS * sizeof(uint32_t)));
 
@@ -1453,6 +1455,254 @@ HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPeekNext_008, TestSize.Level0)
     MidiSharedRing::PeekedEvent peeked{};
     EXPECT_EQ(MidiStatusCode::OK, ring.PeekNext(peeked));
     EXPECT_EQ(100u, peeked.localHeader.timestamp);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing private write validation
+ * @tc.number : MidiSharedRingPrivateWriteValidationBranches_001
+ * @tc.desc   : Cover write validation and insufficient-space branches.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPrivateWriteValidationBranches_001, TestSize.Level0)
+{
+    MidiSharedRing uninitialized(256);
+    EXPECT_EQ(nullptr, uninitialized.GetFutex());
+    EXPECT_EQ(-1, uninitialized.GetEventFd());
+    EXPECT_EQ(FUTEX_INVALID_PARAMS, uninitialized.WaitForSpace(1, 1));
+    uninitialized.WakeFutex();
+    MessageParcel emptyParcel;
+    EXPECT_FALSE(uninitialized.Marshalling(emptyParcel));
+
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    EXPECT_EQ(FUTEX_INVALID_PARAMS, ring.WaitForSpace(1, 0));
+    EXPECT_EQ(FUTEX_SUCCESS, ring.WaitForSpace(1, 1));
+
+    uint32_t word = 0x20903C40;
+    MidiEventInner valid {.timestamp = 1, .length = 1, .data = &word};
+    MidiEventInner nullData {.timestamp = 1, .length = 1, .data = nullptr};
+    MidiEventInner huge {
+        .timestamp = 1,
+        .length = std::numeric_limits<size_t>::max(),
+        .data = &word,
+    };
+    MidiEventInner tooLarge {.timestamp = 1, .length = 100, .data = &word};
+
+    EXPECT_EQ(MidiStatusCode::OK, ring.ValidateWriteArgs(nullptr, 0));
+    EXPECT_EQ(MidiStatusCode::INVALID_ARGUMENT, ring.ValidateWriteArgs(nullptr, 1));
+    EXPECT_FALSE(ring.ValidateOneEvent(nullData));
+    EXPECT_FALSE(ring.ValidateOneEvent(huge));
+    EXPECT_FALSE(ring.ValidateOneEvent(tooLarge));
+    EXPECT_TRUE(ring.ValidateOneEvent(valid));
+
+    MidiSharedRing tiny(1);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, tiny.Init(INVALID_FD));
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, tiny.ValidateWriteArgs(&valid, 1));
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing private write and wrap helpers
+ * @tc.number : MidiSharedRingPrivateWriteAndWrapBranches_001
+ * @tc.desc   : Cover write-index wrap and sequence branches.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPrivateWriteAndWrapBranches_001, TestSize.Level0)
+{
+    constexpr uint32_t oddSequence = 3;
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    uint32_t word = 0x20903C40;
+    MidiEventInner valid {.timestamp = 1, .length = 1, .data = &word};
+    uint32_t writeIndex = ring.GetCapacity();
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.TryWriteOneEvent(valid, 32, 0, writeIndex));
+    writeIndex = 0;
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.TryWriteOneEvent(valid, ring.GetCapacity(), 0, writeIndex));
+
+    writeIndex = 250;
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.TryWriteOneEvent(valid, 24, 20, writeIndex));
+    EXPECT_EQ(0u, writeIndex);
+
+    writeIndex = 250;
+    EXPECT_TRUE(ring.UpdateWriteIndexIfNeed(writeIndex, 32));
+    EXPECT_EQ(0u, writeIndex);
+    writeIndex = 232;
+    auto *wrapHeader = reinterpret_cast<ShmMidiEventHeader *>(ring.GetDataBase() + writeIndex);
+    wrapHeader->sequence.store(oddSequence, std::memory_order_relaxed);
+    EXPECT_TRUE(ring.UpdateWriteIndexIfNeed(writeIndex, 32));
+    EXPECT_EQ(SHM_EVENT_FLAG_WRAP, wrapHeader->flags);
+    EXPECT_EQ(6u, wrapHeader->sequence.load(std::memory_order_relaxed));
+    writeIndex = 0;
+    EXPECT_FALSE(ring.UpdateWriteIndexIfNeed(writeIndex, 32));
+
+    EXPECT_FALSE(ring.WriteEvent(ring.GetCapacity(), valid));
+    auto *firstHeader = reinterpret_cast<ShmMidiEventHeader *>(ring.GetDataBase());
+    firstHeader->sequence.store(oddSequence, std::memory_order_relaxed);
+    EXPECT_TRUE(ring.WriteEvent(0, valid));
+    EXPECT_EQ(6u, firstHeader->sequence.load(std::memory_order_relaxed));
+
+    MidiEventInner emptyPayload {.timestamp = 2, .length = 0, .data = &word};
+    EXPECT_TRUE(ring.WriteEvent(64, emptyPayload));
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing private read-index helpers
+ * @tc.number : MidiSharedRingPrivateReadIndexBranches_001
+ * @tc.desc   : Cover corrupted offsets and wrap validation.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPrivateReadIndexBranches_001, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+
+    uint32_t readIndex = 256;
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.UpdateReadIndexIfNeed(readIndex, 0));
+    readIndex = 0;
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.UpdateReadIndexIfNeed(readIndex, 256));
+    readIndex = 0;
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.UpdateReadIndexIfNeed(readIndex, 0));
+    readIndex = 250;
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.UpdateReadIndexIfNeed(readIndex, 0));
+    readIndex = 250;
+    EXPECT_EQ(MidiStatusCode::OK, ring.UpdateReadIndexIfNeed(readIndex, 32));
+    EXPECT_EQ(0u, readIndex);
+
+    ShmMidiEventHeader header {};
+    header.flags = SHM_EVENT_FLAG_NONE;
+    readIndex = 8;
+    EXPECT_EQ(MidiStatusCode::WOULD_BLOCK, ring.HandleWrapIfNeeded(header, readIndex));
+    header.flags = SHM_EVENT_FLAG_WRAP;
+    header.length = 1;
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.HandleWrapIfNeeded(header, readIndex));
+    header.length = 0;
+    EXPECT_EQ(MidiStatusCode::OK, ring.HandleWrapIfNeeded(header, readIndex));
+    EXPECT_EQ(0u, readIndex);
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing private read and copy helpers
+ * @tc.number : MidiSharedRingPrivateReadAndCopyBranches_001
+ * @tc.desc   : Cover record bounds and copy-out branches.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingPrivateReadAndCopyBranches_001, TestSize.Level0)
+{
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ShmMidiEventHeader header {};
+    MidiSharedRing::PeekedEvent peeked {};
+    header.flags = SHM_EVENT_FLAG_NONE;
+    header.length = std::numeric_limits<uint32_t>::max();
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.BuildPeekedEvent(header, 0, peeked));
+    header.length = 100;
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.BuildPeekedEvent(header, 0, peeked));
+    header.length = 1;
+    EXPECT_EQ(MidiStatusCode::SHM_BROKEN, ring.BuildPeekedEvent(header, 240, peeked));
+
+    constexpr uint32_t wordCount = 6;
+    header.length = wordCount;
+    const uint32_t exactSize = AlignUpToHeader(
+        static_cast<uint32_t>(sizeof(ShmMidiEventHeader) + wordCount * sizeof(uint32_t)));
+    ASSERT_EQ(MidiStatusCode::OK, ring.BuildPeekedEvent(header, ring.GetCapacity() - exactSize, peeked));
+    EXPECT_EQ(0u, peeked.endOffset);
+
+    uint32_t payload[] = {0x11, 0x22};
+    peeked.localHeader.timestamp = 99;
+    peeked.localHeader.length = 2;
+    peeked.payloadPtr = reinterpret_cast<const uint8_t *>(payload);
+    std::vector<uint32_t> output;
+    MidiEvent copied = ring.CopyOut(peeked, output);
+    EXPECT_EQ(99u, copied.timestamp);
+    ASSERT_EQ(output.size(), 2);
+    EXPECT_EQ(output[1], payload[1]);
+
+    peeked.localHeader.length = 0;
+    output.clear();
+    copied = ring.CopyOut(peeked, output);
+    EXPECT_TRUE(output.empty());
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing memory and flush failures
+ * @tc.number : MidiSharedRingMemoryAndFlushBranches_001
+ * @tc.desc   : Cover invalid shared-memory factories, remote init failure, and flush timeout.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingMemoryAndFlushBranches_001, TestSize.Level0)
+{
+    constexpr size_t remoteMemorySize = 128;
+    EXPECT_EQ(nullptr, MidiSharedMemory::CreateFromLocal(0, "zero"));
+    EXPECT_EQ(nullptr, MidiSharedMemory::CreateFromLocal(MAX_MMAP_BUFFER_SIZE, "large"));
+    EXPECT_EQ(nullptr, MidiSharedMemory::CreateFromRemote(0, remoteMemorySize, "bad-fd"));
+
+    MessageParcel emptyParcel;
+    EXPECT_EQ(nullptr, MidiSharedMemory::Unmarshalling(emptyParcel));
+
+    int fd = AshmemCreate("midi_shared_ring_ut", remoteMemorySize);
+    ASSERT_GT(fd, MINFD);
+    MessageParcel zeroSizeParcel;
+    ASSERT_TRUE(zeroSizeParcel.WriteFileDescriptor(fd));
+    ASSERT_TRUE(zeroSizeParcel.WriteUint64(0));
+    EXPECT_EQ(nullptr, MidiSharedMemory::Unmarshalling(zeroSizeParcel));
+
+    MessageParcel mismatchedSizeParcel;
+    ASSERT_TRUE(mismatchedSizeParcel.WriteFileDescriptor(fd));
+    ASSERT_TRUE(mismatchedSizeParcel.WriteUint64(64));
+    EXPECT_EQ(nullptr, MidiSharedMemory::Unmarshalling(mismatchedSizeParcel));
+    CloseFd(fd);
+
+    MidiSharedRing badRemote(256);
+    EXPECT_EQ(OH_MIDI_STATUS_SYSTEM_ERROR, badRemote.Init(0));
+    EXPECT_EQ(nullptr, MidiSharedRing::CreateFromLocal(MAX_MMAP_BUFFER_SIZE));
+
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    ring.GetControlHeader()->flushFlag.store(1, std::memory_order_release);
+    ring.Flush();
+    EXPECT_EQ(1u, ring.GetControlHeader()->flushFlag.load(std::memory_order_acquire));
+    ring.GetControlHeader()->flushFlag.store(0, std::memory_order_release);
+    ring.Flush();
+    EXPECT_TRUE(ring.IsEmpty());
+}
+
+/**
+ * @tc.name   : Test MidiSharedRing assignment and mapping failures
+ * @tc.number : MidiSharedRingRemainingBranches_001
+ * @tc.desc   : Cover self-assignment, null eventsWritten, and remote mmap failure branches.
+ */
+HWTEST_F(MidiSharedRingUnitTest, MidiSharedRingRemainingBranches_001, TestSize.Level0)
+{
+    constexpr uint32_t publishedSequence = 2;
+    constexpr size_t remoteRingSize = 128;
+    ShmMidiEventHeader sourceHeader {};
+    sourceHeader.timestamp = 7;
+    sourceHeader.sequence.store(publishedSequence, std::memory_order_relaxed);
+    ShmMidiEventHeader copiedHeader {};
+    copiedHeader = sourceHeader;
+    ShmMidiEventHeader *sameHeader = &copiedHeader;
+    copiedHeader = *sameHeader;
+    EXPECT_EQ(copiedHeader.timestamp, sourceHeader.timestamp);
+
+    MidiSharedRing::PeekedEvent sourceEvent {};
+    sourceEvent.sequence = publishedSequence;
+    MidiSharedRing::PeekedEvent copiedEvent {};
+    copiedEvent = sourceEvent;
+    MidiSharedRing::PeekedEvent *sameEvent = &copiedEvent;
+    copiedEvent = *sameEvent;
+    EXPECT_EQ(copiedEvent.sequence, sourceEvent.sequence);
+
+    MidiSharedRing ring(256);
+    ASSERT_EQ(OH_MIDI_STATUS_OK, ring.Init(INVALID_FD));
+    uint32_t word = 0x20903C40;
+    MidiEventInner event {.timestamp = 1, .length = 1, .data = &word};
+    EXPECT_EQ(MidiStatusCode::OK, ring.TryWriteEvents(&event, 1, nullptr, false));
+
+    int nullFd = open("/dev/null", O_RDWR);
+    ASSERT_GT(nullFd, MINFD);
+    EXPECT_EQ(nullptr, MidiSharedMemory::CreateFromRemote(nullFd, remoteRingSize, "null-device"));
+    EXPECT_EQ(nullptr, MidiSharedRing::CreateFromRemote(remoteRingSize, nullFd));
+
+    MessageParcel parcel;
+    ASSERT_TRUE(parcel.WriteUint32(remoteRingSize));
+    ASSERT_TRUE(parcel.WriteFileDescriptor(nullFd));
+    ASSERT_TRUE(parcel.WriteBool(false));
+    EXPECT_EQ(nullptr, MidiSharedRing::Unmarshalling(parcel));
+    close(nullFd);
 }
 } // namespace MIDI
 } // namespace OHOS

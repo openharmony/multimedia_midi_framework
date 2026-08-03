@@ -158,14 +158,14 @@ HWTEST_F(UmpProcessorUnitTest, TestSysEx_SmallComplete, TestSize.Level1)
     });
 
     ASSERT_EQ(results.size(), 1);
-    
+
     UmpPacket& p = results[0];
     EXPECT_EQ(p.WordCount(), 2); // SysEx UMP should be 64-bit
 
     // Word 0 layout: [MT:4][Grp:4][Status:4][Count:4][Data0:8][Data1:8]
     // MT=3, Status=0 (Complete), Count=3 bytes (01, 02, 03)
     EXPECT_EQ(results[0].Word(0), 0x30030102U);
-    
+
     // Word 1 layout: [Data2:8][Data3:8][Data4:8][Data5:8]
     // Data2=03, rest are 0
     EXPECT_EQ(results[0].Word(1), 0x03000000U);
@@ -296,7 +296,7 @@ HWTEST_F(UmpProcessorUnitTest, TestRunningStatus_ClearedBySysEx, TestSize.Level1
     // We expect Note On and the SysEx (Total 2 logical messages, SysEx is 1 UMP here)
     ASSERT_GE(results.size(), 2);
     EXPECT_EQ(results[0].Word(0), 0x20903C64U);
-    
+
     // Verify that the packet after SysEx is NOT 0x20903C64
     // (which would indicate the orphan data was processed as Note On)
     for (size_t i = 1; i < results.size(); ++i) {
@@ -496,7 +496,7 @@ HWTEST_F(UmpProcessorUnitTest, TestStream_SplitNoteOn, TestSize.Level1)
 
     uint8_t part2[] = { 0x64 };
     processor_.ProcessBytes(part2, 1, cb);
-    
+
     ASSERT_EQ(results.size(), 1);
     EXPECT_EQ(results[0].Word(0), 0x20903C64U);
 }
@@ -1396,4 +1396,111 @@ HWTEST_F(UmpProcessorUnitTest, TestUmpToMidi1_MTCQuarterFrame, TestSize.Level1)
     ASSERT_EQ(output.size(), 2);
     EXPECT_EQ(output[0], 0xF1);
     EXPECT_EQ(output[1], 0x12);
+}
+
+/**
+ * @tc.name: TestPrivateForwardBranchMatrix
+ * @tc.desc: Cover forward-parser validation, orphan data, running status, and SysEx packet boundaries.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpProcessorUnitTest, TestPrivateForwardBranchMatrix, TestSize.Level1)
+{
+    processor_.SetGroup(15);
+    EXPECT_EQ(processor_.group_, 15);
+    processor_.SetGroup(16);
+    EXPECT_EQ(processor_.group_, 15);
+
+    EXPECT_EQ(processor_.GetExpectedDataLength(0x80), 2);
+    EXPECT_EQ(processor_.GetExpectedDataLength(0xC0), 1);
+    EXPECT_EQ(processor_.GetExpectedDataLength(0xD0), 1);
+    EXPECT_EQ(processor_.GetExpectedDataLength(0xF1), 1);
+    EXPECT_EQ(processor_.GetExpectedDataLength(0xF2), 2);
+    EXPECT_EQ(processor_.GetExpectedDataLength(0xF3), 1);
+    EXPECT_EQ(processor_.GetExpectedDataLength(0xF4), 0);
+
+    std::vector<UmpPacket> packets;
+    auto callback = [&packets](const UmpPacket &packet) {
+        packets.push_back(packet);
+    };
+
+    processor_.HandleStatusByte(0xF7, callback);
+    processor_.HandleStatusByte(0xF0, callback);
+    processor_.HandleStatusByte(0xF7, callback);
+    processor_.HandleStatusByte(0xF6, callback);
+
+    processor_.Reset();
+    processor_.HandleChannelData(0x01, callback);
+    processor_.cv_pos_ = UmpProcessor::CV_BUFFER_SIZE;
+    processor_.HandleChannelData(0x02, callback);
+
+    processor_.cv_pos_ = 0;
+    processor_.running_status_ = 0xC0;
+    processor_.HandleChannelData(0x03, callback);
+    processor_.cv_pos_ = 1;
+    processor_.expected_len_ = 2;
+    processor_.cv_buffer_[0] = 0x90;
+    processor_.HandleChannelData(0x3C, callback);
+    processor_.HandleChannelData(0x40, callback);
+
+    for (uint8_t index = 0; index < UmpProcessor::SYSEX_BUFFER_SIZE; ++index) {
+        processor_.sysex_buffer_[index] = index + 1;
+    }
+    processor_.sysex_pos_ = UmpProcessor::SYSEX_BUFFER_SIZE;
+    processor_.sysex_has_started_ = false;
+    processor_.ProcessSysExData(0x7F, callback);
+    processor_.sysex_pos_ = UmpProcessor::SYSEX_BUFFER_SIZE;
+    processor_.sysex_has_started_ = true;
+    processor_.ProcessSysExData(0x7F, callback);
+
+    constexpr uint8_t sysexStatusVariants = 4;
+    for (uint8_t count = 0; count <= UmpProcessor::SYSEX_BUFFER_SIZE; ++count) {
+        processor_.DispatchSysExPacket(callback, count % sysexStatusVariants, count);
+    }
+
+    uint8_t adjacentStatuses[] = {0x90, 0xF8, 0x90, 0x3C, 0x40};
+    processor_.ProcessBytes(adjacentStatuses, sizeof(adjacentStatuses), callback);
+    EXPECT_FALSE(packets.empty());
+}
+
+/**
+ * @tc.name: TestPrivateReverseBranchMatrix
+ * @tc.desc: Cover reverse-parser null, incomplete, unknown, empty-packet, and SysEx state branches.
+ * @tc.type: FUNC
+ */
+HWTEST_F(UmpProcessorUnitTest, TestPrivateReverseBranchMatrix, TestSize.Level1)
+{
+    std::vector<uint8_t> output;
+    auto callback = [&output](const uint8_t *data, size_t length) {
+        output.insert(output.end(), data, data + length);
+    };
+
+    uint32_t dummy = 0;
+    processor_.ProcessUmp(nullptr, 1, callback);
+    processor_.ProcessUmp(&dummy, 0, callback);
+    UmpPacket emptyPacket({});
+    processor_.ProcessUmpPacket(emptyPacket, callback);
+
+    uint32_t mixed[] = {
+        0x10F00000,
+        0x20C00100,
+        0x20903C40,
+        0x30100102,
+        0x00000000,
+    };
+    processor_.ProcessUmp(mixed, sizeof(mixed) / sizeof(mixed[0]), callback);
+
+    output.clear();
+    processor_.ProcessUmpType1(0x10F00000, callback);
+    EXPECT_TRUE(output.empty());
+
+    auto makeSysEx = [](uint8_t status, uint8_t count) {
+        return (0x3u << 28) | (static_cast<uint32_t>(status) << 20) |
+            (static_cast<uint32_t>(count) << 16) | 0x0102u;
+    };
+    processor_.ProcessUmpType3(makeSysEx(2, 6), 0x03040506, callback);
+    processor_.ProcessUmpType3(makeSysEx(1, 15), 0x03040506, callback);
+    processor_.ProcessUmpType3(makeSysEx(2, 15), 0x03040506, callback);
+    processor_.ProcessUmpType3(makeSysEx(3, 15), 0x03040506, callback);
+    processor_.ProcessUmpType3(makeSysEx(4, 6), 0x03040506, callback);
+    EXPECT_FALSE(processor_.reverse_sysex_active_);
 }
