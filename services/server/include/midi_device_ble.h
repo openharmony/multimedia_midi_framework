@@ -16,6 +16,7 @@
 #define MIDI_DEVICE_BLE_H
 
 #include <vector>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include "midi_info.h"
@@ -69,6 +70,10 @@ class BleMidiTransportDeviceDriver : public MidiDeviceDriver {
 public:
     BleMidiTransportDeviceDriver();
     virtual ~BleMidiTransportDeviceDriver();
+
+    // Manager calls RegisterInstance() after construction, UnregisterInstance() before destruction.
+    static bool RegisterInstance(std::shared_ptr<BleMidiTransportDeviceDriver> inst);
+    static void UnregisterInstance();
 
     std::vector<DeviceInformation> GetRegisteredDevices() override;
 

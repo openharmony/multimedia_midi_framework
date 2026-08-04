@@ -19,8 +19,6 @@
 #include "midi_server_dump.h"
 
 #include <sstream>
-#include <codecvt>
-#include <locale>
 #include "midi_service_controller.h"
 #include "midi_device_mananger.h"
 #include "midi_info.h"
@@ -58,13 +56,25 @@ void MidiServerDump::HandleDump(std::string &dumpString, std::queue<std::u16stri
         if (dumpFuncMap_.find(para) != dumpFuncMap_.end()) {
             (this->*dumpFuncMap_[para])(dumpString);
         } else {
-            dumpString += "Unknown parameter: ";
-            dumpString += std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}.to_bytes(para);
-            dumpString += "\n\n";
-            HelpInfoDump(dumpString);
+            UnknownParameterDump(dumpString, para);
             return;
         }
     }
+}
+
+void MidiServerDump::UnknownParameterDump(std::string &dumpString, const std::u16string &para)
+{
+    // Dump parameters are mostly ASCII; convert the u16string char-by-char to a UTF-8
+    // string and echo it back, making hidumper typos easy to spot.
+    std::string paraUtf8;
+    for (char16_t c : para) {
+        if (c < 0x80) {
+            paraUtf8 += static_cast<char>(c);
+        }
+    }
+    dumpString += "Unknown parameter: " + paraUtf8;
+    dumpString += "\n\n";
+    HelpInfoDump(dumpString);
 }
 
 void MidiServerDump::HelpInfoDump(std::string &dumpString)

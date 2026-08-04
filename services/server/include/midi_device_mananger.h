@@ -26,6 +26,7 @@
 #include <vector>
 #include <unordered_map>
 #include <utility>
+#include <memory>
 #include "midi_device_connection.h"
 #include "midi_device_driver.h"
 #include "midi_info.h"
@@ -122,7 +123,7 @@ private:
                         const std::vector<DeviceInformation> &newDevices);
     void HandleBleConnect(DeviceInformation devInfo, BleOpenCallback callback);
     void HandleBleDisconnect(DeviceInformation devInfo, BleOpenCallback callback);
-    std::unordered_map<DeviceType, std::unique_ptr<MidiDeviceDriver>> drivers_;
+    std::unordered_map<DeviceType, std::shared_ptr<MidiDeviceDriver>> drivers_;
     std::vector<DeviceInformation> devices_{};
     std::shared_ptr<EventSubscriber> eventSubscriber_{nullptr};
     std::unordered_map<std::pair<int64_t, DeviceType>, int64_t, DriverKeyHash> driverIdToMidiId_;

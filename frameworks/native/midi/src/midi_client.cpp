@@ -32,6 +32,12 @@ namespace MIDI {
 namespace {
     constexpr uint32_t MAX_EVENTS_NUMS = 1000;
     constexpr uint32_t PORT_GROUP_RANGE = 16;
+    // Standard maximum length of a MIDI SysEx message
+    // (determined by the MIDI protocol and business requirements).
+    // Note: this is a coarse anti-abuse upper bound only, NOT the real sendable capacity. The hard capacity limit
+    // is enforced later by the shared ring write path (MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader) ~= 8128 bytes),
+    // so a SysEx in (8128, 65535] passes here but fails at the ring write stage.
+    constexpr uint32_t MAX_SYSEX_BYTE_SIZE = 65535;
 }  // namespace
 class MidiClientCallback : public MidiCallbackStub {
 public:
@@ -610,6 +616,8 @@ int32_t MidiOutputPort::SendSysEx(uint32_t portIndex, const uint8_t *data, uint3
 {
     CHECK_AND_RETURN_RET_LOG(data, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "parameter is nullptr");
     CHECK_AND_RETURN_RET_LOG(byteSize > 0, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "byteSize is invalid");
+    CHECK_AND_RETURN_RET_LOG(byteSize <= MAX_SYSEX_BYTE_SIZE, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+        "byteSize %{public}u exceeds the maximum %{public}u", byteSize, MAX_SYSEX_BYTE_SIZE);
     CHECK_AND_RETURN_RET_LOG(ringBuffer_ != nullptr, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT, "ringBuffer_ is nullptr");
     CHECK_AND_RETURN_RET_LOG(portIndex < PORT_GROUP_RANGE, OH_MIDI_STATUS_INVALID_PORT, "portIndex out of range");
 

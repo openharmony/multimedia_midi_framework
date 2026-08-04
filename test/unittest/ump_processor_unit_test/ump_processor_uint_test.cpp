@@ -1095,19 +1095,23 @@ HWTEST_F(UmpProcessorUnitTest, TestUmpToMidi1_UnknownMessageType, TestSize.Level
 {
     std::vector<uint8_t> output;
 
-    // Unknown MT=0x4, followed by valid Note On
+    // MT=0x4 (MIDI 2.0 Channel Voice) is unhandled by ProcessUmp and must be
+    // skipped. A UMP packet's length is fixed by its MT, and MT=0x4 is a 64-bit
+    // (2-word) packet, so the whole packet [0x40000000, 0x00000000] is consumed
+    // before the following valid Note On is processed as an independent packet.
     uint32_t ump[] = {
-        0x40000000U,    // Unknown MT
-        0x20903C64U     // Note On
+        0x40000000U,    // MT=0x4 (unhandled), word 0
+        0x00000000U,    // MT=0x4, word 1 (consumed as part of the same packet)
+        0x20903C64U     // Note On (MT=0x2), processed independently
     };
 
-    processor_.ProcessUmp(ump, 2, [&output](const uint8_t* data, size_t len) {
+    processor_.ProcessUmp(ump, 3, [&output](const uint8_t* data, size_t len) {
         for (size_t i = 0; i < len; ++i) {
             output.push_back(data[i]);
         }
     });
 
-    // Only Note On should be converted
+    // Only the Note On should be converted
     ASSERT_EQ(output.size(), 3);
     EXPECT_EQ(output[0], 0x90);
     EXPECT_EQ(output[1], 0x3C);

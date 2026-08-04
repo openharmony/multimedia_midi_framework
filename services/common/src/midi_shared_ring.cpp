@@ -279,6 +279,12 @@ MidiSharedRing::MidiSharedRing(uint32_t ringCapacityBytes, std::shared_ptr<Uniqu
 
 int32_t MidiSharedRing::Init(int dataFd)
 {
+    // capacity_ is the raw ring size before any arithmetic, so it can never have wrapped. Guard it
+    // directly: a bogus capacity_ from any caller cannot then hide behind an overflowed
+    // totalMemorySize_ and bypass the size check below (defense-in-depth against OOB).
+    CHECK_AND_RETURN_RET_LOG(capacity_ <= MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader),
+                             OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
+                             "failed: invalid capacity_: %{public}u", capacity_);
     CHECK_AND_RETURN_RET_LOG(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
                              "failed: invalid totalMemorySize_");
     if (dataFd == INVALID_FD) {
@@ -357,6 +363,14 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
     MIDI_DEBUG_LOG("ReadFromParcel start.");
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
     uint32_t ringSize = messageParcel.ReadUint32();
+    // ringSize comes from an untrusted parcel and must be bounds-checked BEFORE constructing:
+    // totalMemorySize_ is uint32_t, so a value near UINT32_MAX makes sizeof(ControlHeader) +
+    // ringSize wrap to a small number, bypass the MAX_MMAP_BUFFER_SIZE guard in Init(), and yield
+    // a huge capacity_ over a tiny mmap (out-of-bounds read/write). Checked before reading dataFd
+    // so an early return leaks no fd.
+    CHECK_AND_RETURN_RET_LOG(ringSize > 0 && ringSize <= MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader),
+                             nullptr, "invalid ringSize: %{public}u", ringSize);
+
     int dataFd = messageParcel.ReadFileDescriptor();
     bool hasNotifyFd = messageParcel.ReadBool();
 

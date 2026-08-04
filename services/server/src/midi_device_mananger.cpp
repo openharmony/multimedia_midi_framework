@@ -36,12 +36,16 @@ static std::shared_ptr<EventSubscriber> SubscribeCommonEvent(std::function<void(
 MidiDeviceManager::MidiDeviceManager() : eventSubscriber_(nullptr)
 {
     MIDI_INFO_LOG("MidiDeviceManager constructor");
-    drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::make_unique<UsbMidiTransportDeviceDriver>());
-    drivers_.emplace(DeviceType::DEVICE_TYPE_BLE, std::make_unique<BleMidiTransportDeviceDriver>());
+    drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::make_shared<UsbMidiTransportDeviceDriver>());
+    auto bleDriver = std::make_shared<BleMidiTransportDeviceDriver>();
+    drivers_.emplace(DeviceType::DEVICE_TYPE_BLE, bleDriver);
+    BleMidiTransportDeviceDriver::RegisterInstance(bleDriver);
 }
 
 MidiDeviceManager::~MidiDeviceManager()
 {
+    // Drop the BLE singleton first so new callbacks bail before the driver is destroyed.
+    BleMidiTransportDeviceDriver::UnregisterInstance();
     // 清理所有驱动
     {
         std::lock_guard<std::mutex> lock(driversMutex_);
@@ -484,8 +488,14 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 #ifdef UNIT_TEST_SUPPORT
 void MidiDeviceManager::InjectDriverForTest(DeviceType type, std::unique_ptr<MidiDeviceDriver> driver)
 {
+    // Replaces only drivers_[type]; does NOT sync BLE g_instance, so mocks cover deviceManager
+    // calls but not BLE callbacks.
     std::lock_guard<std::mutex> lock(driversMutex_);
-    drivers_[type] = std::move(driver);
+    if (driver) {
+        drivers_[type] = std::shared_ptr<MidiDeviceDriver>(driver.release());
+    } else {
+        drivers_.erase(type);
+    }
 }
 
 void MidiDeviceManager::ClearStateForTest()

@@ -43,7 +43,17 @@ namespace {
     static constexpr const char *BLE_MIDI_APP_UUID = "00000000-0000-0000-0000-000000000001";
 }
 
-static std::atomic<BleMidiTransportDeviceDriver*> instance;
+// Strong singleton: BLE callbacks copy a shared_ptr so the driver stays alive
+// for the whole callback (closes the load()->lock_ TOCTOU window).
+static std::mutex g_instanceMutex;
+static std::shared_ptr<BleMidiTransportDeviceDriver> g_instance;
+
+// Copy a strong reference under the lock; caller may then safely use inst->lock_.
+static std::shared_ptr<BleMidiTransportDeviceDriver> AcquireInstance()
+{
+    std::lock_guard<std::mutex> lock(g_instanceMutex);
+    return g_instance;
+}
 
 static int64_t GetCurNano()
 {
@@ -125,7 +135,7 @@ static std::vector<MidiPortInfo> GetPortInfo(const std::string &deviceName)
 
 static void NotifyManager(DeviceCtx &d, bool success)
 {
-    CHECK_AND_RETURN(instance.load() != nullptr);
+    CHECK_AND_RETURN(AcquireInstance() != nullptr);
     std::string name = ""; // Could fetch name from GATT
     auto cb = d.deviceCallback;
 
@@ -142,28 +152,32 @@ static void NotifyManager(DeviceCtx &d, bool success)
     cb(success, devInfo);
 }
 
-static bool g_cleanupDeviceAndNotifyFailure(std::unique_lock<std::mutex> &lock, int32_t clientId)
+// Erase clientId (if present) and notify failure. Takes its own lock_; caller
+// must NOT hold inst->lock_.
+static bool CleanupDeviceAndNotifyFailure(int32_t clientId)
 {
-    // Load instance once to prevent TOCTOU issues
-    auto *inst = instance.load();
+    auto inst = AcquireInstance();
     if (inst == nullptr) {
-        lock.unlock();
         BleGattcDisconnect(clientId);
         return false;
     }
-    auto it = inst->devices_.find(clientId);
-    if (it != inst->devices_.end()) {
-        DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
-        BleGattcUnRegister(clientId);
-        inst->devices_.erase(it);
-        lock.unlock();
-        BleGattcDisconnect(clientId);
-        NotifyManager(device, false);
-        return true;
+    DeviceCtx device;
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> lock(inst->lock_);
+        auto it = inst->devices_.find(clientId);
+        if (it != inst->devices_.end()) {
+            found = true;
+            device = DeviceCtx::CopySafeFields(it->second);
+            BleGattcUnRegister(clientId);
+            inst->devices_.erase(it);
+        }
     }
-    lock.unlock();
     BleGattcDisconnect(clientId);
-    return false;
+    if (found) {
+        NotifyManager(device, false);
+    }
+    return found;
 }
 
 // MakeBtUuid - Create BtUuid from string, using provided storage for ownership
@@ -214,9 +228,9 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
 {
     CHECK_AND_RETURN_RET(u.uuid && canonical, false);
     // Use strnlen to limit scan length and prevent buffer overruns
-    constexpr size_t MAX_UUID_LEN = 64;  // BLE UUID max length is 36 for standard format
-    size_t len = strnlen(canonical, MAX_UUID_LEN);
-    CHECK_AND_RETURN_RET(len < MAX_UUID_LEN && u.uuidLen == len, false);
+    constexpr size_t maxUuidLen = 64;  // BLE UUID max length is 36 for standard format
+    size_t len = strnlen(canonical, maxUuidLen);
+    CHECK_AND_RETURN_RET(len < maxUuidLen && u.uuidLen == len, false);
 
     for (size_t i = 0; i < len; i++) {
         unsigned char cu = static_cast<unsigned char>(u.uuid[i]);
@@ -245,8 +259,7 @@ static void GetDeviceInfo(DeviceCtx &d)
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
 {
-    // Load instance once to prevent TOCTOU issues
-    auto *inst = instance.load();
+    auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr);
     MIDI_INFO_LOG("client = %{public}d, connState = %{public}d, status = %{public}d", clientId, connState, status);
 
@@ -267,30 +280,29 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
     }
 
     if (connState == OHOS_STATE_CONNECTED) {
-        std::unique_lock<std::mutex> lock(inst->lock_);
-        auto &ctx = inst->devices_[clientId];
-        ctx.connected = true;
-
+        {
+            std::lock_guard<std::mutex> lock(inst->lock_);
+            auto &ctx = inst->devices_[clientId];
+            ctx.connected = true;
+        }
         // Don't notify Manager yet. Wait for Services & Notify.
         int32_t ret = BleGattcSearchServices(clientId);
         if (ret != 0) {
             MIDI_ERR_LOG("Search Service failed");
-            g_cleanupDeviceAndNotifyFailure(lock, clientId);
+            CleanupDeviceAndNotifyFailure(clientId);
         }
     }
 }
 
 static void OnSearvicesComplete(int32_t clientId, int32_t status)
 {
-    // Load instance once to prevent TOCTOU issues
-    auto *inst = instance.load();
+    auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr);
     MIDI_INFO_LOG("OnServicesComplete: clientId=%{public}d, status=%{public}d", clientId, status);
     if (status != 0) {
         // Service discovery failed - cleanup and notify failure
         MIDI_ERR_LOG("Service discovery failed: clientId=%{public}d, status=%{public}d", clientId, status);
-        std::unique_lock<std::mutex> lock(inst->lock_);
-        g_cleanupDeviceAndNotifyFailure(lock, clientId);
+        CleanupDeviceAndNotifyFailure(clientId);
         return;
     }
     std::unique_lock<std::mutex> lock(inst->lock_);
@@ -314,8 +326,9 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
             d.dataCharCharacteristicUuidStorage);
         int32_t rc = BleGattcRegisterNotification(clientId, d.dataChar, true);
         if (rc != 0) {
-            // Register notification failed - cleanup and notify failure
-            g_cleanupDeviceAndNotifyFailure(lock, clientId);
+            // Register notification failed - cleanup and notify failure.
+            lock.unlock();
+            CleanupDeviceAndNotifyFailure(clientId);
             return;
         }
         // Wait for OnRegisterNotify callback
@@ -323,14 +336,14 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
     } else {
         // MIDI service not found - cleanup and notify failure
         MIDI_ERR_LOG("MIDI service not found: clientId=%{public}d", clientId);
-        g_cleanupDeviceAndNotifyFailure(lock, clientId);
+        lock.unlock();
+        CleanupDeviceAndNotifyFailure(clientId);
     }
 }
 
 static void OnRegisterNotify(int32_t clientId, int32_t status)
 {
-    // Load instance once to prevent TOCTOU issues
-    auto *inst = instance.load();
+    auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr);
     MIDI_INFO_LOG("OnRegisterNotify clientId %{public}d status %{public}d", clientId, status);
 
@@ -350,15 +363,15 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
     } else {
         d.notifyEnabled = false;
         MIDI_ERR_LOG("Notify Enable Failed");
-        // Cleanup and notify failure
-        g_cleanupDeviceAndNotifyFailure(lock, clientId);
+        // Cleanup and notify failure.
+        lock.unlock();
+        CleanupDeviceAndNotifyFailure(clientId);
     }
 }
 
 static void OnNotification(int32_t clientId, BtGattReadData* data, int32_t status)
 {
-    // Load instance once to prevent TOCTOU issues
-    auto *inst = instance.load();
+    auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr && status == 0 && data);
     const BtGattCharacteristic &ch = data->attribute.characteristic;
     CHECK_AND_RETURN(BtUuidEquals(ch.serviceUuid, MIDI_SERVICE_UUID) &&
@@ -421,11 +434,7 @@ static void OnwriteComplete(int32_t clientId, BtGattCharacteristic *data, int32_
 BleMidiTransportDeviceDriver::BleMidiTransportDeviceDriver()
 {
     MIDI_INFO_LOG("BleMidiTransportDeviceDriver constructor");
-    BleMidiTransportDeviceDriver* expected = nullptr;
-    if (!instance.compare_exchange_strong(expected, this)) {
-        MIDI_ERR_LOG("Instance already exists!");
-        return;
-    }
+    // Registration via RegisterInstance() (no shared_ptr to this exists yet).
     gattCallbacks_.ConnectionStateCb = &OnConnectionState;
     gattCallbacks_.connectParaUpdateCb = nullptr;
     gattCallbacks_.searchServiceCompleteCb = &OnSearvicesComplete;
@@ -441,8 +450,43 @@ BleMidiTransportDeviceDriver::BleMidiTransportDeviceDriver()
 
 BleMidiTransportDeviceDriver::~BleMidiTransportDeviceDriver()
 {
-    instance.store(nullptr);
+    // Quiesce BT callbacks: unregister every GATT client before members go away.
+    // Safe because no callback is in flight (UnregisterInstance ran first and
+    // in-flight callbacks held their own shared_ptr).
+    std::vector<int32_t> clientIds;
+    {
+        std::lock_guard<std::mutex> lock(lock_);
+        clientIds.reserve(devices_.size());
+        for (const auto &item : devices_) {
+            clientIds.push_back(item.first); // map key is the GATT client id
+        }
+    }
+    for (int32_t cid : clientIds) {
+        BleGattcDisconnect(cid);
+        BleGattcUnRegister(cid);
+    }
     MIDI_INFO_LOG("BleMidiTransportDeviceDriver instance destroyed");
+}
+
+bool BleMidiTransportDeviceDriver::RegisterInstance(std::shared_ptr<BleMidiTransportDeviceDriver> inst)
+{
+    std::lock_guard<std::mutex> lock(g_instanceMutex);
+    if (g_instance != nullptr) {
+        MIDI_ERR_LOG("BleMidiTransportDeviceDriver instance already exists!");
+        return false;
+    }
+    g_instance = std::move(inst);
+    return true;
+}
+
+void BleMidiTransportDeviceDriver::UnregisterInstance()
+{
+    std::shared_ptr<BleMidiTransportDeviceDriver> old;
+    {
+        std::lock_guard<std::mutex> lock(g_instanceMutex);
+        old = std::move(g_instance);
+    }
+    // Release outside the lock so the destructor (which takes lock_) isn't run under it.
 }
 
 std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevices()

@@ -53,7 +53,7 @@ MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> cal
       hasBluetoothPermission_(MidiPermissionManager::VerifyBluetoothPermission(callerTokenId_))
 {
     MIDI_INFO_LOG("MidiInServer created, clientId:%{public}u, callerTokenId:%u, hasBluetoothPermission:%{public}d",
-        clientId_, callerTokenId_, hasBluetoothPermission_);
+        clientId_, callerTokenId_, hasBluetoothPermission_.load());
 }
 
 MidiInServer::~MidiInServer()
