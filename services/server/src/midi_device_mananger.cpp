@@ -488,6 +488,7 @@ int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 #ifdef UNIT_TEST_SUPPORT
 void MidiDeviceManager::InjectDriverForTest(DeviceType type, std::unique_ptr<MidiDeviceDriver> driver)
 {
+    // Replaces only drivers_[type]; does NOT sync BLE g_instance, so mocks cover deviceManager calls but not BLE callbacks.
     std::lock_guard<std::mutex> lock(driversMutex_);
     if (driver) {
         drivers_[type] = std::shared_ptr<MidiDeviceDriver>(driver.release());

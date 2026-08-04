@@ -34,6 +34,9 @@ namespace {
     constexpr uint32_t PORT_GROUP_RANGE = 16;
     // Standard maximum length of a MIDI SysEx message
     // (determined by the MIDI protocol and business requirements).
+    // Note: this is a coarse anti-abuse upper bound only, NOT the real sendable capacity. The hard capacity limit
+    // is enforced later by the shared ring write path (MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader) ~= 8128 bytes),
+    // so a SysEx in (8128, 65535] passes here but fails at the ring write stage.
     constexpr uint32_t MAX_SYSEX_BYTE_SIZE = 65535;
 }  // namespace
 class MidiClientCallback : public MidiCallbackStub {
