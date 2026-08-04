@@ -56,20 +56,25 @@ void MidiServerDump::HandleDump(std::string &dumpString, std::queue<std::u16stri
         if (dumpFuncMap_.find(para) != dumpFuncMap_.end()) {
             (this->*dumpFuncMap_[para])(dumpString);
         } else {
-            // Dump parameters are mostly ASCII; convert the u16string char-by-char to a UTF-8
-            // string and echo it back, making hidumper typos easy to spot.
-            std::string paraUtf8;
-            for (char16_t c : para) {
-                if (c < 0x80) {
-                    paraUtf8 += static_cast<char>(c);
-                }
-            }
-            dumpString += "Unknown parameter: " + paraUtf8;
-            dumpString += "\n\n";
-            HelpInfoDump(dumpString);
+            UnknownParameterDump(dumpString, para);
             return;
         }
     }
+}
+
+void MidiServerDump::UnknownParameterDump(std::string &dumpString, const std::u16string &para)
+{
+    // Dump parameters are mostly ASCII; convert the u16string char-by-char to a UTF-8
+    // string and echo it back, making hidumper typos easy to spot.
+    std::string paraUtf8;
+    for (char16_t c : para) {
+        if (c < 0x80) {
+            paraUtf8 += static_cast<char>(c);
+        }
+    }
+    dumpString += "Unknown parameter: " + paraUtf8;
+    dumpString += "\n\n";
+    HelpInfoDump(dumpString);
 }
 
 void MidiServerDump::HelpInfoDump(std::string &dumpString)

@@ -46,6 +46,7 @@ private:
     void ClientInfoDump(std::string &dumpString);
     void PortMappingDump(std::string &dumpString);
     void StatisticsDump(std::string &dumpString);
+    void UnknownParameterDump(std::string &dumpString, const std::u16string &para);
 
     // Helper methods
     void DumpServiceStatus(std::string &dumpString);
