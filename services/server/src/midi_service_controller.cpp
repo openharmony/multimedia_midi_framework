@@ -599,7 +599,6 @@ int32_t MidiServiceController::CreateNewOutputPortConnection(uint32_t clientId, 
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
     CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
     int32_t startRet = outputConnection->Start();
-    
     if (startRet != OH_MIDI_STATUS_OK) {
         MIDI_ERR_LOG("Start output connection fail");
         deviceManager_->CloseOutputPort(deviceId, portIndex);

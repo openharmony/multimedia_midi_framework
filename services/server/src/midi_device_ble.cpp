@@ -154,7 +154,7 @@ static void NotifyManager(DeviceCtx &d, bool success)
 
 // Erase clientId (if present) and notify failure. Takes its own lock_; caller
 // must NOT hold inst->lock_.
-static bool g_cleanupDeviceAndNotifyFailure(int32_t clientId)
+static bool CleanupDeviceAndNotifyFailure(int32_t clientId)
 {
     auto inst = AcquireInstance();
     if (inst == nullptr) {
@@ -228,9 +228,9 @@ static bool BtUuidEquals(const BtUuid &u, const char *canonical)
 {
     CHECK_AND_RETURN_RET(u.uuid && canonical, false);
     // Use strnlen to limit scan length and prevent buffer overruns
-    constexpr size_t MAX_UUID_LEN = 64;  // BLE UUID max length is 36 for standard format
-    size_t len = strnlen(canonical, MAX_UUID_LEN);
-    CHECK_AND_RETURN_RET(len < MAX_UUID_LEN && u.uuidLen == len, false);
+    constexpr size_t maxUuidLen = 64;  // BLE UUID max length is 36 for standard format
+    size_t len = strnlen(canonical, maxUuidLen);
+    CHECK_AND_RETURN_RET(len < maxUuidLen && u.uuidLen == len, false);
 
     for (size_t i = 0; i < len; i++) {
         unsigned char cu = static_cast<unsigned char>(u.uuid[i]);
@@ -289,7 +289,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         int32_t ret = BleGattcSearchServices(clientId);
         if (ret != 0) {
             MIDI_ERR_LOG("Search Service failed");
-            g_cleanupDeviceAndNotifyFailure(clientId);
+            CleanupDeviceAndNotifyFailure(clientId);
         }
     }
 }
@@ -302,7 +302,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
     if (status != 0) {
         // Service discovery failed - cleanup and notify failure
         MIDI_ERR_LOG("Service discovery failed: clientId=%{public}d, status=%{public}d", clientId, status);
-        g_cleanupDeviceAndNotifyFailure(clientId);
+        CleanupDeviceAndNotifyFailure(clientId);
         return;
     }
     std::unique_lock<std::mutex> lock(inst->lock_);
@@ -328,7 +328,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         if (rc != 0) {
             // Register notification failed - cleanup and notify failure.
             lock.unlock();
-            g_cleanupDeviceAndNotifyFailure(clientId);
+            CleanupDeviceAndNotifyFailure(clientId);
             return;
         }
         // Wait for OnRegisterNotify callback
@@ -337,7 +337,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         // MIDI service not found - cleanup and notify failure
         MIDI_ERR_LOG("MIDI service not found: clientId=%{public}d", clientId);
         lock.unlock();
-        g_cleanupDeviceAndNotifyFailure(clientId);
+        CleanupDeviceAndNotifyFailure(clientId);
     }
 }
 
@@ -365,7 +365,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         MIDI_ERR_LOG("Notify Enable Failed");
         // Cleanup and notify failure.
         lock.unlock();
-        g_cleanupDeviceAndNotifyFailure(clientId);
+        CleanupDeviceAndNotifyFailure(clientId);
     }
 }
 
