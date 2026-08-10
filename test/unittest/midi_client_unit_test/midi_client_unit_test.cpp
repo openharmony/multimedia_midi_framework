@@ -1321,10 +1321,13 @@ HWTEST_F(MidiClientUnitTest, BleOpenAndDestroyedClientBranches001, TestSize.Leve
         OH_MIDI_DEVICE_CHANGE_ACTION_CONNECTED, changedInfo), OH_MIDI_STATUS_OK);
     EXPECT_EQ(serviceCallback->NotifyError(OH_MIDI_STATUS_SYSTEM_ERROR), OH_MIDI_STATUS_OK);
     EXPECT_EQ(bleCallback->NotifyDeviceOpened(true, bleInfo), OH_MIDI_STATUS_OK);
-    EXPECT_EQ(capture.deviceChangeCount, 2);
-    EXPECT_EQ(capture.errorCount, 1);
+    // Destroyed-client callback guards: every post-destroy notification is dropped,
+    // so the counters must stay at their pre-destroy values (0/0/2).
+    EXPECT_EQ(capture.deviceChangeCount, 0);
+    EXPECT_EQ(capture.errorCount, 0);
     EXPECT_EQ(capture.deviceOpenCount, 2);
 
+    EXPECT_CALL(*mockService, CloseDevice(7001)).WillOnce(Return(OH_MIDI_STATUS_OK));
     EXPECT_EQ(client->CloseAndRemoveDevice(rawDevice), OH_MIDI_STATUS_OK);
 }
 
