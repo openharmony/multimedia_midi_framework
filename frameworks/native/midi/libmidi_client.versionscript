@@ -3,6 +3,8 @@
     *MidiClient*;
     *MidiDevice*;
     *MidiServiceClient*;
+    *MidiInputPort*;
+    *MidioutputPort*;
   local:
     *;
 };

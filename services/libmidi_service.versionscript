@@ -19,6 +19,7 @@
     *MidiListenerCallback*;
     *BleMidiTransportDeviceDriver*;
     *UsbMidiTransportDeviceDriver*;
+    *DrainCounterFd*;
   local:
     *;
 };
