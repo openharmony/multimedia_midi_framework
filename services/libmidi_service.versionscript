@@ -3,9 +3,19 @@
   global:
     *MidiServer*;
     *MidiInServer*;
+    *MidiServiceController*;
+    *MidiDeviceManager*;
+    *MidiDeviceDriver*;
+    *ClientConnectionInServer*;
+    *CallbackSlot*;
+    *DeviceClientContext*;
     *UsbDriverCallback*;
     *EventSubscriber*;
-    *DeviceConnection*;
+    *MidiDeviceConnection*;
+    *DeviceConnectionBase*;
+    *DeviceConnectionForInput*;
+    *DeviceConnectionForOutput*;
+    *DeviceConnectionInfo*;
     *MidiListenerCallback*;
     *BleMidiTransportDeviceDriver*;
     *UsbMidiTransportDeviceDriver*;

@@ -1,7 +1,7 @@
 1.0 {
   global:
     *MidiClient*;
-    *MidiDevicePrivate*;
+    *MidiDevice*;
     *MidiServiceClient*;
   local:
     *;
