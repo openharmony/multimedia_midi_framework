@@ -1,0 +1,21 @@
+
+1.0 {
+  global:
+    *MidiSharedRing*;
+    *MidiSharedMemory*;
+    *FutexTool*;
+    *MidiServiceStub*;
+    *MidiServiceProxy*;
+    *MidiCallbackStub*;
+    *MidiCallbackProxy*;
+    *IpcMidiInServerStub*;
+    *IpcMidiInServerProxy*;
+    *MidiDeviceOpenCallbackStub*;
+    *MidiDeviceOpenCallbackProxy*;
+    *GetEncryptStr*;
+    *DumpMidiEvents*;
+    *PackSysEx7Ump64*;
+    *UniqueFd*;
+  local:
+    *;
+};

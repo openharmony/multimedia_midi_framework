@@ -1,0 +1,14 @@
+
+1.0 {
+  global:
+    *MidiServer*;
+    *MidiInServer*;
+    *UsbDriverCallback*;
+    *EventSubscriber*;
+    *DeviceConnection*;
+    *MidiListenerCallback*;
+    *BleMidiTransportDeviceDriver*;
+    *UsbMidiTransportDeviceDriver*;
+  local:
+    *;
+};

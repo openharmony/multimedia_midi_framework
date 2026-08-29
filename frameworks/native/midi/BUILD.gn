@@ -60,6 +60,7 @@ ohos_shared_library("midi_client") {
   cflags_cc = [ "-std=c++20" ]
 
   innerapi_tags = ["platformsdk"]
+  version_script = "libmidi_client.versionscript"
   subsystem_name = "multimedia"
   part_name = "midi_framework"
 }

@@ -48,6 +48,7 @@ ohos_shared_library("midiutils") {
   cflags_cc = [ "-std=c++20" ]
 
   defines = []
+  version_script = "libmidiutils.versionscript"
   subsystem_name = "multimedia"
   part_name = "midi_framework"
 }
