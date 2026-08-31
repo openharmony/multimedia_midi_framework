@@ -50,6 +50,7 @@ ohos_shared_library("ohmidi") {
 
   innerapi_tags = ["ndk"]
   output_extension = "so"
+  version_script = "libohmidi.versionscript"
   subsystem_name = "multimedia"
   part_name = "midi_framework"
 }

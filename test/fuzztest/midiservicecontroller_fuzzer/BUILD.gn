@@ -39,12 +39,14 @@ ohos_fuzztest("MidiServiceControllerFuzzTest") {
   sources = [
     "midi_core_coverage_scenarios.cpp",
     "midiservicecontroller_fuzzer.cpp",
+    "${midi_framework_root}/frameworks/native/midiutils/src/midi_utils.cpp",
   ]
 
   deps = [
     "${midi_framework_root}/services/idl:midi_framework_interface",
     "${midi_framework_root}/services:midi_service",
     "${midi_framework_root}/services/common:midi_common",
+    "${midi_framework_root}/frameworks/native/midiutils:midiutils",
   ]
 
   external_deps = [

@@ -1,0 +1,8 @@
+
+1.0 {
+  global:
+    OH_MIDIClient_*;
+    OH_MIDIDevice_*;
+  local:
+    *;
+};

@@ -1,0 +1,13 @@
+
+1.0 {
+  global:
+    *UmpConverter*;
+    *UmpProcessor*;
+    *UmpPacket*;
+    *BleMidiPacketEncoder*;
+    *MidiSharedRing*;
+    *MidiSharedMemory*;
+    *FutexTool*;
+  local:
+    *;
+};

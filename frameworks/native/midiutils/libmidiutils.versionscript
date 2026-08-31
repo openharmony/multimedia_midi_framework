@@ -1,0 +1,14 @@
+
+1.0 {
+  global:
+    extern "C++" {
+      OHOS::MIDI::CloseFd*;
+      OHOS::MIDI::UniqueFd::UniqueFd*;
+      OHOS::MIDI::UniqueFd::~UniqueFd*;
+      OHOS::MIDI::UniqueFd::operator=*;
+      OHOS::MIDI::UniqueFd::Reset*;
+      OHOS::MIDI::ClockTime::GetCurNano*;
+    };
+  local:
+    *;
+};

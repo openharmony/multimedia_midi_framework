@@ -70,6 +70,8 @@ ohos_shared_library("midi_framework_interface") {
     subsystem_name = "multimedia"
     part_name = "midi_framework"
 
+    version_script = "libmidi_framework_interface.versionscript"
+
     sanitize = {
         cfi = true
         cfi_cross_dso = true
