@@ -50,13 +50,15 @@ ohos_shared_library("midi_framework_interface") {
     sources = [
         "${midi_framework_root}/services/common/src/futex_tool.cpp",
         "${midi_framework_root}/services/common/src/midi_shared_ring.cpp",
-        "${midi_framework_root}/frameworks/native/midiutils/src/midi_utils.cpp",
     ]
     sources += filter_include(output_values, [ "*proxy.cpp" ])
     sources += filter_include(output_values, [ "*stub.cpp" ])
     sources += filter_include(output_values, [ "*types.cpp" ])
 
-    deps = [ ":midi_service_idl_interface" ]
+    deps = [
+        ":midi_service_idl_interface",
+        "${midi_framework_root}/frameworks/native/midiutils:midiutils",
+    ]
 
     external_deps = [
         "bounds_checking_function:libsec_shared",

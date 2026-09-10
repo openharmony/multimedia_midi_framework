@@ -8,6 +8,12 @@
       OHOS::MIDI::UniqueFd::operator=*;
       OHOS::MIDI::UniqueFd::Reset*;
       OHOS::MIDI::ClockTime::GetCurNano*;
+      OHOS::MIDI::GetEncryptStr*;
+      OHOS::MIDI::BytesToString*;
+      OHOS::MIDI::DumpOneEvent*;
+      OHOS::MIDI::DumpMidiEvents*;
+      OHOS::MIDI::PackSysEx7Ump64*;
+      OHOS::MIDI::StringToNum*;
     };
   local:
     *;
