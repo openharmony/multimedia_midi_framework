@@ -5,9 +5,6 @@
     *UmpProcessor*;
     *UmpPacket*;
     *BleMidiPacketEncoder*;
-    *MidiSharedRing*;
-    *MidiSharedMemory*;
-    *FutexTool*;
   local:
     *;
 };

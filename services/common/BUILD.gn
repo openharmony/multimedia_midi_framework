@@ -30,8 +30,6 @@ ohos_shared_library("midi_common") {
 
   sources = [
     "src/ble_midi_encoder.cpp",
-    "src/futex_tool.cpp",
-    "src/midi_shared_ring.cpp",
     "src/ump_packet.cpp",
     "src/ump_processor.cpp",
     "src/ump_converter.cpp",

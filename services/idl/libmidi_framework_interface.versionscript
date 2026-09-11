@@ -12,12 +12,6 @@
     *IpcMidiInServerProxy*;
     *MidiDeviceOpenCallbackStub*;
     *MidiDeviceOpenCallbackProxy*;
-    *GetEncryptStr*;
-    *DumpMidiEvents*;
-    *DumpOneEvent*;
-    *BytesToString*;
-    *PackSysEx7Ump64*;
-    *UniqueFd*;
   local:
     *;
 };
