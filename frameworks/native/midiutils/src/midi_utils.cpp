@@ -19,6 +19,7 @@
 
 #include <cinttypes>
 #include <climits>
+#include <cstdio>
 #include <ctime>
 #include <cstdint>
 #include <iomanip>
@@ -30,7 +31,6 @@
 #include <vector>
 #include <algorithm>
 #include <unistd.h>
-#include <fdsan.h>
 
 
 #include "midi_log.h"
