@@ -21,6 +21,7 @@
 #include <cstring>
 
 #include <fcntl.h>
+#include <fdsan.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
@@ -301,7 +302,7 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
         notifyEventFd_.Reset(-1);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
-    timerFd_.Reset(tfd);
+    timerFd_.Reset(tfd, fdsan_create_owner_tag(FDSAN_OWNER_TYPE_GENERIC_00, LOG_DOMAIN));
 
     int epfd = ::epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0) {
@@ -309,7 +310,7 @@ int32_t DeviceConnectionForOutput::InitEpollAndFds()
         notifyEventFd_.Reset(-1);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
-    epollFd_.Reset(epfd);
+    epollFd_.Reset(epfd, fdsan_create_owner_tag(FDSAN_OWNER_TYPE_GENERIC_00, LOG_DOMAIN));
 
     epoll_event evNotify{};
     evNotify.events = EPOLLIN;

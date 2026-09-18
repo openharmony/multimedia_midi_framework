@@ -118,6 +118,7 @@ class UniqueFd {
 public:
     UniqueFd() = default;
     explicit UniqueFd(int fd) : fd_(fd) {}
+    explicit UniqueFd(int fd, uint64_t tag) : fd_(fd), tag_(tag) {}
     ~UniqueFd();
 
     UniqueFd(const UniqueFd &) = delete;
@@ -128,10 +129,13 @@ public:
 
     int Get() const { return fd_; }
     bool Valid() const { return fd_ >= 0; }
-    void Reset(int fd = -1);
+    // Reset takes a newly created fd. If tag is non-zero, the fd will be closed
+    // via fdsan_close_with_tag using this tag for open/close ownership checking.
+    void Reset(int fd = -1, uint64_t tag = 0);
 
 private:
     int fd_ = -1;
+    uint64_t tag_ = 0;
 };
 
 template <typename T>

@@ -30,6 +30,7 @@
 #include <vector>
 #include <algorithm>
 #include <unistd.h>
+#include <fdsan.h>
 
 
 #include "midi_log.h"
@@ -183,7 +184,9 @@ UniqueFd::~UniqueFd()
 UniqueFd::UniqueFd(UniqueFd &&other) noexcept
 {
     fd_ = other.fd_;
+    tag_ = other.tag_;
     other.fd_ = -1;
+    other.tag_ = 0;
 }
 
 UniqueFd &UniqueFd::operator=(UniqueFd &&other) noexcept
@@ -191,17 +194,30 @@ UniqueFd &UniqueFd::operator=(UniqueFd &&other) noexcept
     if (this != &other) {
         Reset();
         fd_ = other.fd_;
+        tag_ = other.tag_;
         other.fd_ = -1;
+        other.tag_ = 0;
     }
     return *this;
 }
 
-void UniqueFd::Reset(int fd)
+void UniqueFd::Reset(int fd, uint64_t tag)
 {
     if (fd_ >= 0) {
-        ::close(fd_);
+        if (tag_ != 0) {
+            fdsan_close_with_tag(fd_, tag_);
+        } else {
+            ::close(fd_);
+        }
     }
     fd_ = fd;
+    tag_ = tag;
+    // Bind the owner tag to the newly adopted fd immediately (if it should be tracked),
+    // restoring the fd's owner from the default 0 to tag, so that a later
+    // fdsan_close_with_tag(fd, tag) matches the fd's declared owner.
+    if (fd_ >= 0 && tag_ != 0) {
+        fdsan_exchange_owner_tag(fd_, 0, tag_);
+    }
 }
 } // namespace MIDI
 } // namespace OHOS
