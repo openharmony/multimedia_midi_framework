@@ -42,8 +42,8 @@ HWTEST_F(OhMidiUnitTest, OhMidiClientNullParams001, TestSize.Level0)
     EXPECT_EQ(OH_MIDIClient_GetDeviceCount(fakeClient, nullptr), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
     size_t actual = 0;
-    EXPECT_EQ(OH_MIDIClient_GetDeviceInfos(nullptr, 0, nullptr, &actual), OH_MIDI_STATUS_INVALID_CLIENT);
-    EXPECT_EQ(OH_MIDIClient_GetDeviceInfos(fakeClient, 0, nullptr, nullptr),
+    EXPECT_EQ(OH_MIDIClient_GetDeviceInfos(nullptr, nullptr, 0, &actual), OH_MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(OH_MIDIClient_GetDeviceInfos(fakeClient, nullptr, 0, nullptr),
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
     OH_MIDIDevice *device = nullptr;
@@ -60,8 +60,8 @@ HWTEST_F(OhMidiUnitTest, OhMidiClientNullParams001, TestSize.Level0)
     EXPECT_EQ(OH_MIDIClient_GetPortCount(nullptr, 0, &count), OH_MIDI_STATUS_INVALID_CLIENT);
     EXPECT_EQ(OH_MIDIClient_GetPortCount(fakeClient, 0, nullptr), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 
-    EXPECT_EQ(OH_MIDIClient_GetPortInfos(nullptr, 0, 0, nullptr, &actual), OH_MIDI_STATUS_INVALID_CLIENT);
-    EXPECT_EQ(OH_MIDIClient_GetPortInfos(fakeClient, 0, 0, nullptr, nullptr),
+    EXPECT_EQ(OH_MIDIClient_GetPortInfos(nullptr, 0, nullptr, 0, &actual), OH_MIDI_STATUS_INVALID_CLIENT);
+    EXPECT_EQ(OH_MIDIClient_GetPortInfos(fakeClient, 0, nullptr, 0, nullptr),
         OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT);
 }
 
