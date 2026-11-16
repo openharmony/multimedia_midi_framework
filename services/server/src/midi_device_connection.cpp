@@ -71,10 +71,14 @@ int32_t DeviceConnectionBase::AddClientConnection(
 {
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
-    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "creat client connection fail");
-    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer() == OH_MIDI_STATUS_OK,
-        OH_MIDI_STATUS_SYSTEM_ERROR,
-        "init client connection fail");
+    if (!(clientConnection != nullptr)) {
+        HILOG_COMM_ERROR("【AddClientConnection】creat client connection fail");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
+    if (!(clientConnection->CreateRingBuffer() == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【AddClientConnection】init client connection fail");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     buffer = clientConnection->GetRingBuffer();
     clients_.push_back(std::move(clientConnection));
     return OH_MIDI_STATUS_OK;
@@ -223,7 +227,7 @@ DeviceConnectionForOutput::DeviceConnectionForOutput(DeviceConnectionInfo info) 
 
 DeviceConnectionForOutput::~DeviceConnectionForOutput()
 {
-    MIDI_INFO_LOG("DeviceConnectionForOutput Destroy");
+    HILOG_COMM_INFO("DeviceConnectionForOutput Destroy");
     (void)Stop();
 }
 
@@ -234,10 +238,14 @@ int32_t DeviceConnectionForOutput::AddClientConnection(
     int fd = dup(notifyEventFd_.Get());
     CHECK_AND_RETURN_RET(fd >= 0, OH_MIDI_STATUS_SYSTEM_ERROR);
     auto clientConnection = std::make_shared<ClientConnectionInServer>(clientId, deviceHandle, GetInfo().portIndex);
-    CHECK_AND_RETURN_RET_LOG(clientConnection != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "creat client connection fail");
-    CHECK_AND_RETURN_RET_LOG(clientConnection->CreateRingBuffer(fd) == OH_MIDI_STATUS_OK,
-        OH_MIDI_STATUS_SYSTEM_ERROR,
-        "init client connection fail");
+    if (!(clientConnection != nullptr)) {
+        HILOG_COMM_ERROR("【AddClientConnection】creat client connection fail");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
+    if (!(clientConnection->CreateRingBuffer(fd) == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【AddClientConnection】init client connection fail");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     buffer = clientConnection->GetRingBuffer();
     clients_.push_back(std::move(clientConnection));
     return OH_MIDI_STATUS_OK;
@@ -565,7 +573,10 @@ bool DeviceConnectionForOutput::TryAppendToSendCache(uint64_t timestamp,
     std::vector<uint32_t> payloadBuffer;
     payloadBuffer.resize(payloadWordCount);
     auto ret = memcpy_s(payloadBuffer.data(), payloadBytes, payloadWords, payloadBytes);
-    CHECK_AND_RETURN_RET_LOG(ret == 0, false, "copy error");
+    if (!(ret == 0)) {
+        HILOG_COMM_ERROR("【TryAppendToSendCache】copy error");
+        return false;
+    }
     MidiEventInner cachedEvent {};
     cachedEvent.timestamp = timestamp;
     cachedEvent.length = payloadWordCount;
@@ -609,7 +620,10 @@ void DeviceConnectionForOutput::FlushSendCacheToDriver()
     if (sendCache_.empty()) {
         return;
     }
-    CHECK_AND_RETURN_LOG(info_.driver != nullptr, "driver is null!");
+    if (!(info_.driver != nullptr)) {
+        HILOG_COMM_ERROR("【FlushSendCacheToDriver】driver is null!");
+        return;
+    }
 
     // Update statistics for output events
     for (const auto &event : sendCache_) {

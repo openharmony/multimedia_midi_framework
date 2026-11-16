@@ -32,31 +32,35 @@ MidiServer::MidiServer(int32_t systemAbilityId, bool runOnCreate)
 void MidiServer::OnStart()
 {
     controller_ = MidiServiceController::GetInstance();
-    CHECK_AND_RETURN_LOG(controller_ != nullptr,
-        "Failed to get MidiServiceController instance");
+    if (!(controller_ != nullptr)) {
+        HILOG_COMM_ERROR("【OnStart】Failed to get MidiServiceController instance");
+        return;
+    }
     controller_->Init();
     auto result = Publish(this);
-    CHECK_AND_RETURN_LOG(result,
-        "Failed to publish MIDI service to SAMgr");
-    MIDI_INFO_LOG("MIDI service started successfully");
+    if (!(result)) {
+        HILOG_COMM_ERROR("【OnStart】Failed to publish MIDI service to SAMgr");
+        return;
+    }
+    HILOG_COMM_INFO("【OnStart】MIDI service started successfully");
 }
 
 void MidiServer::OnStop()
 {
-    MIDI_INFO_LOG("MIDI service stopping");
+    HILOG_COMM_INFO("【OnStop】MIDI service stopping");
     controller_ = nullptr;
 }
 
 void MidiServer::OnDump()
 {
-    MIDI_INFO_LOG("MIDI service OnDump");
+    HILOG_COMM_INFO("MIDI service OnDump");
 }
 
 int32_t MidiServer::Dump(int32_t fd, const std::vector<std::u16string> &args)
 {
-    MIDI_INFO_LOG("MIDI service Dump invoked");
+    HILOG_COMM_INFO("MIDI service Dump invoked");
     if (fd < 0) {
-        MIDI_ERR_LOG("Invalid fd: %{public}d", fd);
+        HILOG_COMM_ERROR("【Dump】Invalid fd: %{public}d", fd);
         return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
 
@@ -78,7 +82,10 @@ int32_t MidiServer::Dump(int32_t fd, const std::vector<std::u16string> &args)
 int32_t MidiServer::CreateMidiInServer(const sptr<IRemoteObject> &object, sptr<IRemoteObject> &client,
     uint32_t &clientId)
 {
-    CHECK_AND_RETURN_RET_LOG(controller_, OH_MIDI_STATUS_SYSTEM_ERROR, "controller_ is nullptr");
+    if (!(controller_)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】controller_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return controller_->CreateMidiInServer(object, client, clientId);
 }
 

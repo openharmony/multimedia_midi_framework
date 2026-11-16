@@ -39,7 +39,7 @@ std::atomic<uint32_t> MidiServiceController::currentClientId_ = 0;
 
 DeviceClientContext::~DeviceClientContext()
 {
-    MIDI_INFO_LOG("~DeviceClientContext");
+    HILOG_COMM_INFO("~DeviceClientContext");
     inputDeviceconnections_.clear();
     outputDeviceconnections_.clear();
 }
@@ -107,7 +107,7 @@ void MidiServiceController::CancelUnloadTask()
 
     // Reset state
     isUnloadPending_.store(false, std::memory_order_release);
-    MIDI_INFO_LOG("Pending unload task cancelled.");
+    HILOG_COMM_INFO("【CancelUnloadTask】Pending unload task cancelled.");
 }
 
 void MidiServiceController::ScheduleUnloadTask()
@@ -132,7 +132,8 @@ void MidiServiceController::ScheduleUnloadTask()
     isUnloadPending_.store(true, std::memory_order_release);
 
     unloadThread_ = std::thread([this]() {
-        MIDI_INFO_LOG("Unload timer started. Waiting for %{public}" PRId64 " ms...", unloadDelayTime_);
+        HILOG_COMM_INFO("【ScheduleUnloadTask】Unload timer started. Waiting for %{public}"
+            PRId64 " ms...", unloadDelayTime_);
 
         bool shouldUnload = false;
         {
@@ -144,38 +145,44 @@ void MidiServiceController::ScheduleUnloadTask()
         }
 
         if (shouldUnload) {
-            MIDI_INFO_LOG("Unload timer triggered. Unloading System Ability.");
+            HILOG_COMM_INFO("【ScheduleUnloadTask】Unload timer triggered. Unloading System Ability.");
             auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
             if (samgr != nullptr) {
                 samgr->UnloadSystemAbility(MIDI_SERVICE_ID);
             } else {
-                MIDI_ERR_LOG("Get samgr failed.");
+                HILOG_COMM_ERROR("【ScheduleUnloadTask】Get samgr failed.");
             }
         } else {
-            MIDI_INFO_LOG("Unload timer cancelled.");
+            HILOG_COMM_INFO("【ScheduleUnloadTask】Unload timer cancelled.");
         }
     });
 }
 
-int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &object,
-    sptr<IRemoteObject> &client, uint32_t &clientId)
+int32_t MidiServiceController::CreateListenerCallback(const sptr<IRemoteObject> &object,
+    std::shared_ptr<MidiListenerCallback> &callback)
 {
-    CHECK_AND_RETURN_RET_LOG(object, OH_MIDI_STATUS_SYSTEM_ERROR, "object is nullptr");
+    if (!(object)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】object is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     sptr<IMidiCallback> listener = iface_cast<IMidiCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(listener, OH_MIDI_STATUS_SYSTEM_ERROR, "listener is nullptr");
-    std::shared_ptr<MidiListenerCallback> callback = std::make_shared<MidiListenerCallback>(listener);
-    CHECK_AND_RETURN_RET_LOG(callback, OH_MIDI_STATUS_SYSTEM_ERROR, "callback is nullptr");
+    if (!(listener)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】listener is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
+    callback = std::make_shared<MidiListenerCallback>(listener);
+    if (!(callback)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】callback is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
+    return OH_MIDI_STATUS_OK;
+}
 
-    // Get calling application UID
-    uint32_t callingUid = IPCSkeleton::GetCallingUid();
-    MIDI_INFO_LOG("CreateMidiInServer called from UID: %{public}u", callingUid);
-
-    std::lock_guard lock(lock_);
-    CancelUnloadTask();
-
+int32_t MidiServiceController::CheckClientLimitLocked(uint32_t callingUid)
+{
     // Check client count limit (overall system)
     if (clients_.size() >= MAX_CLIENTS) {
-        MIDI_ERR_LOG("Maximum number of clients reached: %{public}u", MAX_CLIENTS);
+        HILOG_COMM_ERROR("【CreateMidiInServer】Maximum number of clients reached: %{public}u", MAX_CLIENTS);
         return OH_MIDI_STATUS_TOO_MANY_CLIENTS;
     }
 
@@ -186,27 +193,55 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
             callingUid, MAX_CLIENTS_PER_APP);
         return OH_MIDI_STATUS_TOO_MANY_CLIENTS;
     }
+    return OH_MIDI_STATUS_OK;
+}
+
+uint32_t MidiServiceController::GenerateClientIdLocked()
+{
+    uint32_t clientId = 0;
     do {
         if (currentClientId_ >= MAX_CLIENTID) {
             currentClientId_ = 0;
         }
         clientId = ++currentClientId_;
     } while (clients_.find(clientId) != clients_.end());
+    return clientId;
+}
+
+int32_t MidiServiceController::RegisterMidiClientLocked(const sptr<IRemoteObject> &object,
+    const std::shared_ptr<MidiListenerCallback> &callback, uint32_t callingUid,
+    sptr<IRemoteObject> &client, uint32_t &clientId)
+{
+    clientId = GenerateClientIdLocked();
     sptr<MidiInServer> midiClient = new (std::nothrow) MidiInServer(clientId, callback);
-    CHECK_AND_RETURN_RET_LOG(midiClient != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiClient nullptr");
+    if (!(midiClient != nullptr)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】midiClient nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     client = midiClient->AsObject();
-    CHECK_AND_RETURN_RET_LOG(client != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiClient->AsObject nullptr");
+    if (!(client != nullptr)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】midiClient->AsObject nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     sptr<MidiServiceDeathRecipient> deathRecipient = new (std::nothrow) MidiServiceDeathRecipient(clientId);
-    CHECK_AND_RETURN_RET_LOG(deathRecipient != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "deathRecipient nullptr");
+    if (!(deathRecipient != nullptr)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】deathRecipient nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     deathRecipient->SetNotifyCb([weakSelf](uint32_t clientId) {
         auto self = weakSelf.lock();
-        CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
+        if (!(self != nullptr)) {
+            HILOG_COMM_ERROR("MidiServiceController destroyed");
+            return;
+        }
         self->DestroyMidiClient(clientId);
     });
     bool added = object->AddDeathRecipient(deathRecipient);
-    CHECK_AND_RETURN_RET_LOG(added, OH_MIDI_STATUS_SYSTEM_ERROR,
-        "AddDeathRecipient failed for clientId=%{public}u", clientId);
+    if (!(added)) {
+        HILOG_COMM_ERROR("【CreateMidiInServer】AddDeathRecipient failed for clientId=%{public}u", clientId);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     clientCallbackObjects_.emplace(clientId, object);
     deathRecipients_.emplace(clientId, deathRecipient);
     clients_.emplace(clientId, std::move(midiClient));
@@ -214,8 +249,37 @@ int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &obj
     // Store UID in client resource info and add to app client map
     clientResourceInfo_[clientId].uid = callingUid;
     appClientMap_[callingUid].insert(clientId);
+    return OH_MIDI_STATUS_OK;
+}
 
-    MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u, UID: %{public}u", clientId, callingUid);
+int32_t MidiServiceController::CreateMidiInServer(const sptr<IRemoteObject> &object,
+    sptr<IRemoteObject> &client, uint32_t &clientId)
+{
+    std::shared_ptr<MidiListenerCallback> callback;
+    int32_t ret = CreateListenerCallback(object, callback);
+    if (ret != OH_MIDI_STATUS_OK) {
+        return ret;
+    }
+
+    // Get calling application UID
+    uint32_t callingUid = IPCSkeleton::GetCallingUid();
+    MIDI_INFO_LOG("CreateMidiInServer called from UID: %{public}u", callingUid);
+
+    std::lock_guard lock(lock_);
+    CancelUnloadTask();
+
+    ret = CheckClientLimitLocked(callingUid);
+    if (ret != OH_MIDI_STATUS_OK) {
+        return ret;
+    }
+
+    ret = RegisterMidiClientLocked(object, callback, callingUid, client, clientId);
+    if (ret != OH_MIDI_STATUS_OK) {
+        return ret;
+    }
+
+    MIDI_INFO_LOG("Create MIDI client success, clientId: %{public}u, UID: %{public}u",
+        clientId, callingUid);
     return OH_MIDI_STATUS_OK;
 }
 
@@ -258,10 +322,10 @@ bool MidiServiceController::IsBluetoothDevice(int64_t deviceId) const
 int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【OpenDevice】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
 
     auto &resourceInfo = clientResourceInfo_[clientId];
 
@@ -273,52 +337,59 @@ int32_t MidiServiceController::OpenDevice(uint32_t clientId, int64_t deviceId)
     }
 
     if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+        HILOG_COMM_ERROR("【OpenDevice】Client %{public}u has reached maximum device count: %{public}u",
             clientId, MAX_DEVICES_PER_CLIENT);
         return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
     }
 
     auto it = deviceClientContexts_.find(deviceId);
     if (it != deviceClientContexts_.end()) {
-        CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) == it->second->clients.end(),
-            OH_MIDI_STATUS_DEVICE_ALREADY_OPEN,
-            "Device already opened by client: deviceId=%{public}" PRId64 ", clientId=%{public}u",
-            deviceId,
-            clientId);
+        if (!(it->second->clients.find(clientId) == it->second->clients.end())) {
+            HILOG_COMM_ERROR("【OpenDevice】Device already opened by client: deviceId=%{public}" PRId64 ","
+                "clientId=%{public}u", deviceId, clientId);
+            return OH_MIDI_STATUS_DEVICE_ALREADY_OPEN;
+        }
         it->second->clients.insert(clientId);
         resourceInfo.openDevices.insert(deviceId);
-        MIDI_INFO_LOG(
-            "Client added to existing device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
+        HILOG_COMM_INFO(
+            "【OpenDevice】Client added to existing device: deviceId=%{public}" PRId64 ", clientId=%{public}u",
+                deviceId, clientId);
         return OH_MIDI_STATUS_OK;
     }
 
-    CHECK_AND_RETURN_RET_LOG(deviceManager_->OpenDevice(deviceId) == OH_MIDI_STATUS_OK,
-        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "Open device failed: deviceId=%{public}" PRId64,
-        deviceId);
+    if (!(deviceManager_->OpenDevice(deviceId) == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【OpenDevice】Open device failed: deviceId=%{public}" PRId64, deviceId);
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
     std::unordered_set<int32_t> clients = {static_cast<int32_t>(clientId)};
     auto context = std::make_shared<DeviceClientContext>(deviceId, std::move(clients));
     deviceClientContexts_.emplace(deviceId, std::move(context));
     resourceInfo.openDevices.insert(deviceId);
-    MIDI_INFO_LOG("Device opened successfully: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
+    HILOG_COMM_INFO("【OpenDevice】Device opened successfully: deviceId=%{public}" PRId64 ", clientId=%{public}u",
+        deviceId, clientId);
     return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::OpenBleDevice(uint32_t clientId, const std::string &address,
     const sptr<IRemoteObject> &object)
 {
-    MIDI_INFO_LOG("OpenBleDevice: clientId=%{public}u, device=%{public}s", clientId, GetEncryptStr(address).c_str());
+    HILOG_COMM_INFO("OpenBleDevice: clientId=%{public}u, device=%{public}s", clientId, GetEncryptStr(address).c_str());
 
     sptr<IMidiDeviceOpenCallback> callback = iface_cast<IMidiDeviceOpenCallback>(object);
-    CHECK_AND_RETURN_RET_LOG(callback != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "callback cast failed");
+    if (!(callback != nullptr)) {
+        HILOG_COMM_ERROR("【OpenBleDevice】callback cast failed");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
 
     std::unique_lock<std::mutex> lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u", clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【OpenBleDevice】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
 
     auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openDevices.size() >= MAX_DEVICES_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum device count: %{public}u",
+        HILOG_COMM_ERROR("【OpenBleDevice】Client %{public}u has reached maximum device count: %{public}u",
             clientId, MAX_DEVICES_PER_CLIENT);
         return OH_MIDI_STATUS_TOO_MANY_OPEN_DEVICES;
     }
@@ -347,7 +418,8 @@ bool MidiServiceController::TryAttachToActiveBleDevice(uint32_t clientId, const 
         return false;
     }
 
-    MIDI_INFO_LOG("BLE Device %{public}s is already active (id=%{public}" PRId64 "). Adding client.",
+    HILOG_COMM_INFO("【TryAttachToActiveBleDevice】BLE Device %{public}s is already active (id=%{public}"
+        PRId64 "). Adding client.",
         GetEncryptStr(address).c_str(), deviceId);
     ctxIt->second->clients.insert(clientId);
     clientResourceInfo_[clientId].openDevices.insert(deviceId);
@@ -364,22 +436,27 @@ int32_t MidiServiceController::EnqueueBleConnectionRequest(uint32_t clientId, co
     pendingBleConnections_[address].push_back(req);
 
     if (!isFirstRequest) {
-        MIDI_INFO_LOG("Connection to %{public}s already pending. Added clientId %{public}u to queue.",
+        HILOG_COMM_INFO("【EnqueueBleConnectionRequest】Connection to %{public}s already pending."
+            "Added clientId %{public}u to queue.",
             GetEncryptStr(address).c_str(), clientId);
         return OH_MIDI_STATUS_OK;
     }
-    MIDI_INFO_LOG("Initiating new BLE connection to %{public}s", GetEncryptStr(address).c_str());
+    HILOG_COMM_INFO("【EnqueueBleConnectionRequest】Initiating new BLE connection to %{public}s",
+        GetEncryptStr(address).c_str());
 
     std::weak_ptr<MidiServiceController> weakSelf = weak_from_this();
     auto completeCallback = [weakSelf, address](bool success, int64_t deviceId, const MidiDeviceInfo &deviceInfo) {
         auto self = weakSelf.lock();
-        CHECK_AND_RETURN_LOG(self != nullptr, "MidiServiceController destroyed");
+        if (!(self != nullptr)) {
+            HILOG_COMM_ERROR("MidiServiceController destroyed");
+            return;
+        }
         self->HandleBleOpenComplete(address, success, deviceId, deviceInfo);
     };
 
     int32_t ret = deviceManager_->OpenBleDevice(address, completeCallback);
     if (ret != OH_MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("Manager OpenBleDevice failed immediately: %{public}d", ret);
+        HILOG_COMM_ERROR("【EnqueueBleConnectionRequest】Manager OpenBleDevice failed immediately: %{public}d", ret);
         pendingBleConnections_.erase(address);
         return ret;
     }
@@ -389,7 +466,7 @@ int32_t MidiServiceController::EnqueueBleConnectionRequest(uint32_t clientId, co
 void MidiServiceController::HandleBleOpenComplete(const std::string &address, bool success, int64_t deviceId,
     const MidiDeviceInfo &deviceInfo)
 {
-    MIDI_INFO_LOG("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
+    HILOG_COMM_INFO("HandleBleOpenComplete: addr=%{public}s, success=%{public}d, devId=%{public}" PRId64,
                 GetEncryptStr(address).c_str(), success, deviceId);
 
     std::list<PendingBleConnection> waitingClients;
@@ -401,7 +478,7 @@ void MidiServiceController::HandleBleOpenComplete(const std::string &address, bo
             waitingClients = std::move(it->second);
             pendingBleConnections_.erase(it);
         } else {
-            MIDI_WARNING_LOG("No pending clients found for %{public}s (maybe cancelled?)",
+            HILOG_COMM_WARN("【HandleBleOpenComplete】No pending clients found for %{public}s (maybe cancelled?)",
                 GetEncryptStr(address).c_str());
         }
 
@@ -432,7 +509,7 @@ bool MidiServiceController::RegisterBleDeviceForPendingClientsLocked(const std::
     }
 
     if (initialClients.empty()) {
-        MIDI_WARNING_LOG("All waiting clients died before BLE connected.");
+        HILOG_COMM_WARN("【RegisterBleDeviceForPendingClientsLocked】All waiting clients died before BLE connected.");
         return false;
     }
     auto ctxIt = deviceClientContexts_.find(deviceId);
@@ -441,7 +518,8 @@ bool MidiServiceController::RegisterBleDeviceForPendingClientsLocked(const std::
         // Keep the existing context and merge the pending clients in so the device context
         // stays consistent with clientResourceInfo_; otherwise emplace would silently drop
         // this context and leave the new clients untracked by the device they opened.
-        MIDI_WARNING_LOG("deviceId %{public}" PRId64 " already registered; merging pending clients", deviceId);
+        HILOG_COMM_WARN("【RegisterBleDeviceForPendingClientsLocked】deviceId %{public}" PRId64 " "
+            "already registered; merging pending clients", deviceId);
         ctxIt->second->clients.insert(initialClients.begin(), initialClients.end());
         return true;
     }
@@ -453,23 +531,24 @@ bool MidiServiceController::RegisterBleDeviceForPendingClientsLocked(const std::
 int32_t MidiServiceController::OpenInputPort(
     uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG(
-        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    HILOG_COMM_INFO(
+        "【OpenInputPort】clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u",
+            clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【OpenInputPort】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
     auto it = deviceClientContexts_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "device %{public}" PRId64 "not opened",
-        deviceId);
-    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        OH_MIDI_STATUS_SYSTEM_ERROR,
-        "client %{public}u doesn't open device %{public}" PRId64 "",
-        clientId,
-        deviceId);
+    if (!(it != deviceClientContexts_.end())) {
+        HILOG_COMM_ERROR("【OpenInputPort】device %{public}" PRId64 "not opened", deviceId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
+    if (!(it->second->clients.find(clientId) != it->second->clients.end())) {
+        HILOG_COMM_ERROR("【OpenInputPort】client %{public}u doesn't open device %{public}" PRId64 "",
+            clientId, deviceId);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
 
     if (IsBluetoothDevice(deviceId)) {
         CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
@@ -479,7 +558,7 @@ int32_t MidiServiceController::OpenInputPort(
 
     auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+        HILOG_COMM_ERROR("【OpenInputPort】Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
         return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
@@ -496,17 +575,22 @@ int32_t MidiServiceController::ConnectToExistingInputPort(uint32_t clientId, int
     std::shared_ptr<MidiSharedRing> &buffer,
     const std::shared_ptr<DeviceConnectionForInput> &portConn, ClientResourceInfo &resourceInfo)
 {
-    CHECK_AND_RETURN_RET_LOG(!portConn->HasClientConnection(clientId),
-        OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected inputport");
+    if (!(!portConn->HasClientConnection(clientId))) {
+        HILOG_COMM_ERROR("【ConnectToExistingInputPort】already connected inputport");
+        return OH_MIDI_STATUS_PORT_ALREADY_OPEN;
+    }
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+        HILOG_COMM_ERROR("【ConnectToExistingInputPort】Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
         return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
     int32_t addRet = portConn->AddClientConnection(clientId, deviceId, buffer);
-    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
+    if (!(addRet == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【ConnectToExistingInputPort】AddClientConnection fail");
+        return addRet;
+    }
     resourceInfo.openPortCount++;
-    MIDI_INFO_LOG("connect inputport success");
+    HILOG_COMM_INFO("【ConnectToExistingInputPort】connect inputport success");
     return OH_MIDI_STATUS_OK;
 }
 
@@ -516,41 +600,46 @@ int32_t MidiServiceController::CreateNewInputPortConnection(uint32_t clientId, i
 {
     std::shared_ptr<DeviceConnectionForInput> inputConnection = nullptr;
     auto ret = deviceManager_->OpenInputPort(inputConnection, deviceId, portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open input port fail!");
+    if (!(ret == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【CreateNewInputPortConnection】open input port fail!");
+        return ret;
+    }
     int32_t addRet = inputConnection->AddClientConnection(clientId, deviceId, buffer);
     if (addRet != OH_MIDI_STATUS_OK) {
         // OpenInputPort just opened the underlying device/HDI port, but on failure the connection is
         // NOT emplaced into context->inputDeviceconnections_, so its destructor will not close it.
         // Close the device port explicitly to avoid leaking input-port resources.
-        MIDI_ERR_LOG("AddClientConnection fail, ret=%{public}d, closing input port", addRet);
+        HILOG_COMM_ERROR("【CreateNewInputPortConnection】AddClientConnection fail, ret=%{public}d, "
+            "closing input port", addRet);
         deviceManager_->CloseInputPort(deviceId, portIndex);
         return addRet;
     }
     clientResourceInfo_[clientId].openPortCount++;
     context->inputDeviceconnections_.emplace(portIndex, std::move(inputConnection));
-    MIDI_INFO_LOG("OpenInputPort Success");
+    HILOG_COMM_INFO("【CreateNewInputPortConnection】OpenInputPort Success");
     return OH_MIDI_STATUS_OK;
 }
 int32_t MidiServiceController::OpenOutputPort(
     uint32_t clientId, std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG(
-        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    HILOG_COMM_INFO(
+        "【OpenOutputPort】clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u",
+            clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【OpenOutputPort】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
     auto it = deviceClientContexts_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "device %{public}" PRId64 "not opened",
-        deviceId);
-    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        OH_MIDI_STATUS_SYSTEM_ERROR,
-        "client %{public}u doesn't open device %{public}" PRId64 "",
-        clientId,
-        deviceId);
+    if (!(it != deviceClientContexts_.end())) {
+        HILOG_COMM_ERROR("【OpenOutputPort】device %{public}" PRId64 "not opened", deviceId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
+    if (!(it->second->clients.find(clientId) != it->second->clients.end())) {
+        HILOG_COMM_ERROR("【OpenOutputPort】client %{public}u doesn't open device %{public}" PRId64 "",
+            clientId, deviceId);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
 
     if (IsBluetoothDevice(deviceId)) {
         CHECK_AND_RETURN_RET_LOG(MidiPermissionManager::VerifyBluetoothPermission(),
@@ -560,7 +649,7 @@ int32_t MidiServiceController::OpenOutputPort(
 
     auto &resourceInfo = clientResourceInfo_[clientId];
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+        HILOG_COMM_ERROR("【OpenOutputPort】Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
         return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
@@ -577,17 +666,22 @@ int32_t MidiServiceController::ConnectToExistingOutputPort(uint32_t clientId, in
     std::shared_ptr<MidiSharedRing> &buffer,
     const std::shared_ptr<DeviceConnectionForOutput> &portConn, ClientResourceInfo &resourceInfo)
 {
-    CHECK_AND_RETURN_RET_LOG(!portConn->HasClientConnection(clientId),
-        OH_MIDI_STATUS_PORT_ALREADY_OPEN, "already connected outputport");
+    if (!(!portConn->HasClientConnection(clientId))) {
+        HILOG_COMM_ERROR("【ConnectToExistingOutputPort】already connected outputport");
+        return OH_MIDI_STATUS_PORT_ALREADY_OPEN;
+    }
     if (resourceInfo.openPortCount >= MAX_PORTS_PER_CLIENT) {
-        MIDI_ERR_LOG("Client %{public}u has reached maximum port count: %{public}u",
+        HILOG_COMM_ERROR("【ConnectToExistingOutputPort】Client %{public}u has reached maximum port count: %{public}u",
             clientId, MAX_PORTS_PER_CLIENT);
         return OH_MIDI_STATUS_TOO_MANY_OPEN_PORTS;
     }
     int32_t addRet = portConn->AddClientConnection(clientId, deviceId, buffer);
-    CHECK_AND_RETURN_RET_LOG(addRet == OH_MIDI_STATUS_OK, addRet, "AddClientConnection fail");
+    if (!(addRet == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【ConnectToExistingOutputPort】AddClientConnection fail");
+        return addRet;
+    }
     resourceInfo.openPortCount++;
-    MIDI_INFO_LOG("connect outputport success");
+    HILOG_COMM_INFO("【ConnectToExistingOutputPort】connect outputport success");
     return OH_MIDI_STATUS_OK;
 }
 
@@ -597,45 +691,50 @@ int32_t MidiServiceController::CreateNewOutputPortConnection(uint32_t clientId, 
 {
     std::shared_ptr<DeviceConnectionForOutput> outputConnection = nullptr;
     auto ret = deviceManager_->OpenOutputPort(outputConnection, deviceId, portIndex);
-    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "open output port fail!");
+    if (!(ret == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【CreateNewOutputPortConnection】open output port fail!");
+        return ret;
+    }
     int32_t startRet = outputConnection->Start();
     if (startRet != OH_MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("Start output connection fail");
+        HILOG_COMM_ERROR("【CreateNewOutputPortConnection】Start output connection fail");
         deviceManager_->CloseOutputPort(deviceId, portIndex);
         return startRet;
     }
     int32_t addRet = outputConnection->AddClientConnection(clientId, deviceId, buffer);
     if (addRet != OH_MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("AddClientConnection fail, ret=%{public}d, stopping output connection", addRet);
+        HILOG_COMM_ERROR("【CreateNewOutputPortConnection】AddClientConnection fail, ret=%{public}d, "
+            "stopping output connection", addRet);
         outputConnection->Stop();
         deviceManager_->CloseOutputPort(deviceId, portIndex);
         return addRet;
     }
     clientResourceInfo_[clientId].openPortCount++;
     context->outputDeviceconnections_.emplace(portIndex, std::move(outputConnection));
-    MIDI_INFO_LOG("OpenOutputPort Success");
+    HILOG_COMM_INFO("【CreateNewOutputPortConnection】OpenOutputPort Success");
     return OH_MIDI_STATUS_OK;
 }
 
 int32_t MidiServiceController::FlushOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG(
-        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    HILOG_COMM_INFO(
+        "【FlushOutputPort】clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u",
+            clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【FlushOutputPort】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
     auto it = deviceClientContexts_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "device %{public}" PRId64 "not opened",
-        deviceId);
-    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "client %{public}u doesn't open device %{public}" PRId64,
-        clientId,
-        deviceId);
+    if (!(it != deviceClientContexts_.end())) {
+        HILOG_COMM_ERROR("【FlushOutputPort】device %{public}" PRId64 "not opened", deviceId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
+    if (!(it->second->clients.find(clientId) != it->second->clients.end())) {
+        HILOG_COMM_ERROR("【FlushOutputPort】client %{public}u doesn't open device %{public}" PRId64,
+            clientId, deviceId);
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
@@ -646,62 +745,68 @@ int32_t MidiServiceController::FlushOutputPort(uint32_t clientId, int64_t device
 
 int32_t MidiServiceController::CloseInputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG(
-        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    HILOG_COMM_INFO(
+        "【CloseInputPort】clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u",
+            clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【CloseInputPort】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
     return CloseInputPortInner(clientId, deviceId, portIndex);
 }
 
 int32_t MidiServiceController::CloseOutputPort(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG(
-        "clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u", clientId, deviceId, portIndex);
+    HILOG_COMM_INFO(
+        "【CloseOutputPort】clientId: %{public}u, deviceId: %{public}" PRId64 " portIndex: %{public}u",
+            clientId, deviceId, portIndex);
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【CloseOutputPort】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
     return CloseOutputPortInner(clientId, deviceId, portIndex);
 }
 
 int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
     auto it = deviceClientContexts_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "device %{public}" PRId64 "not opened",
-        deviceId);
-    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "client %{public}u doesn't open device %{public}" PRId64,
-        clientId,
-        deviceId);
+    if (!(it != deviceClientContexts_.end())) {
+        HILOG_COMM_ERROR("【CloseInputPortInner】device %{public}" PRId64 "not opened", deviceId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
+    if (!(it->second->clients.find(clientId) != it->second->clients.end())) {
+        HILOG_COMM_ERROR("【CloseInputPortInner】client %{public}u doesn't open device %{public}" PRId64,
+            clientId, deviceId);
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
     auto &inputPortConnections = it->second->inputDeviceconnections_;
     auto inputPort = inputPortConnections.find(portIndex);
     if (inputPort != inputPortConnections.end()) {
-        CHECK_AND_RETURN_RET_LOG(inputPort->second->HasClientConnection(clientId),
-            OH_MIDI_STATUS_INVALID_PORT,
-            "client %{public}u doesn't open input port %{public}u on device %{public}" PRId64,
-            clientId,
-            portIndex,
-            deviceId);
+        if (!(inputPort->second->HasClientConnection(clientId))) {
+            HILOG_COMM_ERROR("【CloseInputPortInner】client %{public}u doesn't open"
+                "input port %{public}u on device %{public}"
+                PRId64, clientId, portIndex, deviceId);
+            return OH_MIDI_STATUS_INVALID_PORT;
+        }
         auto &resourceInfo = clientResourceInfo_[clientId];
         if (resourceInfo.openPortCount > 0) {
             resourceInfo.openPortCount--;
-            MIDI_INFO_LOG("Client %{public}u closed input port, openPortCount now: %{public}u",
+            HILOG_COMM_INFO("【CloseInputPortInner】Client %{public}u closed input port, openPortCount now: %{public}u",
                 clientId, resourceInfo.openPortCount);
         }
         inputPort->second->RemoveClientConnection(clientId);
         if (inputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseInputPort(deviceId, portIndex);
             inputPortConnections.erase(inputPort);
-            MIDI_INFO_LOG("All clients disconnected, closed input port %{public}u on device %{public}" PRId64,
+            HILOG_COMM_INFO("【CloseInputPortInner】All clients disconnected,"
+                "closed input port %{public}u on device %{public}" PRId64,
                 portIndex, deviceId);
-            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close input port fail!");
+            if (!(ret == OH_MIDI_STATUS_OK)) {
+                HILOG_COMM_ERROR("【CloseInputPortInner】close input port fail!");
+                return ret;
+            }
         }
         return OH_MIDI_STATUS_OK;
     }
@@ -711,37 +816,41 @@ int32_t MidiServiceController::CloseInputPortInner(uint32_t clientId, int64_t de
 int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t deviceId, uint32_t portIndex)
 {
     auto it = deviceClientContexts_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "device %{public}" PRId64 "not opened",
-        deviceId);
-    CHECK_AND_RETURN_RET_LOG(it->second->clients.find(clientId) != it->second->clients.end(),
-        OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-        "client %{public}u doesn't open device %{public}" PRId64,
-        clientId,
-        deviceId);
+    if (!(it != deviceClientContexts_.end())) {
+        HILOG_COMM_ERROR("【CloseOutputPortInner】device %{public}" PRId64 "not opened", deviceId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
+    if (!(it->second->clients.find(clientId) != it->second->clients.end())) {
+        HILOG_COMM_ERROR("【CloseOutputPortInner】client %{public}u doesn't open device %{public}" PRId64,
+            clientId, deviceId);
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
     auto &outputPortConnections = it->second->outputDeviceconnections_;
     auto outputPort = outputPortConnections.find(portIndex);
     if (outputPort != outputPortConnections.end()) {
-        CHECK_AND_RETURN_RET_LOG(outputPort->second->HasClientConnection(clientId),
-            OH_MIDI_STATUS_INVALID_PORT,
-            "client %{public}u doesn't open output port %{public}u on device %{public}" PRId64,
-            clientId,
-            portIndex,
-            deviceId);
+        if (!(outputPort->second->HasClientConnection(clientId))) {
+            HILOG_COMM_ERROR("【CloseOutputPortInner】client %{public}u doesn't"
+                "open output port %{public}u on device %{public}"
+                PRId64, clientId, portIndex, deviceId);
+            return OH_MIDI_STATUS_INVALID_PORT;
+        }
         auto &resourceInfo = clientResourceInfo_[clientId];
         if (resourceInfo.openPortCount > 0) {
             resourceInfo.openPortCount--;
-            MIDI_INFO_LOG("Client %{public}u closed output port, openPortCount now: %{public}u",
+            HILOG_COMM_INFO("【CloseOutputPortInner】Client %{public}u closed output port, openPortCount now: %{public}u",
                 clientId, resourceInfo.openPortCount);
         }
         outputPort->second->RemoveClientConnection(clientId);
         if (outputPort->second->IsEmptyClientConnections()) {
             auto ret = deviceManager_->CloseOutputPort(deviceId, portIndex);
             outputPortConnections.erase(outputPort);
-            MIDI_INFO_LOG("All clients disconnected, closed output port %{public}u on device %{public}" PRId64,
+            HILOG_COMM_INFO("【CloseOutputPortInner】All clients disconnected,"
+                "closed output port %{public}u on device %{public}" PRId64,
                 portIndex, deviceId);
-            CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, ret, "close output port fail!");
+            if (!(ret == OH_MIDI_STATUS_OK)) {
+                HILOG_COMM_ERROR("【CloseOutputPortInner】close output port fail!");
+                return ret;
+            }
         }
         return OH_MIDI_STATUS_OK;
     }
@@ -751,24 +860,22 @@ int32_t MidiServiceController::CloseOutputPortInner(uint32_t clientId, int64_t d
 int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
 {
     std::unique_lock<std::mutex> lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(clients_.find(clientId) != clients_.end(),
-        OH_MIDI_STATUS_INVALID_CLIENT,
-        "Client not found: %{public}u",
-        clientId);
+    if (!(clients_.find(clientId) != clients_.end())) {
+        HILOG_COMM_ERROR("【CloseDevice】Client not found: %{public}u", clientId);
+        return OH_MIDI_STATUS_INVALID_CLIENT;
+    }
     auto it = deviceClientContexts_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != deviceClientContexts_.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "Device not found: deviceId=%{public}" PRId64,
-        deviceId);
-
+    if (!(it != deviceClientContexts_.end())) {
+        HILOG_COMM_ERROR("【CloseDevice】Device not found: deviceId=%{public}" PRId64, deviceId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
     auto &clients = it->second->clients;
     auto clientIt = clients.find(clientId);
-
-    CHECK_AND_RETURN_RET_LOG(clientIt != clients.end(),
-        OH_MIDI_STATUS_INVALID_DEVICE_HANDLE,
-        "Client not associated with device: deviceId=%{public}" PRId64 ", clientId=%{public}u",
-        deviceId,
-        clientId);
+    if (!(clientIt != clients.end())) {
+        HILOG_COMM_ERROR("【CloseDevice】Client not associated with device: deviceId=%{public}" PRId64 ","
+            "clientId=%{public}u", deviceId, clientId);
+        return OH_MIDI_STATUS_INVALID_DEVICE_HANDLE;
+    }
 
     ClosePortforDevice(clientId, deviceId, it->second);
     clients.erase(clientIt);
@@ -777,7 +884,8 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
     auto &resourceInfo = clientResourceInfo_[clientId];
     resourceInfo.openDevices.erase(deviceId);
 
-    MIDI_INFO_LOG("Client removed from device: deviceId=%{public}" PRId64 ", clientId=%{public}u", deviceId, clientId);
+    HILOG_COMM_INFO("【CloseDevice】Client removed from device: deviceId=%{public}" PRId64 ","
+        "clientId=%{public}u", deviceId, clientId);
     CHECK_AND_RETURN_RET(clients.empty(), OH_MIDI_STATUS_OK);
     deviceClientContexts_.erase(it);
     for (auto bleIt = activeBleDevices_.begin(); bleIt != activeBleDevices_.end(); bleIt++) {
@@ -787,11 +895,11 @@ int32_t MidiServiceController::CloseDevice(uint32_t clientId, int64_t deviceId)
         }
     }
     lock.unlock();
-    CHECK_AND_RETURN_RET_LOG(deviceManager_->CloseDevice(deviceId) == OH_MIDI_STATUS_OK,
-        OH_MIDI_STATUS_SYSTEM_ERROR,
-        "Close device failed: deviceId=%{public}" PRId64,
-        deviceId);
-    MIDI_INFO_LOG("Device closed: deviceId=%{public}" PRId64, deviceId);
+    if (!(deviceManager_->CloseDevice(deviceId) == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【CloseDevice】Close device failed: deviceId=%{public}" PRId64, deviceId);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
+    HILOG_COMM_INFO("【CloseDevice】Device closed: deviceId=%{public}" PRId64, deviceId);
     return OH_MIDI_STATUS_OK;
 }
 
@@ -873,7 +981,7 @@ void MidiServiceController::RemovePendingBleConnectionsForClient(uint32_t client
 
 int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
 {
-    MIDI_INFO_LOG("DestroyMidiClient: %{public}u enter", clientId);
+    HILOG_COMM_INFO("DestroyMidiClient: %{public}u enter", clientId);
 
     std::vector<int64_t> devicesToClose;
     std::vector<int64_t> devicesToClean;
@@ -883,8 +991,10 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
     {
         std::lock_guard lock(lock_);
         auto it = clients_.find(clientId);
-        CHECK_AND_RETURN_RET_LOG(
-            it != clients_.end(), OH_MIDI_STATUS_INVALID_CLIENT, "Client not found: %{public}u", clientId);
+        if (!(it != clients_.end())) {
+            HILOG_COMM_ERROR("【DestroyMidiClient】Client not found: %{public}u", clientId);
+            return OH_MIDI_STATUS_INVALID_CLIENT;
+        }
 
         // Extract client to local variable to keep it alive during drain
         clientToDrain = it->second;
@@ -929,7 +1039,7 @@ int32_t MidiServiceController::DestroyMidiClient(uint32_t clientId)
         deviceManager_->CloseDevice(deviceId);
     }
 
-    MIDI_INFO_LOG("Client destroyed: %{public}u", clientId);
+    HILOG_COMM_INFO("【DestroyMidiClient】Client destroyed: %{public}u", clientId);
     std::lock_guard lock(lock_);
     CHECK_AND_RETURN_RET(clients_.empty(), OH_MIDI_STATUS_OK);
     ScheduleUnloadTask();
@@ -976,7 +1086,8 @@ void MidiServiceController::CleanupClientResourceForDevice(uint32_t clientId, in
     } else {
         resIt->second.openPortCount = 0;
     }
-    MIDI_INFO_LOG("Cleaned up resources for clientId=%{public}u, deviceId=%{public}" PRId64
+    HILOG_COMM_INFO("【CleanupClientResourceForDevice】Cleaned up resources for clientId=%{public}u,"
+        "deviceId=%{public}" PRId64
         ", portsCleaned=%{public}u, openPortCount=%{public}u",
         clientId, deviceId, portCount, resIt->second.openPortCount);
 }
@@ -995,7 +1106,7 @@ void MidiServiceController::CleanupDeviceContext(int64_t deviceId)
     context->inputDeviceconnections_.clear();
     context->outputDeviceconnections_.clear();
     deviceClientContexts_.erase(it);
-    MIDI_INFO_LOG("Device context removed: deviceId=%{public}" PRId64, deviceId);
+    HILOG_COMM_INFO("【CleanupDeviceContext】Device context removed: deviceId=%{public}" PRId64, deviceId);
 }
 
 std::vector<sptr<MidiInServer>> MidiServiceController::CollectClientsToNotify()
@@ -1018,7 +1129,7 @@ void MidiServiceController::NotifyDeviceChange(DeviceChangeType change, DeviceIn
     {
         std::lock_guard lock(lock_);
         if (change == REMOVED) {
-            MIDI_INFO_LOG("Device removed: deviceId=%{public}" PRId64, deviceInfo.deviceId);
+            HILOG_COMM_INFO("【NotifyDeviceChange】Device removed: deviceId=%{public}" PRId64, deviceInfo.deviceId);
             RemoveFromActiveBleDevices(deviceInfo.deviceId);
             CleanupDeviceContext(deviceInfo.deviceId);
         }
@@ -1065,7 +1176,10 @@ void MidiServiceController::DumpSingleClientInfo(std::string &dumpString, uint32
     dumpString += "  Client " + std::to_string(clientId) + ":\n";
 
     auto resIt = clientResourceInfo_.find(clientId);
-    CHECK_AND_RETURN_LOG(resIt != clientResourceInfo_.end(), "Client resource not found");
+    if (!(resIt != clientResourceInfo_.end())) {
+        HILOG_COMM_ERROR("【DumpSingleClientInfo】Client resource not found");
+        return;
+    }
 
     const auto &info = resIt->second;
     dumpString += "    - UID: " + std::to_string(info.uid) + "\n";

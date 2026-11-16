@@ -41,7 +41,10 @@ int32_t ClientConnectionInServer::CreateRingBuffer(int fd)
         fdObject = std::make_shared<UniqueFd>(fd);
     }
     sharedRingBuffer_ = MidiSharedRing::CreateFromLocal(DEFAULT_RING_BUFFER_SIZE, fdObject);
-    CHECK_AND_RETURN_RET_LOG(sharedRingBuffer_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "create fail");
+    if (!(sharedRingBuffer_ != nullptr)) {
+        HILOG_COMM_ERROR("【CreateRingBuffer】create fail");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
 
     memset_s(sharedRingBuffer_->GetDataBase(), sharedRingBuffer_->GetCapacity(), 0,
              sharedRingBuffer_->GetCapacity());

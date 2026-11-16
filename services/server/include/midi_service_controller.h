@@ -44,6 +44,8 @@
 namespace OHOS {
 namespace MIDI {
 
+class MidiListenerCallback;
+
 class DeviceClientContext {
 public:
     DeviceClientContext(int64_t id, std::unordered_set<int32_t> clientIds) : deviceId(id), clients(std::move(clientIds))
@@ -216,6 +218,15 @@ private:
 
     // Helper function to check if a device is a Bluetooth device
     bool IsBluetoothDevice(int64_t deviceId) const;
+
+    // Helper functions for CreateMidiInServer
+    int32_t CreateListenerCallback(const sptr<IRemoteObject> &object,
+        std::shared_ptr<MidiListenerCallback> &callback);
+    int32_t CheckClientLimitLocked(uint32_t callingUid);
+    uint32_t GenerateClientIdLocked();
+    int32_t RegisterMidiClientLocked(const sptr<IRemoteObject> &object,
+        const std::shared_ptr<MidiListenerCallback> &callback, uint32_t callingUid,
+        sptr<IRemoteObject> &client, uint32_t &clientId);
 
     // Helper functions for NotifyDeviceChange
     void RemoveFromActiveBleDevices(int64_t deviceId);

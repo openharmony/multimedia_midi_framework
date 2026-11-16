@@ -28,7 +28,7 @@ CallbackSlot::~CallbackSlot()
     // Defensive check: no active Guards should exist at destruction
     // If triggered, CloseAndDrain() was not called properly
     if (activeCallbacks_ != 0) {
-        MIDI_ERR_LOG("CallbackSlot destroyed with %{public}u active guards!", activeCallbacks_);
+        HILOG_COMM_ERROR("CallbackSlot destroyed with %{public}u active guards!", activeCallbacks_);
     }
     destroyed_.store(true, std::memory_order_release);
 }
@@ -43,7 +43,7 @@ void CallbackSlot::CloseAndDrain()
     callback_.reset();
     if (!cv_.wait_for(lk, std::chrono::seconds(DRAIN_TIMEOUT_SEC),
         [this] { return activeCallbacks_ == 0; })) {
-        MIDI_ERR_LOG("CloseAndDrain timed out, %{public}u callbacks still active", activeCallbacks_);
+        HILOG_COMM_ERROR("CloseAndDrain timed out, %{public}u callbacks still active", activeCallbacks_);
     }
 }
 
@@ -58,7 +58,7 @@ MidiInServer::MidiInServer(uint32_t id, std::shared_ptr<MidiServiceCallback> cal
 
 MidiInServer::~MidiInServer()
 {
-    MIDI_INFO_LOG("~MidiInServer clientId:%{public}u", clientId_);
+    HILOG_COMM_INFO("~MidiInServer clientId:%{public}u", clientId_);
 }
 
 int32_t MidiInServer::GetDevices(std::vector<MidiDeviceInfo> &devices)
@@ -75,7 +75,7 @@ int32_t MidiInServer::GetDevices(std::vector<MidiDeviceInfo> &devices)
         }
     }
 
-    MIDI_INFO_LOG("Filtered BLE devices, remaining count: %{public}zu", devices.size());
+    HILOG_COMM_INFO("【GetDevices】Filtered BLE devices, remaining count: %{public}zu", devices.size());
     return OH_MIDI_STATUS_OK;
 }
 
@@ -86,7 +86,7 @@ int32_t MidiInServer::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo>
 
 int32_t MidiInServer::OpenDevice(int64_t deviceId, MidiDeviceInfo &deviceInfo)
 {
-    MIDI_INFO_LOG("OpenDevice");
+    HILOG_COMM_INFO("OpenDevice");
     deviceInfo = MidiServiceController::GetInstance()->GetDevice(deviceId);
     return MidiServiceController::GetInstance()->OpenDevice(clientId_, deviceId);
 }
@@ -98,38 +98,38 @@ int32_t MidiInServer::OpenBleDevice(const std::string &address, const sptr<IRemo
         MIDI_ERR_LOG("Bluetooth permission verification failed");
         return OH_MIDI_STATUS_PERMISSION_DENIED;
     }
-    MIDI_INFO_LOG("address : %{public}s", GetEncryptStr(address).c_str());
+    HILOG_COMM_INFO("address : %{public}s", GetEncryptStr(address).c_str());
     return MidiServiceController::GetInstance()->OpenBleDevice(clientId_, address, object);
 }
 
 int32_t MidiInServer::OpenInputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]---->portIndex[%{public}u]", deviceId, portIndex);
+    HILOG_COMM_INFO("【OpenInputPort】deviceId[%{public}" PRId64 "]---->portIndex[%{public}u]", deviceId, portIndex);
     return MidiServiceController::GetInstance()->OpenInputPort(clientId_, buffer, deviceId, portIndex);
 }
 
 int32_t MidiInServer::OpenOutputPort(std::shared_ptr<MidiSharedRing> &buffer, int64_t deviceId,
     uint32_t portIndex)
 {
-    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]---->portIndex[%{public}u]", deviceId, portIndex);
+    HILOG_COMM_INFO("【OpenOutputPort】deviceId[%{public}" PRId64 "]---->portIndex[%{public}u]", deviceId, portIndex);
     return MidiServiceController::GetInstance()->OpenOutputPort(clientId_, buffer, deviceId, portIndex);
 }
 
 int32_t MidiInServer::FlushOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "] flush portIndex[%{public}u]", deviceId, portIndex);
+    HILOG_COMM_INFO("【FlushOutputPort】deviceId[%{public}" PRId64 "] flush portIndex[%{public}u]", deviceId, portIndex);
     return MidiServiceController::GetInstance()->FlushOutputPort(clientId_, deviceId, portIndex);
 }
 
 int32_t MidiInServer::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
+    HILOG_COMM_INFO("【CloseInputPort】deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
     return MidiServiceController::GetInstance()->CloseInputPort(clientId_, deviceId, portIndex);
 }
 
 int32_t MidiInServer::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
+    HILOG_COMM_INFO("【CloseOutputPort】deviceId[%{public}" PRId64 "]--xx-->portIndex[%{public}u]", deviceId, portIndex);
     return MidiServiceController::GetInstance()->CloseOutputPort(clientId_, deviceId, portIndex);
 }
 
@@ -181,7 +181,7 @@ void MidiInServer::ClearCallback()
 
 void MidiInServer::CloseCallbackAndDrain()
 {
-    MIDI_INFO_LOG("CloseCallbackAndDrain: clientId:%{public}u", clientId_);
+    HILOG_COMM_INFO("CloseCallbackAndDrain: clientId:%{public}u", clientId_);
     callbackSlot_.CloseAndDrain();
 }
 }  // namespace MIDI

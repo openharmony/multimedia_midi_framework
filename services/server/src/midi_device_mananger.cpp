@@ -36,7 +36,7 @@ static std::shared_ptr<EventSubscriber> SubscribeCommonEvent(std::function<void(
 
 MidiDeviceManager::MidiDeviceManager() : eventSubscriber_(nullptr)
 {
-    MIDI_INFO_LOG("MidiDeviceManager constructor");
+    HILOG_COMM_INFO("MidiDeviceManager constructor");
     drivers_.emplace(DeviceType::DEVICE_TYPE_USB, std::make_shared<UsbMidiTransportDeviceDriver>());
     auto bleDriver = std::make_shared<BleMidiTransportDeviceDriver>();
     drivers_.emplace(DeviceType::DEVICE_TYPE_BLE, bleDriver);
@@ -52,7 +52,7 @@ MidiDeviceManager::~MidiDeviceManager()
         std::lock_guard<std::mutex> lock(driversMutex_);
         drivers_.clear();
     }
-    MIDI_INFO_LOG("MidiDeviceManager destructor");
+    HILOG_COMM_INFO("MidiDeviceManager destructor");
 }
 
 int64_t MidiDeviceManager::GenerateDeviceId()
@@ -74,20 +74,26 @@ int64_t MidiDeviceManager::GetOrCreateDeviceId(int64_t driverDeviceId, DeviceTyp
 
 void MidiDeviceManager::Init()
 {
-    MIDI_INFO_LOG("Initialize");
+    HILOG_COMM_INFO("Initialize");
     std::lock_guard<std::mutex> lock(initMutex_);
-    CHECK_AND_RETURN_LOG(eventSubscriber_ == nullptr, "feventSubscriber_ already exists");
+    if (!(eventSubscriber_ == nullptr)) {
+        HILOG_COMM_ERROR("【Init】feventSubscriber_ already exists");
+        return;
+    }
 #ifndef MIDI_TEST_DISABLE_EVENT_SUBSCRIPTION
     std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
     auto eventCallback = [weakSelf]() {
         auto self = weakSelf.lock();
-        CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
+        if (!(self != nullptr)) {
+            HILOG_COMM_ERROR("MidiDeviceManager destroyed");
+            return;
+        }
         self->UpdateDevices();
     };
     eventSubscriber_ = SubscribeCommonEvent(eventCallback);  // todo 工厂
 #endif
     UpdateDevices();
-    MIDI_INFO_LOG("MidiDeviceManager initialized successfully");
+    HILOG_COMM_INFO("MidiDeviceManager initialized successfully");
     std::unordered_map<std::string, std::string> payload;
     payload["pid"] = std::to_string(getpid());
     OHOS::ConcurrentTask::ConcurrentTaskClient::GetInstance().RequestAuth(payload);
@@ -102,7 +108,10 @@ static std::shared_ptr<EventSubscriber> SubscribeCommonEvent(std::function<void(
     subscribeInfo.SetThreadMode(EventFwk::CommonEventSubscribeInfo::COMMON);
     auto subscriber = std::make_shared<EventSubscriber>(subscribeInfo, callback);
     auto ret = EventFwk::CommonEventManager::NewSubscribeCommonEvent(subscriber);
-    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, nullptr, "NewSubscribeCommonEvent Failed. ret=%{public}d", ret);
+    if (!(ret == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("NewSubscribeCommonEvent Failed. ret=%{public}d", ret);
+        return nullptr;
+    }
     return subscriber;
 }
 
@@ -120,27 +129,37 @@ static bool isMidiDevice(USB::UsbDevice &usbDevice)
 void EventSubscriber::OnReceiveEvent(const EventFwk::CommonEventData &data)
 {
     std::string action = data.GetWant().GetAction();
-    MIDI_INFO_LOG("OnReceiveEvent Entry. action=%{public}s", action.c_str());
+    HILOG_COMM_INFO("OnReceiveEvent Entry. action=%{public}s", action.c_str());
 
-    CHECK_AND_RETURN_LOG(action == EventFwk::CommonEventSupport::COMMON_EVENT_USB_DEVICE_ATTACHED ||
-                             action == EventFwk::CommonEventSupport::COMMON_EVENT_USB_DEVICE_DETACHED,
-        "Unknown event action: %{public}s",
-        action.c_str());
+    if (!(action == EventFwk::CommonEventSupport::COMMON_EVENT_USB_DEVICE_ATTACHED ||
+        action == EventFwk::CommonEventSupport::COMMON_EVENT_USB_DEVICE_DETACHED)) {
+        HILOG_COMM_ERROR("【OnReceiveEvent】Unknown event action: %{public}s", action.c_str());
+        return;
+    }
     std::string devStr = data.GetData();
-    CHECK_AND_RETURN_LOG(!devStr.empty(), "Error: data.GetData() returns empty");
+    if (!(!devStr.empty())) {
+        HILOG_COMM_ERROR("【OnReceiveEvent】Error: data.GetData() returns empty");
+        return;
+    }
     auto *devJson = cJSON_Parse(devStr.c_str());  // todo 检查依赖
-    CHECK_AND_RETURN_LOG(devJson, "Create devJson error");
+    if (!(devJson)) {
+        HILOG_COMM_ERROR("【OnReceiveEvent】Create devJson error");
+        return;
+    }
     USB::UsbDevice usbDevice(devJson);
     cJSON_Delete(devJson);
 
     CHECK_AND_RETURN(isMidiDevice(usbDevice));
-    CHECK_AND_RETURN_LOG(callback_ != nullptr, "callback_ is nullptr");
+    if (!(callback_ != nullptr)) {
+        HILOG_COMM_ERROR("【OnReceiveEvent】callback_ is nullptr");
+        return;
+    }
     callback_();
 }
 
 void MidiDeviceManager::UpdateDevices()
 {
-    MIDI_INFO_LOG("Updating MIDI devices");
+    HILOG_COMM_INFO("【UpdateDevices】Updating MIDI devices");
 
     std::vector<DeviceInformation> driverDevices;
     {
@@ -186,10 +205,9 @@ void MidiDeviceManager::CompareDevices(
         });
         if (it == oldDevices.end()) {
             addedDevices.push_back(newDevice);
-            MIDI_INFO_LOG("Device added: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
-                newDevice.midiDeviceInfo.deviceId,
-                newDevice.midiDeviceInfo.driverDeviceId,
-                GetEncryptStr(newDevice.midiDeviceInfo.deviceName).c_str());
+            HILOG_COMM_INFO("【CompareDevices】Device added: midiId=%{public}" PRId64 ","
+                "driverId=%{public}" PRId64 ", name: %{public}s", newDevice.midiDeviceInfo.deviceId,
+                newDevice.midiDeviceInfo.driverDeviceId, GetEncryptStr(newDevice.midiDeviceInfo.deviceName).c_str());
         }
     }
 
@@ -202,7 +220,8 @@ void MidiDeviceManager::CompareDevices(
             removedDevices.push_back(oldDevice);
             removedDriverIds.push_back(std::make_pair(
                 oldDevice.midiDeviceInfo.driverDeviceId, oldDevice.midiDeviceInfo.deviceType));
-            MIDI_INFO_LOG("Device removed: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64 ", name: %{public}s",
+            HILOG_COMM_INFO("【CompareDevices】Device removed: midiId=%{public}" PRId64 ","
+                "driverId=%{public}" PRId64 ", name: %{public}s",
                 oldDevice.midiDeviceInfo.deviceId,
                 oldDevice.midiDeviceInfo.driverDeviceId,
                 GetEncryptStr(oldDevice.midiDeviceInfo.deviceName).c_str());
@@ -242,7 +261,7 @@ DeviceInformation MidiDeviceManager::GetDeviceForDeviceId(int64_t deviceId)
         }
     }
 
-    MIDI_ERR_LOG("Device not found: %{public}" PRId64, deviceId);
+    HILOG_COMM_ERROR("【GetDeviceForDeviceId】Device not found: %{public}" PRId64, deviceId);
     return DeviceInformation();
 }
 
@@ -260,7 +279,7 @@ int32_t MidiDeviceManager::GetDevicePorts(int64_t deviceId, std::vector<MidiPort
 {
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Cannot get ports for non-existent device: %{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【GetDevicePorts】Cannot get ports for non-existent device: %{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
     portInfos = device.portInfos;
@@ -269,30 +288,33 @@ int32_t MidiDeviceManager::GetDevicePorts(int64_t deviceId, std::vector<MidiPort
 
 int32_t MidiDeviceManager::OpenDevice(int64_t deviceId)
 {
-    MIDI_INFO_LOG("Opening device: %{public}" PRId64, deviceId);
+    HILOG_COMM_INFO("【OpenDevice】Opening device: %{public}" PRId64, deviceId);
 
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【OpenDevice】Device not found: midiId=%{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
     if (!driver) {
-        MIDI_ERR_LOG("Driver not found for device type: %{public}d",
+        HILOG_COMM_ERROR("【OpenDevice】Driver not found for device type: %{public}d",
             static_cast<int32_t>(device.midiDeviceInfo.deviceType));
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
     int32_t result = driver->OpenDevice(device.midiDeviceInfo.driverDeviceId);
-    CHECK_AND_RETURN_RET_LOG(result == OH_MIDI_STATUS_OK, result, "Failed to open device: %{public}" PRId64, deviceId);
-    MIDI_INFO_LOG("Device opened successfully: %{public}" PRId64, deviceId);
+    if (!(result == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【OpenDevice】Failed to open device: %{public}" PRId64, deviceId);
+        return result;
+    }
+    HILOG_COMM_INFO("【OpenDevice】Device opened successfully: %{public}" PRId64, deviceId);
     return result;
 }
 
 int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCallback callback)
 {
-    MIDI_INFO_LOG("MidiDeviceManager::OpenBleDevice %{public}s", GetEncryptStr(address).c_str());
+    HILOG_COMM_INFO("MidiDeviceManager::OpenBleDevice %{public}s", GetEncryptStr(address).c_str());
     auto driver = GetDriverForDeviceType(DeviceType::DEVICE_TYPE_BLE);
     if (!driver) {
         return OH_MIDI_STATUS_SYSTEM_ERROR;
@@ -301,7 +323,10 @@ int32_t MidiDeviceManager::OpenBleDevice(const std::string &address, BleOpenCall
     std::weak_ptr<MidiDeviceManager> weakSelf = shared_from_this();
     auto driverCallback = [weakSelf, callback](bool connected, DeviceInformation devInfo) {
         auto self = weakSelf.lock();
-        CHECK_AND_RETURN_LOG(self != nullptr, "MidiDeviceManager destroyed");
+        if (!(self != nullptr)) {
+            HILOG_COMM_ERROR("MidiDeviceManager destroyed");
+            return;
+        }
         if (connected) {
             self->HandleBleConnect(devInfo, callback);
         } else {
@@ -378,14 +403,17 @@ void MidiDeviceManager::HandleBleDisconnect(DeviceInformation devInfo, BleOpenCa
 int32_t MidiDeviceManager::OpenInputPort(
     std::shared_ptr<DeviceConnectionForInput> &inputConnection, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
+    HILOG_COMM_INFO("【OpenInputPort】device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【OpenInputPort】Device not found: midiId=%{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
-    CHECK_AND_RETURN_RET_LOG(driver != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "driver is nullptr");
+    if (!(driver != nullptr)) {
+        HILOG_COMM_ERROR("【OpenInputPort】driver is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     DeviceConnectionInfo info = {
         .driver = driver,
         .deviceId = device.midiDeviceInfo.driverDeviceId,
@@ -410,14 +438,17 @@ int32_t MidiDeviceManager::OpenInputPort(
 int32_t MidiDeviceManager::OpenOutputPort(
     std::shared_ptr<DeviceConnectionForOutput> &outputConnection, int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
+    HILOG_COMM_INFO("【OpenOutputPort】device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【OpenOutputPort】Device not found: midiId=%{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
-    CHECK_AND_RETURN_RET_LOG(driver != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "driver is nullptr");
+    if (!(driver != nullptr)) {
+        HILOG_COMM_ERROR("【OpenOutputPort】driver is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     DeviceConnectionInfo info = {
         .driver = driver,
         .deviceId = device.midiDeviceInfo.driverDeviceId,
@@ -433,54 +464,60 @@ int32_t MidiDeviceManager::OpenOutputPort(
 
 int32_t MidiDeviceManager::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
+    HILOG_COMM_INFO("【CloseInputPort】device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【CloseInputPort】Device not found: midiId=%{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
-    CHECK_AND_RETURN_RET_LOG(driver != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "driver is nullptr");
+    if (!(driver != nullptr)) {
+        HILOG_COMM_ERROR("【CloseInputPort】driver is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return driver->CloseInputPort(device.midiDeviceInfo.driverDeviceId, static_cast<size_t>(portIndex));
 }
 
 int32_t MidiDeviceManager::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    MIDI_INFO_LOG("device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
+    HILOG_COMM_INFO("【CloseOutputPort】device: %{public}" PRId64 " portIndex: %{public}u", deviceId, portIndex);
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【CloseOutputPort】Device not found: midiId=%{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
-    CHECK_AND_RETURN_RET_LOG(driver != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "driver is nullptr");
+    if (!(driver != nullptr)) {
+        HILOG_COMM_ERROR("【CloseOutputPort】driver is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return driver->CloseOutputPort(device.midiDeviceInfo.driverDeviceId, static_cast<size_t>(portIndex));
 }
 
 int32_t MidiDeviceManager::CloseDevice(int64_t deviceId)
 {
-    MIDI_INFO_LOG("Closing device: %{public}" PRId64, deviceId);
+    HILOG_COMM_INFO("【CloseDevice】Closing device: %{public}" PRId64, deviceId);
 
     auto device = GetDeviceForDeviceId(deviceId);
     if (device.midiDeviceInfo.deviceId == 0) {
-        MIDI_ERR_LOG("Device not found: midiId=%{public}" PRId64, deviceId);
+        HILOG_COMM_ERROR("【CloseDevice】Device not found: midiId=%{public}" PRId64, deviceId);
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
     auto driver = GetDriverForDeviceType(device.midiDeviceInfo.deviceType);
     if (!driver) {
-        MIDI_ERR_LOG("Driver not found for device type: %{public}d",
+        HILOG_COMM_ERROR("【CloseDevice】Driver not found for device type: %{public}d",
             static_cast<int32_t>(device.midiDeviceInfo.deviceType));
         return OH_MIDI_STATUS_SYSTEM_ERROR;
     }
 
     int32_t result = driver->CloseDevice(device.midiDeviceInfo.driverDeviceId);
-    CHECK_AND_RETURN_RET_LOG(result == OH_MIDI_STATUS_OK,
-        result,
-        "Failed to close device: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64,
-        deviceId,
-        device.midiDeviceInfo.driverDeviceId);
-    MIDI_INFO_LOG("Device closed successfully: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64,
+    if (!(result == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【CloseDevice】Failed to close device: midiId=%{public}" PRId64 ", driverId=%{public}"
+            PRId64, deviceId, device.midiDeviceInfo.driverDeviceId);
+        return result;
+    }
+    HILOG_COMM_INFO("【CloseDevice】Device closed successfully: midiId=%{public}" PRId64 ", driverId=%{public}" PRId64,
         deviceId,
         device.midiDeviceInfo.driverDeviceId);
     return result;

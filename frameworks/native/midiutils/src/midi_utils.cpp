@@ -52,7 +52,10 @@ int64_t ClockTime::GetCurNano()
     struct timespec time;
     clockid_t clockId = CLOCK_MONOTONIC;
     int ret = clock_gettime(clockId, &time);
-    CHECK_AND_RETURN_RET_LOG(ret >= 0, result, "GetCurNanoTime fail, result:%{public}d", ret);
+    if (!(ret >= 0)) {
+        HILOG_COMM_ERROR("GetCurNanoTime fail, result:%{public}d", ret);
+        return result;
+    }
     result = (time.tv_sec * MIDI_NS_PER_SECOND) + time.tv_nsec;
     return result;
 }
