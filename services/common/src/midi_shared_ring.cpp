@@ -140,31 +140,38 @@ MidiSharedMemoryImpl::~MidiSharedMemoryImpl()
 
 int32_t MidiSharedMemoryImpl::Init()
 {
-    CHECK_AND_RETURN_RET_LOG((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE), OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-                             "Init falied: size out of range: %{public}zu", size_);
+    if (!((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE))) {
+        HILOG_COMM_ERROR("Init falied: size out of range: %{public}zu", size_);
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
     bool isFromRemote = false;
     if (fd_.Valid()) {
         int curFd = fd_.Get();
         if (curFd == STDIN_FILENO || curFd == STDOUT_FILENO || curFd == STDERR_FILENO) {
-            MIDI_WARNING_LOG("fd is special fd: %{public}d", curFd);
+            HILOG_COMM_WARN("【Init】fd is special fd: %{public}d", curFd);
         }
         isFromRemote = true;
         int size = AshmemGetSize(curFd); // hdi fd may not support
         if (size < 0 || static_cast<size_t>(size) != size_) {
-            MIDI_WARNING_LOG("AshmemGetSize faied, get %{public}d", size);
+            HILOG_COMM_WARN("【Init】AshmemGetSize faied, get %{public}d", size);
         }
     } else {
         int newFd = AshmemCreate(name_.c_str(), size_);
         if (newFd == STDIN_FILENO || newFd == STDOUT_FILENO || newFd == STDERR_FILENO) {
-            MIDI_WARNING_LOG("fd is special fd: %{public}d", newFd);
+            HILOG_COMM_WARN("【Init】fd is special fd: %{public}d", newFd);
         }
-        CHECK_AND_RETURN_RET_LOG((newFd >= 0), OH_MIDI_STATUS_SYSTEM_ERROR, "Init falied: fd %{public}d", newFd);
+        if (!((newFd >= 0))) {
+            HILOG_COMM_ERROR("Init falied: fd %{public}d", newFd);
+            return OH_MIDI_STATUS_SYSTEM_ERROR;
+        }
         fd_.Reset(newFd); // 创建即绑定 fdsan owner tag,持有期保持
     }
 
     void *addr = mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_.Get(), 0);
-    CHECK_AND_RETURN_RET_LOG(addr != MAP_FAILED, OH_MIDI_STATUS_SYSTEM_ERROR,
-                             "Init falied: fd %{public}d size %{public}zu", fd_.Get(), size_);
+    if (!(addr != MAP_FAILED)) {
+        HILOG_COMM_ERROR("Init falied: fd %{public}d size %{public}zu", fd_.Get(), size_);
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     base_ = static_cast<uint8_t *>(addr);
     MIDI_DEBUG_LOG("Init %{public}s <%{public}s> done.", (isFromRemote ? "remote" : "local"), name_.c_str());
     return OH_MIDI_STATUS_OK;
@@ -174,7 +181,10 @@ bool MidiSharedMemoryImpl::Marshalling(Parcel &parcel) const
 {
     // Parcel -> MessageParcel
     MessageParcel &msgParcel = static_cast<MessageParcel &>(parcel);
-    CHECK_AND_RETURN_RET_LOG((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE), false, "invalid size: %{public}zu", size_);
+    if (!((size_ > 0 && size_ < MAX_MMAP_BUFFER_SIZE))) {
+        HILOG_COMM_ERROR("【Marshalling】invalid size: %{public}zu", size_);
+        return false;
+    }
     return msgParcel.WriteFileDescriptor(fd_.Get()) && msgParcel.WriteUint64(static_cast<uint64_t>(size_)) &&
            msgParcel.WriteString(name_);
 }
@@ -205,17 +215,23 @@ int MidiSharedMemoryImpl::GetFd() const { return fd_.Get(); }
 std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromLocal(size_t size, const std::string &name)
 {
     std::shared_ptr<MidiSharedMemoryImpl> sharedMemory = std::make_shared<MidiSharedMemoryImpl>(size, name);
-    CHECK_AND_RETURN_RET_LOG(sharedMemory->Init() == OH_MIDI_STATUS_OK, nullptr, "CreateFromLocal failed");
+    if (!(sharedMemory->Init() == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("CreateFromLocal failed");
+        return nullptr;
+    }
     return sharedMemory;
 }
 
 std::shared_ptr<MidiSharedMemory> MidiSharedMemory::CreateFromRemote(int fd, size_t size, const std::string &name)
 {
     int minfd = MINFD; // ignore stdout, stdin and stderr.
-    CHECK_AND_RETURN_RET_LOG(fd > minfd, nullptr, "CreateFromRemote failed: invalid fd: %{public}d", fd);
+    if (!(fd > minfd)) {
+        HILOG_COMM_ERROR("CreateFromRemote failed: invalid fd: %{public}d", fd);
+        return nullptr;
+    }
     std::shared_ptr<MidiSharedMemoryImpl> sharedMemory = std::make_shared<MidiSharedMemoryImpl>(fd, size, name);
     if (sharedMemory->Init() != OH_MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("CreateFromRemote failed");
+        HILOG_COMM_ERROR("CreateFromRemote failed");
         return nullptr;
     }
     return sharedMemory;
@@ -229,28 +245,36 @@ MidiSharedMemory *MidiSharedMemory::Unmarshalling(Parcel &parcel)
     MessageParcel &msgParcel = static_cast<MessageParcel &>(parcel);
     int fd = msgParcel.ReadFileDescriptor();
     int minfd = MINFD; // ignore stdout, stdin and stderr.
-    CHECK_AND_RETURN_RET_LOG(fd > minfd, nullptr, "CreateFromRemote failed: invalid fd: %{public}d", fd);
+    if (!(fd > minfd)) {
+        HILOG_COMM_ERROR("【Unmarshalling】CreateFromRemote failed: invalid fd: %{public}d", fd);
+        return nullptr;
+    }
     ScopedFd scopedFd(fd);
 
     uint64_t sizeTmp = msgParcel.ReadUint64();
-    CHECK_AND_RETURN_RET_LOG((sizeTmp > 0 && sizeTmp < MAX_MMAP_BUFFER_SIZE), nullptr, "failed with invalid size");
+    if (!((sizeTmp > 0 && sizeTmp < MAX_MMAP_BUFFER_SIZE))) {
+        HILOG_COMM_ERROR("【Unmarshalling】failed with invalid size");
+        return nullptr;
+    }
     size_t size = static_cast<size_t>(sizeTmp);
 
     off_t actualSize = lseek(fd, 0, SEEK_END);
     lseek(fd, 0, SEEK_SET);
-    CHECK_AND_RETURN_RET_LOG((actualSize == (off_t)size) && size != 0, nullptr,
-                             "CreateFromRemote failed: actualSize is not equal to declareSize");
+    if (!((actualSize == (off_t)size) && size != 0)) {
+        HILOG_COMM_ERROR("【Unmarshalling】CreateFromRemote failed: actualSize is not equal to declareSize");
+        return nullptr;
+    }
 
     std::string name = msgParcel.ReadString();
 
     auto memory = new (std::nothrow) MidiSharedMemoryImpl(fd, size, name);
     if (memory == nullptr) {
-        MIDI_ERR_LOG("not enough memory");
+        HILOG_COMM_ERROR("【Unmarshalling】not enough memory");
         return nullptr;
     }
 
     if (memory->Init() != OH_MIDI_STATUS_OK || memory->GetBase() == nullptr) {
-        MIDI_ERR_LOG("Init failed or GetBase failed");
+        HILOG_COMM_ERROR("【Unmarshalling】Init failed or GetBase failed");
         delete memory;
         return nullptr;
     }
@@ -286,17 +310,23 @@ int32_t MidiSharedRing::Init(int dataFd)
     // capacity_ is the raw ring size before any arithmetic, so it can never have wrapped. Guard it
     // directly: a bogus capacity_ from any caller cannot then hide behind an overflowed
     // totalMemorySize_ and bypass the size check below (defense-in-depth against OOB).
-    CHECK_AND_RETURN_RET_LOG(capacity_ <= MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader),
-                             OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-                             "failed: invalid capacity_: %{public}u", capacity_);
-    CHECK_AND_RETURN_RET_LOG(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE, OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT,
-                             "failed: invalid totalMemorySize_");
+    if (!(capacity_ <= MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader))) {
+        HILOG_COMM_ERROR("【Init】failed: invalid capacity_: %{public}u", capacity_);
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
+    if (!(totalMemorySize_ <= MAX_MMAP_BUFFER_SIZE)) {
+        HILOG_COMM_ERROR("【Init】failed: invalid totalMemorySize_");
+        return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
+    }
     if (dataFd == INVALID_FD) {
         dataMem_ = MidiSharedMemory::CreateFromLocal(totalMemorySize_, "midi_shared_buffer");
     } else {
         dataMem_ = MidiSharedMemory::CreateFromRemote(dataFd, totalMemorySize_, "midi_shared_buffer");
     }
-    CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "dataMem_ is nullptr.");
+    if (!(dataMem_ != nullptr)) {
+        HILOG_COMM_ERROR("【Init】dataMem_ is nullptr.");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     base_ = dataMem_->GetBase();
     controler_ = reinterpret_cast<ControlHeader *>(base_);
     controler_->capacity = capacity_;
@@ -313,7 +343,10 @@ int32_t MidiSharedRing::Init(int dataFd)
 
 int MidiSharedRing::GetEventFd() const
 {
-    CHECK_AND_RETURN_RET_LOG(notifyFd_, -1, "notifyFd_ is nullptr"); // -1 is invalid fd
+    if (!(notifyFd_)) {
+        HILOG_COMM_ERROR("【GetEventFd】notifyFd_ is nullptr");
+        return -1;
+    } // -1 is invalid fd
     return notifyFd_->Get();
 }
 
@@ -322,7 +355,10 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromLocal(size_t ringCapac
     MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
 
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes);
-    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == OH_MIDI_STATUS_OK, nullptr, "failed to init.");
+    if (!(buffer->Init(INVALID_FD) == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【CreateFromLocal】failed to init.");
+        return nullptr;
+    }
     return buffer;
 }
 
@@ -330,7 +366,10 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromLocal(size_t ringCapac
 {
     MIDI_DEBUG_LOG("ringCapacityBytes %{public}zu", ringCapacityBytes);
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes, fd);
-    CHECK_AND_RETURN_RET_LOG(buffer->Init(INVALID_FD) == OH_MIDI_STATUS_OK, nullptr, "failed to init.");
+    if (!(buffer->Init(INVALID_FD) == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【CreateFromLocal】failed to init.");
+        return nullptr;
+    }
     return buffer;
 }
 
@@ -339,11 +378,14 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromRemote(size_t ringCapa
     MIDI_DEBUG_LOG("dataFd %{public}d", dataFd);
 
     int minfd = MINFD; // ignore stdout, stdin and stderr.
-    CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
+    if (!(dataFd > minfd)) {
+        HILOG_COMM_ERROR("【CreateFromRemote】invalid dataFd: %{public}d", dataFd);
+        return nullptr;
+    }
 
     std::shared_ptr<MidiSharedRing> buffer = std::make_shared<MidiSharedRing>(ringCapacityBytes);
     if (buffer->Init(dataFd) != OH_MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("failed to init.");
+        HILOG_COMM_ERROR("【CreateFromRemote】failed to init.");
         return nullptr;
     }
     return buffer;
@@ -352,7 +394,10 @@ std::shared_ptr<MidiSharedRing> MidiSharedRing::CreateFromRemote(size_t ringCapa
 bool MidiSharedRing::Marshalling(Parcel &parcel) const
 {
     MessageParcel &messageParcel = static_cast<MessageParcel &>(parcel);
-    CHECK_AND_RETURN_RET_LOG(dataMem_ != nullptr, false, "dataMem_ is nullptr.");
+    if (!(dataMem_ != nullptr)) {
+        HILOG_COMM_ERROR("【Marshalling】dataMem_ is nullptr.");
+        return false;
+    }
     bool hasValidNotifyFd = (notifyFd_ != nullptr && notifyFd_->Valid());
     bool ok = messageParcel.WriteUint32(capacity_) && messageParcel.WriteFileDescriptor(dataMem_->GetFd()) &&
         messageParcel.WriteBool(hasValidNotifyFd);
@@ -372,14 +417,19 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
     // ringSize wrap to a small number, bypass the MAX_MMAP_BUFFER_SIZE guard in Init(), and yield
     // a huge capacity_ over a tiny mmap (out-of-bounds read/write). Checked before reading dataFd
     // so an early return leaks no fd.
-    CHECK_AND_RETURN_RET_LOG(ringSize > 0 && ringSize <= MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader),
-                             nullptr, "invalid ringSize: %{public}u", ringSize);
+    if (!(ringSize > 0 && ringSize <= MAX_MMAP_BUFFER_SIZE - sizeof(ControlHeader))) {
+        HILOG_COMM_ERROR("【Unmarshalling】invalid ringSize: %{public}u", ringSize);
+        return nullptr;
+    }
 
     int dataFd = messageParcel.ReadFileDescriptor();
     bool hasNotifyFd = messageParcel.ReadBool();
 
     int minfd = MINFD; // ignore stdout, stdin and stderr.
-    CHECK_AND_RETURN_RET_LOG(dataFd > minfd, nullptr, "invalid dataFd: %{public}d", dataFd);
+    if (!(dataFd > minfd)) {
+        HILOG_COMM_ERROR("【Unmarshalling】invalid dataFd: %{public}d", dataFd);
+        return nullptr;
+    }
     // 接收即接管 dataFd:所有退出路径由 guard 析构走 fdsan_close_with_tag
     UniqueFd dataFdGuard(dataFd);
 
@@ -387,7 +437,7 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
     if (hasNotifyFd) {
         int eventFd = messageParcel.ReadFileDescriptor();
         if (eventFd <= minfd) {
-            MIDI_ERR_LOG("invalid eventFd: %{public}d", eventFd);
+            HILOG_COMM_ERROR("【Unmarshalling】invalid eventFd: %{public}d", eventFd);
             return nullptr;
         }
         notifyFd = std::make_shared<UniqueFd>(eventFd);
@@ -395,14 +445,14 @@ MidiSharedRing *MidiSharedRing::Unmarshalling(Parcel &parcel)
 
     auto buffer = new (std::nothrow) MidiSharedRing(ringSize, notifyFd);
     if (buffer == nullptr || buffer->Init(dataFdGuard.Get()) != OH_MIDI_STATUS_OK) {
-        MIDI_ERR_LOG("failed to init.");
+        HILOG_COMM_ERROR("【Unmarshalling】failed to init.");
         if (buffer != nullptr)
             delete buffer;
         return nullptr;
     }
 
     if (ringSize != buffer->capacity_) {
-        MIDI_WARNING_LOG("data in shared memory wrong");
+        HILOG_COMM_WARN("【Unmarshalling】data in shared memory wrong");
     }
     MIDI_DEBUG_LOG("ReadFromParcel done.");
     return buffer;
@@ -687,7 +737,7 @@ void MidiSharedRing::DrainToBatch(
 
 void MidiSharedRing::Flush()
 {
-    MIDI_INFO_LOG("reset data cache");
+    HILOG_COMM_INFO("【Flush】reset data cache");
 
     int64_t deadline = ClockTime::GetCurNano() + FLUSH_TIMEOUT_NS;
 

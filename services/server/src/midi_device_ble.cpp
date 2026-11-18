@@ -62,7 +62,7 @@ static int64_t GetCurNano()
     clockid_t clockId = CLOCK_MONOTONIC;
     int ret = clock_gettime(clockId, &time);
     if (ret < 0) {
-        MIDI_ERR_LOG("GetCurNanoTime fail, result:%{public}d", ret);
+        HILOG_COMM_ERROR("GetCurNanoTime fail, result:%{public}d", ret);
         return result;
     }
     result = (time.tv_sec * NSEC_PER_SEC) + time.tv_nsec;
@@ -249,19 +249,20 @@ static void GetDeviceInfo(DeviceCtx &d)
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceProductId(productId);
     d.productId = productId;
-    MIDI_INFO_LOG("err: %{public}d, productId: %" PRIu64, err, d.productId);
+    HILOG_COMM_INFO("【GetDeviceInfo】err: %{public}d, productId: %" PRIu64, err, d.productId);
     uint16_t vendorId = 0;
     err = Bluetooth::BluetoothHost::GetDefaultHost().GetRemoteDevice(
         d.address, Bluetooth::BT_TRANSPORT_BLE).GetDeviceVendorId(vendorId);
     d.vendorId = vendorId;
-    MIDI_INFO_LOG("err: %{public}d, vendorId: %" PRIu64, err, d.vendorId);
+    HILOG_COMM_INFO("【GetDeviceInfo】err: %{public}d, vendorId: %" PRIu64, err, d.vendorId);
 }
 
 static void OnConnectionState(int32_t clientId, int32_t connState, int32_t status)
 {
     auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr);
-    MIDI_INFO_LOG("client = %{public}d, connState = %{public}d, status = %{public}d", clientId, connState, status);
+    HILOG_COMM_INFO("【OnConnectionState】client = %{public}d, connState = %{public}d,"
+        "status = %{public}d", clientId, connState, status);
 
     bool isDisconnect = (connState == OHOS_STATE_DISCONNECTED) || (status != 0 && connState != OHOS_STATE_CONNECTED);
 
@@ -270,7 +271,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         auto it = inst->devices_.find(clientId);
         // Device may have already been cleaned up by active disconnect (e.g., in OnSearvicesComplete)
         CHECK_AND_RETURN(it != inst->devices_.end());
-        MIDI_INFO_LOG("Device disconnected or failed connection");
+        HILOG_COMM_INFO("【OnConnectionState】Device disconnected or failed connection");
         DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
         BleGattcUnRegister(clientId);
         inst->devices_.erase(it);
@@ -288,7 +289,7 @@ static void OnConnectionState(int32_t clientId, int32_t connState, int32_t statu
         // Don't notify Manager yet. Wait for Services & Notify.
         int32_t ret = BleGattcSearchServices(clientId);
         if (ret != 0) {
-            MIDI_ERR_LOG("Search Service failed");
+            HILOG_COMM_ERROR("【OnConnectionState】Search Service failed");
             CleanupDeviceAndNotifyFailure(clientId);
         }
     }
@@ -298,10 +299,12 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
 {
     auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr);
-    MIDI_INFO_LOG("OnServicesComplete: clientId=%{public}d, status=%{public}d", clientId, status);
+    HILOG_COMM_INFO("【OnSearvicesComplete】OnServicesComplete: clientId=%{public}d,"
+        "status=%{public}d", clientId, status);
     if (status != 0) {
         // Service discovery failed - cleanup and notify failure
-        MIDI_ERR_LOG("Service discovery failed: clientId=%{public}d, status=%{public}d", clientId, status);
+        HILOG_COMM_ERROR("【OnSearvicesComplete】Service discovery failed: clientId=%{public}d,"
+            "status=%{public}d", clientId, status);
         CleanupDeviceAndNotifyFailure(clientId);
         return;
     }
@@ -313,7 +316,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
     std::string svcTempStorage;
     BtUuid svc = MakeBtUuid(MIDI_SERVICE_UUID, svcTempStorage);
     if (BleGattcGetService(clientId, svc)) {
-        MIDI_INFO_LOG("MIDI service found: clientId=%{public}d", clientId);
+        HILOG_COMM_INFO("【OnSearvicesComplete】MIDI service found: clientId=%{public}d", clientId);
         d.serviceReady = true;
         // Store UUID strings for ownership
         d.serviceUuidStorage = MIDI_SERVICE_UUID;
@@ -335,7 +338,7 @@ static void OnSearvicesComplete(int32_t clientId, int32_t status)
         lock.unlock();
     } else {
         // MIDI service not found - cleanup and notify failure
-        MIDI_ERR_LOG("MIDI service not found: clientId=%{public}d", clientId);
+        HILOG_COMM_ERROR("【OnSearvicesComplete】MIDI service not found: clientId=%{public}d", clientId);
         lock.unlock();
         CleanupDeviceAndNotifyFailure(clientId);
     }
@@ -345,7 +348,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
 {
     auto inst = AcquireInstance();
     CHECK_AND_RETURN(inst != nullptr);
-    MIDI_INFO_LOG("OnRegisterNotify clientId %{public}d status %{public}d", clientId, status);
+    HILOG_COMM_INFO("OnRegisterNotify clientId %{public}d status %{public}d", clientId, status);
 
     std::unique_lock<std::mutex> lock(inst->lock_);
     auto it = inst->devices_.find(clientId);
@@ -353,7 +356,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
     auto &d = it->second;
     if (status == 0) {
         d.notifyEnabled = true;
-        MIDI_INFO_LOG("BLE MIDI Device Fully Online. Notifying Manager.");
+        HILOG_COMM_INFO("【OnRegisterNotify】BLE MIDI Device Fully Online. Notifying Manager.");
         // Copy device context before unlock to avoid dangling reference
         GetDeviceInfo(d);
         DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
@@ -362,7 +365,7 @@ static void OnRegisterNotify(int32_t clientId, int32_t status)
         NotifyManager(device, true);
     } else {
         d.notifyEnabled = false;
-        MIDI_ERR_LOG("Notify Enable Failed");
+        HILOG_COMM_ERROR("【OnRegisterNotify】Notify Enable Failed");
         // Cleanup and notify failure.
         lock.unlock();
         CleanupDeviceAndNotifyFailure(clientId);
@@ -427,13 +430,14 @@ static void OnwriteComplete(int32_t clientId, BtGattCharacteristic *data, int32_
 {
     if (status != 0) {
         // Write operation failed - log the error and cleanup
-        MIDI_ERR_LOG("BLE write complete failed: clientId=%{public}d, status=%{public}d", clientId, status);
+        HILOG_COMM_ERROR("【OnwriteComplete】BLE write complete failed: clientId=%{public}d,"
+            "status=%{public}d", clientId, status);
     }
 }
 
 BleMidiTransportDeviceDriver::BleMidiTransportDeviceDriver()
 {
-    MIDI_INFO_LOG("BleMidiTransportDeviceDriver constructor");
+    HILOG_COMM_INFO("BleMidiTransportDeviceDriver constructor");
     // Registration via RegisterInstance() (no shared_ptr to this exists yet).
     gattCallbacks_.ConnectionStateCb = &OnConnectionState;
     gattCallbacks_.connectParaUpdateCb = nullptr;
@@ -465,14 +469,14 @@ BleMidiTransportDeviceDriver::~BleMidiTransportDeviceDriver()
         BleGattcDisconnect(cid);
         BleGattcUnRegister(cid);
     }
-    MIDI_INFO_LOG("BleMidiTransportDeviceDriver instance destroyed");
+    HILOG_COMM_INFO("BleMidiTransportDeviceDriver instance destroyed");
 }
 
 bool BleMidiTransportDeviceDriver::RegisterInstance(std::shared_ptr<BleMidiTransportDeviceDriver> inst)
 {
     std::lock_guard<std::mutex> lock(g_instanceMutex);
     if (g_instance != nullptr) {
-        MIDI_ERR_LOG("BleMidiTransportDeviceDriver instance already exists!");
+        HILOG_COMM_ERROR("BleMidiTransportDeviceDriver instance already exists!");
         return false;
     }
     g_instance = std::move(inst);
@@ -491,7 +495,7 @@ void BleMidiTransportDeviceDriver::UnregisterInstance()
 
 std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevices()
 {
-    MIDI_INFO_LOG("GetRegisteredDevices: enter");
+    HILOG_COMM_INFO("GetRegisteredDevices: enter");
     std::lock_guard<std::mutex> lock(lock_);
     std::vector<DeviceInformation> deviceInfos;
     size_t connectedCount = 0;
@@ -510,7 +514,7 @@ std::vector<DeviceInformation> BleMidiTransportDeviceDriver::GetRegisteredDevice
         deviceInfos.push_back(devInfo);
         connectedCount++;
     }
-    MIDI_INFO_LOG("GetRegisteredDevices: found %{public}zu connected devices", connectedCount);
+    HILOG_COMM_INFO("GetRegisteredDevices: found %{public}zu connected devices", connectedCount);
     return deviceInfos;
 }
 
@@ -519,18 +523,21 @@ int32_t BleMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
     std::unique_lock<std::mutex> lock(lock_);
 
     auto it = devices_.find(deviceId);
-    CHECK_AND_RETURN_RET_LOG(it != devices_.end(), -1, "Device not found: %{public}" PRId64, deviceId);
+    if (!(it != devices_.end())) {
+        HILOG_COMM_ERROR("【CloseDevice】Device not found: %{public}" PRId64, deviceId);
+        return -1;
+    }
     // Copy safe fields before erase to avoid dangling references
     DeviceCtx device = DeviceCtx::CopySafeFields(it->second);
     int32_t clientId = static_cast<int32_t>(device.id);
     int32_t ret = BleGattcDisconnect(clientId);
-    MIDI_INFO_LOG("BleGattcDisconnect : %{public}d", ret);
+    HILOG_COMM_INFO("【CloseDevice】BleGattcDisconnect : %{public}d", ret);
     BleGattcUnRegister(clientId);
-    MIDI_INFO_LOG("Unregistered client: %{public}d", clientId);
+    HILOG_COMM_INFO("【CloseDevice】Unregistered client: %{public}d", clientId);
     devices_.erase(it);
     lock.unlock();
     NotifyManager(device, false);
-    MIDI_INFO_LOG("Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
+    HILOG_COMM_INFO("【CloseDevice】Device closed successfully: id=%{public}" PRId64 ", address=%{public}s",
         deviceId, GetEncryptStr(device.address).c_str());
     return 0;
 }
@@ -542,12 +549,13 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 
 int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriverCallback deviceCallback)
 {
-    MIDI_INFO_LOG("OpenDevice: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
+    HILOG_COMM_INFO("OpenDevice: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
     std::lock_guard<std::mutex> lock(lock_);
     // Check if address already exists
     for (auto &[id, d] : devices_) {
         if (d.address == deviceAddr) {
-            MIDI_WARNING_LOG("Driver: Device %{public}s already has context", GetEncryptStr(deviceAddr).c_str());
+            HILOG_COMM_WARN("【OpenDevice】Driver: Device %{public}s already has context",
+                GetEncryptStr(deviceAddr).c_str());
             // If it's fully ready, we might callback immediately,
             // but Controller handles "Pending" logic usually.
             return OH_MIDI_STATUS_DEVICE_ALREADY_OPEN;
@@ -565,10 +573,11 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
 
     int32_t clientId = BleGattcRegister(appUuid);
     if (clientId <= 0) {
-        MIDI_ERR_LOG("BleGattcRegister failed for address=%{public}s", GetEncryptStr(deviceAddr).c_str());
+        HILOG_COMM_ERROR("【OpenDevice】BleGattcRegister failed for address=%{public}s",
+            GetEncryptStr(deviceAddr).c_str());
         return -1;
     }
-    MIDI_INFO_LOG("BleGattcRegister success: clientId=%{public}d, address=%{public}s",
+    HILOG_COMM_INFO("【OpenDevice】BleGattcRegister success: clientId=%{public}d, address=%{public}s",
         clientId, GetEncryptStr(deviceAddr).c_str());
 
     ctx.id = clientId;
@@ -576,20 +585,20 @@ int32_t BleMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
 
     BdAddr bd{};
     if (!ParseMac(deviceAddr, bd)) {
-        MIDI_ERR_LOG("ParseMac failed: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
+        HILOG_COMM_ERROR("【OpenDevice】ParseMac failed: address=%{public}s", GetEncryptStr(deviceAddr).c_str());
         BleGattcUnRegister(clientId);
         devices_.erase(clientId);
         return OH_MIDI_STATUS_GENERIC_INVALID_ARGUMENT;
     }
 
     if (BleGattcConnect(clientId, &gattCallbacks_, &bd, false, OHOS_BT_TRANSPORT_TYPE_LE) != 0) {
-        MIDI_ERR_LOG("BleGattcConnect failed: clientId=%{public}d, address=%{public}s",
+        HILOG_COMM_ERROR("【OpenDevice】BleGattcConnect failed: clientId=%{public}d, address=%{public}s",
             clientId, GetEncryptStr(deviceAddr).c_str());
         BleGattcUnRegister(clientId);
         devices_.erase(clientId);
         return -1;
     }
-    MIDI_INFO_LOG("BleGattcConnect initiated: clientId=%{public}d, address=%{public}s",
+    HILOG_COMM_INFO("【OpenDevice】BleGattcConnect initiated: clientId=%{public}d, address=%{public}s",
         clientId, GetEncryptStr(deviceAddr).c_str());
     return 0; // Async process started
 }
@@ -600,14 +609,17 @@ int32_t BleMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t p
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(!d.inputOpen, -1, "already open");
+        if (!(!d.inputOpen)) {
+            HILOG_COMM_ERROR("【OpenInputPort】already open");
+            return -1;
+        }
         d.inputCallback = cb;
         d.inputOpen = true;
         d.processor = std::make_shared<UmpProcessor>();
-        MIDI_INFO_LOG("OpenInputPort success: deviceId=%{public}" PRId64, deviceId);
+        HILOG_COMM_INFO("OpenInputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
-    MIDI_ERR_LOG("OpenInputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
+    HILOG_COMM_ERROR("OpenInputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
@@ -617,14 +629,17 @@ int32_t BleMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t 
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(d.inputOpen, -1, "not open");
+        if (!(d.inputOpen)) {
+            HILOG_COMM_ERROR("【CloseInputPort】not open");
+            return -1;
+        }
         d.inputCallback = nullptr;
         d.inputOpen = false;
         d.processor = nullptr;
-        MIDI_INFO_LOG("CloseInputPort success: deviceId=%{public}" PRId64, deviceId);
+        HILOG_COMM_INFO("CloseInputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
-    MIDI_ERR_LOG("CloseInputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
+    HILOG_COMM_ERROR("CloseInputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
@@ -634,13 +649,16 @@ int32_t BleMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t 
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(!d.outputOpen, -1, "already open");
+        if (!(!d.outputOpen)) {
+            HILOG_COMM_ERROR("【OpenOutputPort】already open");
+            return -1;
+        }
         d.outputOpen = true;
         d.outProcessor = std::make_shared<UmpProcessor>();
-        MIDI_INFO_LOG("OpenOutputPort success: deviceId=%{public}" PRId64, deviceId);
+        HILOG_COMM_INFO("OpenOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
-    MIDI_ERR_LOG("OpenOutputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
+    HILOG_COMM_ERROR("OpenOutputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 
@@ -650,13 +668,16 @@ int32_t BleMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
     std::lock_guard<std::mutex> lock(lock_);
     for (auto &[id, d] : devices_) {
         CHECK_AND_CONTINUE(d.id == deviceId);
-        CHECK_AND_RETURN_RET_LOG(d.outputOpen, -1, "not open");
+        if (!(d.outputOpen)) {
+            HILOG_COMM_ERROR("【CloseOutputPort】not open");
+            return -1;
+        }
         d.outputOpen = false;
         d.outProcessor = nullptr;
-        MIDI_INFO_LOG("CloseOutputPort success: deviceId=%{public}" PRId64, deviceId);
+        HILOG_COMM_INFO("CloseOutputPort success: deviceId=%{public}" PRId64, deviceId);
         return 0;
     }
-    MIDI_ERR_LOG("CloseOutputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
+    HILOG_COMM_ERROR("CloseOutputPort failed: device not found, deviceId=%{public}" PRId64, deviceId);
     return -1;
 }
 

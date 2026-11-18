@@ -37,28 +37,40 @@ static OH_MIDIStatusCode GetMidiStatusCode(int32_t statusCode)
 
 MidiServiceClient::~MidiServiceClient()
 {
-    MIDI_INFO_LOG("~MidiServiceClient");
+    HILOG_COMM_INFO("~MidiServiceClient");
 }
 
 OH_MIDIStatusCode MidiServiceClient::Init(sptr<MidiCallbackStub> callback, uint32_t &clientId)
 {
     auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-    CHECK_AND_RETURN_RET_LOG(samgr != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "Get samgr failed.");
+    if (!(samgr != nullptr)) {
+        HILOG_COMM_ERROR("【Init】Get samgr failed.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
 
     sptr<IRemoteObject> object = samgr->LoadSystemAbility(MIDI_SERVICE_ID, 4); // 4s
-    CHECK_AND_RETURN_RET_LOG(object != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE,
-        "midi service remote object is NULL.");
+    if (!(object != nullptr)) {
+        HILOG_COMM_ERROR("【Init】midi service remote object is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
 
     sptr<IMidiService> gsp = iface_cast<IMidiService>(object);
-    CHECK_AND_RETURN_RET_LOG(gsp != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "init gsp is NULL.");
+    if (!(gsp != nullptr)) {
+        HILOG_COMM_ERROR("【Init】init gsp is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     sptr<IRemoteObject> ipcProxy = nullptr;
 
     auto ret = gsp->CreateMidiInServer(callback, ipcProxy, clientId);
     CHECK_AND_RETURN_RET(ret == OH_MIDI_STATUS_OK, (OH_MIDIStatusCode)ret);
     ipc_ = iface_cast<IIpcMidiInServer>(ipcProxy);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【Init】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     callback_ = callback;
     deathRecipient_ = new(std::nothrow) MidiServiceDeathRecipient(0);
+    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "deathRecipient_ is nullptr");
     deathRecipient_->SetNotifyCb(
         [this](uint32_t clientId) {
             CHECK_AND_RETURN(this->callback_ != nullptr);
@@ -72,7 +84,10 @@ OH_MIDIStatusCode MidiServiceClient::Init(sptr<MidiCallbackStub> callback, uint3
 OH_MIDIStatusCode MidiServiceClient::GetDevices(std::vector<MidiDeviceInfo> &deviceInfos)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【GetDevices】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->GetDevices(deviceInfos);
     return GetMidiStatusCode(ret);
 }
@@ -80,7 +95,10 @@ OH_MIDIStatusCode MidiServiceClient::GetDevices(std::vector<MidiDeviceInfo> &dev
 OH_MIDIStatusCode MidiServiceClient::OpenDevice(int64_t deviceId, MidiDeviceInfo &deviceInfo)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenDevice】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->OpenDevice(deviceId, deviceInfo);
     return GetMidiStatusCode(ret);
 }
@@ -88,7 +106,10 @@ OH_MIDIStatusCode MidiServiceClient::OpenDevice(int64_t deviceId, MidiDeviceInfo
 OH_MIDIStatusCode MidiServiceClient::OpenBleDevice(std::string address, sptr<MidiDeviceOpenCallbackStub> callback)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenBleDevice】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->OpenBleDevice(address, callback);
     return GetMidiStatusCode(ret);
 }
@@ -96,7 +117,10 @@ OH_MIDIStatusCode MidiServiceClient::OpenBleDevice(std::string address, sptr<Mid
 OH_MIDIStatusCode MidiServiceClient::CloseDevice(int64_t deviceId)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【CloseDevice】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->CloseDevice(deviceId);
     return GetMidiStatusCode(ret);
 }
@@ -104,7 +128,10 @@ OH_MIDIStatusCode MidiServiceClient::CloseDevice(int64_t deviceId)
 OH_MIDIStatusCode MidiServiceClient::GetDevicePorts(int64_t deviceId, std::vector<MidiPortInfo> &portInfos)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【GetDevicePorts】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->GetDevicePorts(deviceId, portInfos);
     return GetMidiStatusCode(ret);
 }
@@ -113,7 +140,10 @@ OH_MIDIStatusCode MidiServiceClient::OpenInputPort(std::shared_ptr<MidiSharedRin
                                                    uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenInputPort】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->OpenInputPort(buffer, deviceId, portIndex);
     return GetMidiStatusCode(ret);
 }
@@ -122,7 +152,10 @@ OH_MIDIStatusCode MidiServiceClient::OpenOutputPort(std::shared_ptr<MidiSharedRi
                                                     uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenOutputPort】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->OpenOutputPort(buffer, deviceId, portIndex);
     return GetMidiStatusCode(ret);
 }
@@ -130,7 +163,10 @@ OH_MIDIStatusCode MidiServiceClient::OpenOutputPort(std::shared_ptr<MidiSharedRi
 OH_MIDIStatusCode MidiServiceClient::FlushOutputPort(int64_t deviceId, uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【FlushOutputPort】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->FlushOutputPort(deviceId, portIndex);
     return GetMidiStatusCode(ret);
 }
@@ -138,7 +174,10 @@ OH_MIDIStatusCode MidiServiceClient::FlushOutputPort(int64_t deviceId, uint32_t 
 OH_MIDIStatusCode MidiServiceClient::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【CloseInputPort】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->CloseInputPort(deviceId, portIndex);
     return GetMidiStatusCode(ret);
 }
@@ -146,7 +185,10 @@ OH_MIDIStatusCode MidiServiceClient::CloseInputPort(int64_t deviceId, uint32_t p
 OH_MIDIStatusCode MidiServiceClient::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【CloseOutputPort】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto ret = ipc_->CloseOutputPort(deviceId, portIndex);
     return GetMidiStatusCode(ret);
 }
@@ -154,20 +196,30 @@ OH_MIDIStatusCode MidiServiceClient::CloseOutputPort(int64_t deviceId, uint32_t 
 OH_MIDIStatusCode MidiServiceClient::DestroyMidiClient()
 {
     std::lock_guard lock(lock_);
-    CHECK_AND_RETURN_RET_LOG(ipc_ != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "ipc_ is NULL.");
+    if (!(ipc_ != nullptr)) {
+        HILOG_COMM_ERROR("【DestroyMidiClient】ipc_ is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     auto samgr = SystemAbilityManagerClient::GetInstance().GetSystemAbilityManager();
-    CHECK_AND_RETURN_RET_LOG(samgr != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE, "Get samgr failed.");
+    if (!(samgr != nullptr)) {
+        HILOG_COMM_ERROR("【DestroyMidiClient】Get samgr failed.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
 
     sptr<IRemoteObject> object = samgr->CheckSystemAbility(MIDI_SERVICE_ID);
-    CHECK_AND_RETURN_RET_LOG(object != nullptr, OH_MIDI_STATUS_GENERIC_IPC_FAILURE,
-        "midi service remote object is NULL.");
+    if (!(object != nullptr)) {
+        HILOG_COMM_ERROR("【DestroyMidiClient】midi service remote object is NULL.");
+        return OH_MIDI_STATUS_GENERIC_IPC_FAILURE;
+    }
     object->RemoveDeathRecipient(deathRecipient_);
     deathRecipient_ = nullptr;
     auto ret = ipc_->DestroyMidiClient();
     ipc_ = nullptr;
     callback_ = nullptr;
-    CHECK_AND_RETURN_RET_LOG(GetMidiStatusCode(ret) == OH_MIDI_STATUS_OK, GetMidiStatusCode(ret),
-        "DestroyMidiClient failed");
+    if (!(GetMidiStatusCode(ret) == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("DestroyMidiClient failed");
+        return GetMidiStatusCode(ret);
+    }
     return OH_MIDI_STATUS_OK;
 }
 } // namespace MIDI

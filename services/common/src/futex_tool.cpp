@@ -76,8 +76,14 @@ void TimeoutToRelativeTime(int64_t timeout, struct timespec &realtime)
 // Helper: Validate input parameters
 FutexCode CheckWaitParams(std::atomic<uint32_t> *futexPtr, const std::function<bool(void)> &pred)
 {
-    CHECK_AND_RETURN_RET_LOG(futexPtr != nullptr, FUTEX_INVALID_PARAMS, "futexPtr is null");
-    CHECK_AND_RETURN_RET_LOG(pred, FUTEX_INVALID_PARAMS, "pred err");
+    if (!(futexPtr != nullptr)) {
+        HILOG_COMM_ERROR("【CheckWaitParams】futexPtr is null");
+        return FUTEX_INVALID_PARAMS;
+    }
+    if (!(pred)) {
+        HILOG_COMM_ERROR("【CheckWaitParams】pred err");
+        return FUTEX_INVALID_PARAMS;
+    }
     uint32_t current = futexPtr->load();
     if (current != IS_READY && current != IS_NOT_READY && current != IS_PRE_EXIT) {
         MIDI_ERR_LOG("failed: invalid param:%{public}u", current);
@@ -164,7 +170,10 @@ FutexCode FutexTool::FutexWait(std::atomic<uint32_t> *futexPtr, int64_t timeout,
 
 FutexCode FutexTool::FutexWake(std::atomic<uint32_t> *futexPtr, uint32_t wakeVal)
 {
-    CHECK_AND_RETURN_RET_LOG(futexPtr != nullptr, FUTEX_INVALID_PARAMS, "futexPtr is null");
+    if (!(futexPtr != nullptr)) {
+        HILOG_COMM_ERROR("【FutexWake】futexPtr is null");
+        return FUTEX_INVALID_PARAMS;
+    }
     uint32_t current = futexPtr->load();
     if (current != IS_READY && current != IS_NOT_READY && current != IS_PRE_EXIT) {
         MIDI_ERR_LOG("failed: invalid param:%{public}u", current);

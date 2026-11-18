@@ -1812,3 +1812,106 @@ HWTEST_F(MidiServiceControllerUnitTest, CloseDeviceActiveBleAlias001, TestSize.L
     EXPECT_EQ(controller_->CloseDevice(clientId_, deviceId), OH_MIDI_STATUS_OK);
     EXPECT_EQ(controller_->activeBleDevices_.count("alias"), 0);
 }
+
+/**
+ * @tc.name: CreateListenerCallbackBranches001
+ * @tc.desc: Verify CreateListenerCallback branches: null object, wrong interface, and valid object.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CreateListenerCallbackBranches001, TestSize.Level0)
+{
+    std::shared_ptr<MidiListenerCallback> callback;
+
+    sptr<IRemoteObject> nullObject;
+    EXPECT_EQ(controller_->CreateListenerCallback(nullObject, callback), OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(callback, nullptr);
+
+    sptr<RecordingMidiDeviceOpenCallbackStub> wrongInterface =
+        sptr<RecordingMidiDeviceOpenCallbackStub>::MakeSptr();
+    ASSERT_NE(wrongInterface, nullptr);
+    EXPECT_EQ(controller_->CreateListenerCallback(wrongInterface->AsObject(), callback),
+        OH_MIDI_STATUS_SYSTEM_ERROR);
+    EXPECT_EQ(callback, nullptr);
+
+    sptr<MockMidiCallbackStub> validCallback = new MockMidiCallbackStub();
+    ASSERT_EQ(controller_->CreateListenerCallback(validCallback->AsObject(), callback), OH_MIDI_STATUS_OK);
+    EXPECT_NE(callback, nullptr);
+}
+
+/**
+ * @tc.name: CheckClientLimitLockedBranches001
+ * @tc.desc: Verify CheckClientLimitLocked branches: total limit, per-app limit, and success.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, CheckClientLimitLockedBranches001, TestSize.Level0)
+{
+    constexpr uint32_t isolatedUid = 4321;
+    EXPECT_EQ(controller_->CheckClientLimitLocked(isolatedUid), OH_MIDI_STATUS_OK);
+
+    controller_->appClientMap_[isolatedUid] = {9101, 9102};
+    EXPECT_EQ(controller_->CheckClientLimitLocked(isolatedUid), OH_MIDI_STATUS_TOO_MANY_CLIENTS);
+    controller_->appClientMap_.erase(isolatedUid);
+
+    for (uint32_t id = 9200; controller_->clients_.size() < MidiServiceController::MAX_CLIENTS; ++id) {
+        controller_->clients_[id] = nullptr;
+    }
+    EXPECT_EQ(controller_->CheckClientLimitLocked(isolatedUid), OH_MIDI_STATUS_TOO_MANY_CLIENTS);
+    for (uint32_t id = 9200; id < 9200 + MidiServiceController::MAX_CLIENTS; ++id) {
+        controller_->clients_.erase(id);
+    }
+}
+
+/**
+ * @tc.name: GenerateClientIdLockedBranches001
+ * @tc.desc: Verify GenerateClientIdLocked branches: normal, collision retry, and max-id wraparound.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, GenerateClientIdLockedBranches001, TestSize.Level0)
+{
+    controller_->currentClientId_.store(500);
+    controller_->clients_.erase(501);
+    EXPECT_EQ(controller_->GenerateClientIdLocked(), 501);
+
+    // Collision retry: next id 502 is occupied, so generator must skip to 503
+    controller_->currentClientId_.store(501);
+    controller_->clients_[502] = nullptr;
+    EXPECT_EQ(controller_->GenerateClientIdLocked(), 503);
+    controller_->clients_.erase(502);
+
+    // Wraparound: currentClientId_ >= MAX_CLIENTID resets to 0 before incrementing
+    controller_->clients_.erase(1);
+    controller_->currentClientId_.store(UINT32_MAX);
+    EXPECT_EQ(controller_->GenerateClientIdLocked(), 1);
+}
+
+/**
+ * @tc.name: RegisterMidiClientLockedBranches001
+ * @tc.desc: Verify RegisterMidiClientLocked branches: rejected death recipient, and full registration.
+ * @tc.type: FUNC
+ */
+HWTEST_F(MidiServiceControllerUnitTest, RegisterMidiClientLockedBranches001, TestSize.Level0)
+{
+    constexpr uint32_t isolatedUid = 4422;
+    std::shared_ptr<MidiListenerCallback> callback;
+    sptr<MockMidiCallbackStub> sourceCallback = new MockMidiCallbackStub();
+    ASSERT_EQ(controller_->CreateListenerCallback(sourceCallback->AsObject(), callback), OH_MIDI_STATUS_OK);
+    ASSERT_NE(callback, nullptr);
+
+    sptr<RejectDeathRecipientMidiCallbackStub> rejectingCallback =
+        sptr<RejectDeathRecipientMidiCallbackStub>::MakeSptr();
+    ASSERT_NE(rejectingCallback, nullptr);
+    sptr<IRemoteObject> clientObj;
+    uint32_t rejectedClientId = 0;
+    EXPECT_EQ(controller_->RegisterMidiClientLocked(rejectingCallback->AsObject(), callback, isolatedUid,
+        clientObj, rejectedClientId), OH_MIDI_STATUS_SYSTEM_ERROR);
+
+    uint32_t newClientId = 0;
+    ASSERT_EQ(controller_->RegisterMidiClientLocked(sourceCallback->AsObject(), callback, isolatedUid,
+        clientObj, newClientId), OH_MIDI_STATUS_OK);
+    EXPECT_NE(newClientId, 0);
+    EXPECT_NE(clientObj, nullptr);
+    EXPECT_EQ(controller_->clientResourceInfo_[newClientId].uid, isolatedUid);
+    EXPECT_EQ(controller_->appClientMap_[isolatedUid].count(newClientId), 1);
+    ASSERT_EQ(controller_->DestroyMidiClient(newClientId), OH_MIDI_STATUS_OK);
+    EXPECT_EQ(controller_->appClientMap_.count(isolatedUid), 0);
+}

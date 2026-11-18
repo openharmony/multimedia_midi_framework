@@ -26,13 +26,19 @@ MidiListenerCallback::~MidiListenerCallback() {}
 
 void MidiListenerCallback::NotifyDeviceChange(DeviceChangeType change, const MidiDeviceInfo &deviceInfo)
 {
-    CHECK_AND_RETURN_LOG(callback_, "callback_ is nullptr");
+    if (!(callback_)) {
+        HILOG_COMM_ERROR("【NotifyDeviceChange】callback_ is nullptr");
+        return;
+    }
     callback_->NotifyDeviceChange(change, deviceInfo);
 }
 
 void MidiListenerCallback::NotifyError(int32_t code)
 {
-    CHECK_AND_RETURN_LOG(callback_, "callback_ is nullptr");
+    if (!(callback_)) {
+        HILOG_COMM_ERROR("【NotifyError】callback_ is nullptr");
+        return;
+    }
     callback_->NotifyError(code);
 }
 } // namespace MIDI

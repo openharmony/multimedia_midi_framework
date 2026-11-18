@@ -49,9 +49,15 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
 {
     std::vector<OHOS::HDI::Midi::V1_0::MidiDeviceInfo> deviceList;
     std::vector<DeviceInformation> deviceInfos;
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, deviceInfos, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【GetRegisteredDevices】midiHdi_ is nullptr");
+        return deviceInfos;
+    }
     auto ret = midiHdi_->GetDeviceList(deviceList);
-    CHECK_AND_RETURN_RET_LOG(ret == OH_MIDI_STATUS_OK, deviceInfos, "GetDeviceList failed: %{public}d", ret);
+    if (!(ret == OH_MIDI_STATUS_OK)) {
+        HILOG_COMM_ERROR("【GetRegisteredDevices】GetDeviceList failed: %{public}d", ret);
+        return deviceInfos;
+    }
     for (const auto &device : deviceList) {
         CHECK_AND_CONTINUE_LOG(device.protocol == static_cast<int32_t>(TransportProtocol::PROTOCOL_1_0) ||
             device.protocol == static_cast<int32_t>(TransportProtocol::PROTOCOL_2_0),
@@ -78,7 +84,10 @@ std::vector<DeviceInformation> UsbMidiTransportDeviceDriver::GetRegisteredDevice
 
 int32_t UsbMidiTransportDeviceDriver::OpenDevice(int64_t deviceId)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenDevice】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return midiHdi_->OpenDevice(deviceId);
 }
 
@@ -89,32 +98,47 @@ int32_t UsbMidiTransportDeviceDriver::OpenDevice(std::string deviceAddr, BleDriv
 
 int32_t UsbMidiTransportDeviceDriver::CloseDevice(int64_t deviceId)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【CloseDevice】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return midiHdi_->CloseDevice(deviceId);
 }
 
 int32_t UsbMidiTransportDeviceDriver::OpenInputPort(int64_t deviceId, uint32_t portIndex, UmpInputCallback cb)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenInputPort】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     auto usbCallback = sptr<UsbDriverCallback>::MakeSptr(cb);
     return midiHdi_->OpenInputPort(deviceId, portIndex, usbCallback);
 }
 
 int32_t UsbMidiTransportDeviceDriver::CloseInputPort(int64_t deviceId, uint32_t portIndex)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【CloseInputPort】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return midiHdi_->CloseInputPort(deviceId, portIndex);
 }
 
 int32_t UsbMidiTransportDeviceDriver::OpenOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【OpenOutputPort】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return midiHdi_->OpenOutputPort(deviceId, portIndex);
 }
 
 int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t portIndex)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【CloseOutputPort】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     return midiHdi_->CloseOutputPort(deviceId, portIndex);
 }
 
@@ -122,7 +146,10 @@ int32_t UsbMidiTransportDeviceDriver::CloseOutputPort(int64_t deviceId, uint32_t
 int32_t UsbMidiTransportDeviceDriver::HandleUmpInput(int64_t deviceId, uint32_t portIndex,
     std::vector<MidiEventInner> &list)
 {
-    CHECK_AND_RETURN_RET_LOG(midiHdi_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "midiHdi_ is nullptr");
+    if (!(midiHdi_ != nullptr)) {
+        HILOG_COMM_ERROR("【HandleUmpInput】midiHdi_ is nullptr");
+        return OH_MIDI_STATUS_SYSTEM_ERROR;
+    }
     MIDI_DEBUG_LOG("%{public}s", DumpMidiEvents(list).c_str());
     std::vector<OHOS::HDI::Midi::V1_0::MidiMessage> messages;
     for (auto &event: list) {
@@ -143,7 +170,7 @@ int32_t UsbDriverCallback::OnMidiDataReceived(const std::vector<OHOS::HDI::Midi:
     bool expected = false;
     if (qosElevated_.compare_exchange_strong(expected, true)) {
         int ret = QOS::SetThreadQos(QOS::QosLevel::QOS_USER_INTERACTIVE);
-        MIDI_INFO_LOG("SetThreadQos ret = %{public}d", ret);
+        HILOG_COMM_INFO("【OnMidiDataReceived】SetThreadQos ret = %{public}d", ret);
     }
     std::vector<MidiEventInner> events;
     events.reserve(messages.size());
