@@ -70,6 +70,7 @@ OH_MIDIStatusCode MidiServiceClient::Init(sptr<MidiCallbackStub> callback, uint3
     }
     callback_ = callback;
     deathRecipient_ = new(std::nothrow) MidiServiceDeathRecipient(0);
+    CHECK_AND_RETURN_RET_LOG(deathRecipient_ != nullptr, OH_MIDI_STATUS_SYSTEM_ERROR, "deathRecipient_ is nullptr");
     deathRecipient_->SetNotifyCb(
         [this](uint32_t clientId) {
             CHECK_AND_RETURN(this->callback_ != nullptr);
